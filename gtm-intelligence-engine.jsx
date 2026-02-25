@@ -75,7 +75,131 @@ const ACCOUNTS = [
       {d:"2024-12-01",t:"Email",n:"Asked about managed security. Warehouse break-in attempts triggered interest in network security audit."},
     ],
     con:[{name:"Rachel Torres",title:"CTO",eng:"champion",last:"2025-02-18"},{name:"David Kim",title:"Network Mgr",eng:"champion",last:"2025-01-10"},{name:"Susan Blake",title:"VP Finance",eng:"engaged",last:"2025-01-10"}]},
+  // 25 more accounts (c6–c30) for 30-account sample
+  {id:"c6",name:"Summit Retail Group",ind:"Retail",tier:"Growth",loc:[{a:"2000 Mall Dr, Columbus OH",s:"on-net",billing:1600,targetSpend:2200},{a:"4500 Store Way, Cincinnati OH",s:"near-net",billing:800,targetSpend:1500}],cur:["Dedicated Internet","SIP Trunking"],qt:[],prior:[],mrr:2400,cEnd:"2025-11-30",eng:[{d:"2025-02-01",t:"Call",n:"Discussed PCI scope for new locations."}],con:[{name:"Chris Bell",title:"IT Director",eng:"engaged",last:"2025-02-01"}]},
+  {id:"c7",name:"Northgate Technology",ind:"Technology",tier:"Strategic",loc:[{a:"100 Innovation Pkwy, Austin TX",s:"on-net",billing:5200,targetSpend:7200},{a:"500 Data Center Rd, Phoenix AZ",s:"on-net",billing:3800,targetSpend:5000}],cur:["Dedicated Internet","Cloud Connect","Managed Firewall"],qt:[{name:"DDoS Protection",date:"2025-01-15",closeDate:"2025-03-15",mrr:1600,st:"pending"}],prior:[],mrr:9000,cEnd:"2026-06-30",eng:[{d:"2025-02-12",t:"QBR",n:"Expanding to second region. Need DDoS and redundancy."}],con:[{name:"Jordan Lee",title:"CTO",eng:"champion",last:"2025-02-12"},{name:"Sam Rivera",title:"VP Eng",eng:"engaged",last:"2025-01-15"}]},
+  {id:"c8",name:"Metro Hospital Network",ind:"Healthcare",tier:"Strategic",loc:[{a:"800 Medical Plaza, Cleveland OH",s:"on-net",billing:3100,targetSpend:4500},{a:"1200 Health Way, Pittsburgh PA",s:"near-net",billing:1400,targetSpend:2800}],cur:["Dedicated Internet","DDoS Protection","SIP Trunking"],qt:[],prior:[],mrr:4500,cEnd:"2025-12-31",eng:[{d:"2025-02-08",t:"Email",n:"HIPAA audit scheduled. Need compliance summary."}],con:[{name:"Dr. Amy Foster",title:"CIO",eng:"champion",last:"2025-02-08"}]},
+  {id:"c9",name:"Prairie Ag Solutions",ind:"Manufacturing",tier:"Growth",loc:[{a:"5000 Farm Rd, Des Moines IA",s:"on-net",billing:1100,targetSpend:1900},{a:"3200 Grain Ave, Omaha NE",s:"off-net",billing:0,targetSpend:1200}],cur:["Dedicated Internet"],qt:[{name:"SD-WAN Managed",date:"2024-12-01",mrr:2400,st:"stalled"}],prior:[],mrr:1100,cEnd:"2025-08-15",eng:[{d:"2024-12-10",t:"Call",n:"Evaluating SD-WAN for two sites. Budget in Q2."}],con:[{name:"Mike Olson",title:"Operations Mgr",eng:"engaged",last:"2024-12-10"}]},
+  {id:"c10",name:"Coastal Financial",ind:"Financial Services",tier:"Growth",loc:[{a:"100 Bay St, Tampa FL",s:"on-net",billing:2800,targetSpend:4000},{a:"200 Ocean Dr, Miami FL",s:"near-net",billing:1200,targetSpend:2200}],cur:["Dedicated Internet","Managed Firewall"],qt:[],prior:[],mrr:4000,cEnd:"2026-01-31",eng:[{d:"2025-01-20",t:"QBR",n:"Miami office upgrade in plan. Need proposal."}],con:[{name:"Elena Vasquez",title:"CISO",eng:"champion",last:"2025-01-20"}]},
+  {id:"c11",name:"Valley State University",ind:"Education",tier:"Growth",loc:[{a:"1 Campus Dr, San Jose CA",s:"on-net",billing:1900,targetSpend:3200},{a:"500 Research Way, Palo Alto CA",s:"near-net",billing:900,targetSpend:1800}],cur:["Dedicated Internet","Unified Comms"],qt:[],prior:[],mrr:2800,cEnd:"2025-07-01",eng:[{d:"2025-02-05",t:"Call",n:"Student portal needs better uptime. DDoS discussion."}],con:[{name:"Dr. James Wu",title:"VP IT",eng:"engaged",last:"2025-02-05"}]},
+  {id:"c12",name:"Great Lakes Shipping",ind:"Transportation",tier:"Win-Back",loc:[{a:"4000 Port Rd, Cleveland OH",s:"on-net",billing:0,targetSpend:2600},{a:"2100 Dock St, Detroit MI",s:"near-net",billing:0,targetSpend:1800}],cur:[],qt:[],prior:["Dedicated Internet (churned 2024)"],mrr:0,cEnd:"",eng:[{d:"2024-11-15",t:"Email",n:"New leadership. Open to revisiting connectivity."}],con:[{name:"Karen Booth",title:"COO",eng:"cold",last:null}]},
+  {id:"c13",name:"Sunrise Healthcare",ind:"Healthcare",tier:"Growth",loc:[{a:"600 Clinic Blvd, Phoenix AZ",s:"on-net",billing:2200,targetSpend:3100},{a:"900 Care Way, Tucson AZ",s:"near-net",billing:700,targetSpend:1400}],cur:["Dedicated Internet","SIP Trunking"],qt:[{name:"Managed Firewall",date:"2025-01-10",closeDate:"2025-03-01",mrr:1400,st:"pending"}],prior:[],mrr:2900,cEnd:"2025-10-15",eng:[{d:"2025-01-10",t:"Quote Sent",n:"HIPAA requirement. Firewall for both sites."}],con:[{name:"Dr. Lisa Park",title:"CTO",eng:"champion",last:"2025-01-10"}]},
+  {id:"c14",name:"Pacific Manufacturing",ind:"Manufacturing",tier:"Growth",loc:[{a:"7000 Industrial Blvd, Portland OR",s:"on-net",billing:3400,targetSpend:4800},{a:"2000 Factory Ln, Seattle WA",s:"on-net",billing:2600,targetSpend:3600}],cur:["Dedicated Internet","SD-WAN Managed"],qt:[],prior:[],mrr:6000,cEnd:"2026-02-28",eng:[{d:"2025-02-14",t:"QBR",n:"Cloud migration to AWS. Cloud Connect next."}],con:[{name:"Dave Chen",title:"IT Director",eng:"champion",last:"2025-02-14"}]},
+  {id:"c15",name:"First Metro Bank",ind:"Financial Services",tier:"Strategic",loc:[{a:"300 Main St, Charlotte NC",s:"on-net",billing:4500,targetSpend:6200},{a:"100 Commerce Sq, Raleigh NC",s:"on-net",billing:2800,targetSpend:4000}],cur:["Dedicated Internet","DDoS Protection","Managed Firewall","SIP Trunking"],qt:[{name:"Wavelength",date:"2025-02-01",closeDate:"2025-03-31",mrr:3500,st:"pending-board"}],prior:[],mrr:7300,cEnd:"2026-05-31",eng:[{d:"2025-02-01",t:"Quote Sent",n:"DCI between Charlotte and Raleigh. Board March."}],con:[{name:"Sarah Mitchell",title:"CTO",eng:"champion",last:"2025-02-01"}]},
+  {id:"c16",name:"Riverside School District",ind:"Education",tier:"Growth",loc:[{a:"100 Education Ave, Sacramento CA",s:"on-net",billing:1200,targetSpend:2100},{a:"200 School St, Stockton CA",s:"near-net",billing:400,targetSpend:1100}],cur:["Dedicated Internet"],qt:[],prior:[],mrr:1600,cEnd:"2025-06-30",eng:[{d:"2024-12-01",t:"Call",n:"E-rate cycle. Need quote for both sites."}],con:[{name:"Tom Garcia",title:"Technology Dir",eng:"engaged",last:"2024-12-01"}]},
+  {id:"c17",name:"Urban Retail Corp",ind:"Retail",tier:"Growth",loc:[{a:"5000 Commerce Dr, Chicago IL",s:"on-net",billing:4100,targetSpend:5500},{a:"3000 Store Blvd, Minneapolis MN",s:"near-net",billing:1800,targetSpend:3200}],cur:["Dedicated Internet","SD-WAN Managed","SIP Trunking"],qt:[{name:"Managed Firewall",date:"2025-02-10",mrr:1400,st:"pending"}],prior:[],mrr:5900,cEnd:"2026-04-15",eng:[{d:"2025-02-10",t:"Quote Sent",n:"PCI scope expansion. Firewall for 2 sites."}],con:[{name:"Nancy Webb",title:"VP IT",eng:"champion",last:"2025-02-10"}]},
+  {id:"c18",name:"Delta Logistics",ind:"Transportation",tier:"Growth",loc:[{a:"8000 Freight Way, Atlanta GA",s:"on-net",billing:3800,targetSpend:5200},{a:"4000 Cargo Dr, Birmingham AL",s:"near-net",billing:1100,targetSpend:2400}],cur:["Dedicated Internet","Cloud Connect"],qt:[],prior:[],mrr:4900,cEnd:"2025-12-31",eng:[{d:"2025-01-25",t:"QBR",n:"Azure and AWS. Happy with Cloud Connect."}],con:[{name:"Rick Torres",title:"CTO",eng:"champion",last:"2025-01-25"}]},
+  {id:"c19",name:"Central Tech Solutions",ind:"Technology",tier:"Growth",loc:[{a:"1500 Software Blvd, Denver CO",s:"on-net",billing:2700,targetSpend:3800}],cur:["Dedicated Internet","Unified Comms"],qt:[{name:"Cloud Connect",date:"2025-02-01",closeDate:"2025-02-28",mrr:1200,st:"pending"}],prior:[],mrr:2700,cEnd:"2025-09-30",eng:[{d:"2025-02-01",t:"Quote Sent",n:"Multi-cloud. Need Azure and GCP connect."}],con:[{name:"Julia Kim",title:"VP Engineering",eng:"champion",last:"2025-02-01"}]},
+  {id:"c20",name:"Midwest Medical Group",ind:"Healthcare",tier:"Strategic",loc:[{a:"2500 Hospital Dr, St Louis MO",s:"on-net",billing:5200,targetSpend:7000},{a:"1800 Care Center, Kansas City MO",s:"on-net",billing:3400,targetSpend:4800}],cur:["Dedicated Internet","DDoS Protection","Managed Firewall","SIP Trunking"],qt:[{name:"Unified Comms",date:"2024-11-01",mrr:5000,st:"stalled"}],prior:[],mrr:8600,cEnd:"2026-08-31",eng:[{d:"2025-02-09",t:"QBR",n:"UCaaS still on hold. Security and DIA solid."}],con:[{name:"Dr. Paul Adams",title:"CIO",eng:"champion",last:"2025-02-09"}]},
+  {id:"c21",name:"Heritage Manufacturing",ind:"Manufacturing",tier:"Win-Back",loc:[{a:"6000 Steel Rd, Pittsburgh PA",s:"on-net",billing:0,targetSpend:2200},{a:"3500 Mill Ave, Youngstown OH",s:"off-net",billing:0,targetSpend:1400}],cur:[],qt:[],prior:["SD-WAN Managed (churned 2023)"],mrr:0,cEnd:"",eng:[{d:"2024-10-01",t:"Call",n:"New plant manager. Re-evaluating network."}],con:[{name:"Steve Miller",title:"Plant Mgr",eng:"cold",last:null}]},
+  {id:"c22",name:"Gulf Coast Bank",ind:"Financial Services",tier:"Growth",loc:[{a:"200 Water St, New Orleans LA",s:"on-net",billing:2600,targetSpend:3800},{a:"500 Canal Blvd, Houston TX",s:"near-net",billing:1400,targetSpend:2600}],cur:["Dedicated Internet","Managed Firewall"],qt:[],prior:[],mrr:4000,cEnd:"2025-11-30",eng:[{d:"2025-01-15",t:"Email",n:"DDoS review. Interested in upgrade."}],con:[{name:"Maria Santos",title:"CISO",eng:"engaged",last:"2025-01-15"}]},
+  {id:"c23",name:"Lakeside College",ind:"Education",tier:"Growth",loc:[{a:"100 College Way, Grand Rapids MI",s:"on-net",billing:1500,targetSpend:2400}],cur:["Dedicated Internet","SIP Trunking"],qt:[{name:"Unified Comms",date:"2024-09-01",mrr:2500,st:"stalled"}],prior:[],mrr:1500,cEnd:"2025-05-31",eng:[{d:"2024-09-15",t:"Quote Sent",n:"Campus-wide UC. Budget delayed."}],con:[{name:"Dr. Helen Brown",title:"VP Admin",eng:"engaged",last:"2024-09-15"}]},
+  {id:"c24",name:"National Store Chain",ind:"Retail",tier:"Strategic",loc:[{a:"10000 Retail Pkwy, Dallas TX",s:"on-net",billing:8200,targetSpend:11000},{a:"5000 Outlet Dr, Fort Worth TX",s:"on-net",billing:4100,targetSpend:6000}],cur:["Dedicated Internet","SD-WAN Managed","Managed Firewall","SIP Trunking"],qt:[{name:"DDoS Protection",date:"2025-02-05",closeDate:"2025-03-15",mrr:1600,st:"pending"}],prior:[],mrr:12300,cEnd:"2026-12-31",eng:[{d:"2025-02-05",t:"Quote Sent",n:"Black Friday prep. DDoS for both DCs."}],con:[{name:"Carlos Mendez",title:"CISO",eng:"champion",last:"2025-02-05"}]},
+  {id:"c25",name:"Eastern Freight",ind:"Transportation",tier:"Growth",loc:[{a:"9000 Highway Dr, Newark NJ",s:"on-net",billing:4400,targetSpend:6000},{a:"3000 Terminal Way, Philadelphia PA",s:"near-net",billing:1900,targetSpend:3400}],cur:["Dedicated Internet","SD-WAN Managed"],qt:[],prior:[],mrr:6300,cEnd:"2026-03-31",eng:[{d:"2025-02-11",t:"QBR",n:"Cloud Connect for AWS. Proposal by March."}],con:[{name:"Tony Russo",title:"CTO",eng:"champion",last:"2025-02-11"}]},
+  {id:"c26",name:"CloudNine Software",ind:"Technology",tier:"Strategic",loc:[{a:"2000 Dev Center, San Francisco CA",s:"on-net",billing:6100,targetSpend:8500},{a:"1000 Code Way, San Diego CA",s:"on-net",billing:3200,targetSpend:4800}],cur:["Dedicated Internet","Cloud Connect","Managed Firewall"],qt:[{name:"DDoS Protection",date:"2025-01-20",closeDate:"2025-02-28",mrr:1600,st:"pending"}],prior:[],mrr:9300,cEnd:"2026-07-31",eng:[{d:"2025-01-20",t:"Quote Sent",n:"Security hardening. DDoS and WAF."}],con:[{name:"Alex Morgan",title:"CISO",eng:"champion",last:"2025-01-20"}]},
+  {id:"c27",name:"Tri-State Health",ind:"Healthcare",tier:"Growth",loc:[{a:"4000 Health Pkwy, Nashville TN",s:"on-net",billing:2900,targetSpend:4200},{a:"1500 Clinic Rd, Memphis TN",s:"near-net",billing:900,targetSpend:1800}],cur:["Dedicated Internet","SIP Trunking"],qt:[],prior:[],mrr:3800,cEnd:"2025-09-30",eng:[{d:"2025-01-28",t:"Call",n:"Consolidating voice. UCaaS interest."}],con:[{name:"Dr. Susan Lee",title:"CIO",eng:"engaged",last:"2025-01-28"}]},
+  {id:"c28",name:"Apex Industrial",ind:"Manufacturing",tier:"Growth",loc:[{a:"7000 Factory Blvd, Charlotte NC",s:"on-net",billing:3800,targetSpend:5200},{a:"2500 Machine Dr, Greenville SC",s:"near-net",billing:1400,targetSpend:2600}],cur:["Dedicated Internet","Managed Firewall"],qt:[{name:"SD-WAN Managed",date:"2025-02-01",mrr:2400,st:"pending"}],prior:[],mrr:5200,cEnd:"2026-01-15",eng:[{d:"2025-02-01",t:"Quote Sent",n:"Replacing MPLS. SD-WAN for 2 sites."}],con:[{name:"Bob Wilson",title:"IT Director",eng:"champion",last:"2025-02-01"}]},
+  {id:"c29",name:"Premier Credit Union",ind:"Financial Services",tier:"Growth",loc:[{a:"500 Financial Plaza, Salt Lake City UT",s:"on-net",billing:2100,targetSpend:3200},{a:"300 Branch Way, Denver CO",s:"near-net",billing:800,targetSpend:1600}],cur:["Dedicated Internet","SIP Trunking"],qt:[],prior:[],mrr:2900,cEnd:"2025-10-31",eng:[{d:"2024-11-20",t:"Email",n:"DDoS and firewall review for exam."}],con:[{name:"Jennifer Hall",title:"VP IT",eng:"engaged",last:"2024-11-20"}]},
+  {id:"c30",name:"Metro Community College",ind:"Education",tier:"Growth",loc:[{a:"2000 Campus Dr, Las Vegas NV",s:"on-net",billing:1800,targetSpend:2800}],cur:["Dedicated Internet","Unified Comms"],qt:[],prior:[],mrr:1800,cEnd:"2025-07-15",eng:[{d:"2025-02-03",t:"Call",n:"New building. Need DIA and UC quote."}],con:[{name:"Dr. Robert Clark",title:"VP Technology",eng:"champion",last:"2025-02-03"}]},
 ];
+
+// 15 sample deals (won + lost) spread across the 30 accounts — for deal intelligence and account dealHistory
+const SAMPLE_DEAL_ACCOUNT_IDS = ["c1","c2","c3","c5","c7","c8","c10","c11","c13","c15","c17","c20","c22","c24","c26"];
+const SAMPLE_PRODUCT_NAMES = ["SD-WAN Managed","DDoS Protection","Unified Comms","Dedicated Internet","Cloud Connect","Managed Firewall","SIP Trunking","Wavelength"];
+const SAMPLE_CLOSED_WON = [
+  { opp_id:"w1", account_id:"c1", account_name:"Meridian Health Systems", industry:"Healthcare", product_name:"Managed Firewall", mrr:2100, close_date:"2023-06-15" },
+  { opp_id:"w2", account_id:"c3", account_name:"Pinnacle Financial", industry:"Financial Services", product_name:"Cloud Connect", mrr:1200, close_date:"2023-09-01" },
+  { opp_id:"w3", account_id:"c5", account_name:"Velocity Logistics", industry:"Transportation", product_name:"SD-WAN Managed", mrr:2400, close_date:"2023-11-20" },
+  { opp_id:"w4", account_id:"c7", account_name:"Northgate Technology", industry:"Technology", product_name:"Managed Firewall", mrr:1400, close_date:"2024-02-10" },
+  { opp_id:"w5", account_id:"c8", account_name:"Metro Hospital Network", industry:"Healthcare", product_name:"DDoS Protection", mrr:1600, close_date:"2024-04-05" },
+  { opp_id:"w6", account_id:"c10", account_name:"Coastal Financial", industry:"Financial Services", product_name:"Managed Firewall", mrr:1400, close_date:"2024-05-22" },
+  { opp_id:"w7", account_id:"c13", account_name:"Sunrise Healthcare", industry:"Healthcare", product_name:"Dedicated Internet", mrr:1900, close_date:"2024-07-15" },
+  { opp_id:"w8", account_id:"c15", account_name:"First Metro Bank", industry:"Financial Services", product_name:"DDoS Protection", mrr:1600, close_date:"2024-09-30" },
+  { opp_id:"w9", account_id:"c20", account_name:"Midwest Medical Group", industry:"Healthcare", product_name:"Managed Firewall", mrr:3400, close_date:"2024-11-12" },
+];
+const SAMPLE_CLOSED_LOST = [
+  { opp_id:"l1", account_id:"c2", account_name:"Atlas Manufacturing", industry:"Manufacturing", product_name:"SD-WAN Managed", mrr:2400, close_date:"2023-08-01", loss_reason:"Price", competitor:"Masergy" },
+  { opp_id:"l2", account_id:"c11", account_name:"Valley State University", industry:"Education", product_name:"Unified Comms", mrr:2500, close_date:"2024-01-15", loss_reason:"Budget reallocated", competitor:"" },
+  { opp_id:"l3", account_id:"c17", account_name:"Urban Retail Corp", industry:"Retail", product_name:"DDoS Protection", mrr:1600, close_date:"2024-03-20", loss_reason:"Timing", competitor:"Cloudflare" },
+  { opp_id:"l4", account_id:"c22", account_name:"Gulf Coast Bank", industry:"Financial Services", product_name:"Wavelength", mrr:3500, close_date:"2024-06-10", loss_reason:"Technical fit", competitor:"Lumen" },
+  { opp_id:"l5", account_id:"c24", account_name:"National Store Chain", industry:"Retail", product_name:"Unified Comms", mrr:7500, close_date:"2024-08-25", loss_reason:"Incumbent retained", competitor:"RingCentral" },
+  { opp_id:"l6", account_id:"c26", account_name:"CloudNine Software", industry:"Technology", product_name:"Wavelength", mrr:3500, close_date:"2024-10-05", loss_reason:"Price", competitor:"Zayo" },
+];
+
+/** Build full upload-table rows from ACCOUNTS + PRODUCTS + 15 deals so "Load sample data" persists 30 accounts and deal intelligence. */
+function buildSampleUploadTables() {
+  const accountsRows = ACCOUNTS.map((a) => ({
+    account_id: a.id,
+    account_name: a.name,
+    industry: a.ind,
+    tier: a.tier,
+    mrr: a.mrr,
+    contract_end: a.cEnd || ""
+  }));
+  const locationsRows = ACCOUNTS.flatMap((a) =>
+    (a.loc || []).map((l) => ({
+      account_id: a.id,
+      address: l.a,
+      net_status: l.s,
+      billing_amount: l.billing ?? "",
+      target_addressable_spend: l.targetSpend ?? ""
+    }))
+  );
+  const currentProductsRows = ACCOUNTS.flatMap((a) =>
+    (a.cur || []).map((p) => ({ account_id: a.id, product_name: p }))
+  );
+  const quotesRows = ACCOUNTS.flatMap((a) =>
+    (a.qt || []).map((q) => ({
+      account_id: a.id,
+      product_name: q.name,
+      quoted_mrr: q.mrr,
+      quote_date: q.date || "",
+      close_date: q.closeDate || "",
+      status: q.st || "pending"
+    }))
+  );
+  const contactsRows = ACCOUNTS.flatMap((a) =>
+    (a.con || []).map((c) => ({
+      account_id: a.id,
+      contact_name: c.name,
+      title: c.title || "",
+      engagement_level: c.eng || "cold",
+      last_touch: c.last || ""
+    }))
+  );
+  const engagementRows = ACCOUNTS.flatMap((a) =>
+    (a.eng || []).map((e) => ({
+      account_id: a.id,
+      date: e.d,
+      type: e.t,
+      notes: e.n || ""
+    }))
+  );
+  const churnedRows = ACCOUNTS.flatMap((a) =>
+    (a.prior || []).map((desc) => ({ account_id: a.id, service_description: desc }))
+  );
+  const productCatalogRows = PRODUCTS.map((p) => ({
+    product_name: p.name,
+    category: p.cat,
+    mrr: p.mrr,
+    description: p.desc || "",
+    fit_signals: p.fit_signals || "",
+    value_props: p.value_props || "",
+    use_cases: p.use_cases || ""
+  }));
+  return {
+    productCatalog: productCatalogRows,
+    accounts: accountsRows,
+    locations: locationsRows,
+    currentProducts: currentProductsRows,
+    quotes: quotesRows,
+    contacts: contactsRows,
+    engagement: engagementRows,
+    churned: churnedRows,
+    closedWon: SAMPLE_CLOSED_WON,
+    closedLost: SAMPLE_CLOSED_LOST
+  };
+}
 
 /* ═══════════════════ CSV UPLOAD & DATA BUILD ═══════════════════ */
 function parseCSV(text) {
@@ -1391,12 +1515,10 @@ export default function App() {
     saveUploadTablesToSupabase(tables);
   }, []);
 
-  const handleLoadSample = useCallback(()=>{
-    setProducts(PRODUCTS);
-    setAccounts(ACCOUNTS);
-    setUploadTables(INITIAL_UPLOAD_TABLES);
-    saveUploadTablesToSupabase(INITIAL_UPLOAD_TABLES);
-  },[]);
+  const handleLoadSample = useCallback(() => {
+    const sampleTables = buildSampleUploadTables();
+    applyTables(sampleTables, setUploadTables, setProducts, setAccounts, (tables) => saveUploadTablesToSupabase(tables));
+  }, []);
 
   const handleOppClick = useCallback((accountId, quote)=>{
     setSelOpp({ accountId, quote });
