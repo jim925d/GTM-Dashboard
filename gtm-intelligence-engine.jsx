@@ -123,6 +123,8 @@ function detectTableType(normalizedHeaders) {
     return "currentProducts";
   }
   if (has(["account_id", "account_name"]) && (set.has("industry") || set.has("ind") || set.has("tier") || set.has("mrr") || set.has("contract_end") || set.has("contractend"))) return "accounts";
+  if (has(["account_id", "account_name"]) && (set.has("product_name") || set.has("productname")) && (set.has("close_date") || set.has("closedate")) && (set.has("mrr") && !set.has("loss_reason") && !set.has("lossreason"))) return "closedWon";
+  if (has(["account_id", "account_name"]) && (set.has("product_name") || set.has("productname")) && (set.has("loss_reason") || set.has("lossreason") || set.has("competitor"))) return "closedLost";
   return null;
 }
 
@@ -136,11 +138,12 @@ function buildProductsFromRows(rows) {
     desc: (r.description || r.desc || "").trim() || "",
     fit_signals: (r.fit_signals || r.fitsignals || "").trim() || "",
     value_props: (r.value_props || r.valueprops || "").trim() || "",
-    use_cases: (r.use_cases || r.usecases || "").trim() || ""
+    use_cases: (r.use_cases || r.usecases || "").trim() || "",
+    playbookBrief: (r.playbook_brief || r.playbookbrief || "").trim() || ""
   })).filter(p => p.name !== "Unknown");
 }
 
-function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRows, quotesRows, contactsRows, engagementRows, churnedRows) {
+function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRows, quotesRows, contactsRows, engagementRows, churnedRows, closedWonRows, closedLostRows) {
   const accountMap = new Map();
   (accountsRows || []).forEach((r, i) => {
     const id = (r.account_id || r.accountid || "").trim() || "acc_" + (i + 1);
@@ -160,11 +163,17 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
     const billing = Math.round(parseFloat(r.billing_amount || r.billingamount || r.billing || 0) || 0);
     const targetSpend = Math.round(parseFloat(r.target_addressable_spend || r.targetaddressablespend || r.target_spend || 0) || 0);
+    const lat = parseFloat(r.latitude || r.lat) || null;
+    const lng = parseFloat(r.longitude || r.lng || r.lon) || null;
+    const productsAtSite = (r.products || r.products_at_site || "").trim() ? (r.products || r.products_at_site).split(",").map(s => s.trim()).filter(Boolean) : [];
     accountMap.get(aid).loc.push({
       a: (r.address || r.a || "").trim() || "—",
       s: (r.net_status || r.netstatus || r.s || "off-net").trim().toLowerCase(),
       billing: billing || undefined,
-      targetSpend: targetSpend || undefined
+      targetSpend: targetSpend || undefined,
+      lat: lat || undefined,
+      lng: lng || undefined,
+      productsAtSite: productsAtSite.length ? productsAtSite : undefined
     });
   });
   (currentProductsRows || []).forEach(r => {
@@ -220,11 +229,31 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
   accounts.forEach(a => {
     a.eng.sort((x, y) => (y.d || "").localeCompare(x.d || ""));
   });
+  // Attach deal history from closed won/lost
+  if (closedWonRows?.length || closedLostRows?.length) {
+    accounts.forEach(account => {
+      const aid = account.id;
+      account.dealHistory = {
+        won: (closedWonRows || []).filter(d => (d.account_id || d.accountid) === aid).map(d => ({
+          product: d.product_name || d.productname,
+          mrr: parseFloat(d.mrr) || 0,
+          closeDate: d.close_date || d.closedate
+        })),
+        lost: (closedLostRows || []).filter(d => (d.account_id || d.accountid) === aid).map(d => ({
+          product: d.product_name || d.productname,
+          mrr: parseFloat(d.mrr) || 0,
+          closeDate: d.close_date || d.closedate,
+          lossReason: d.loss_reason || d.lossreason,
+          competitor: d.competitor
+        }))
+      };
+    });
+  }
   return accounts;
 }
 
 /* ═══════════════════ AI ANALYSIS ENGINE ═══════════════════ */
-const NOW = new Date("2025-02-23");
+const NOW = new Date();
 const daysAgo = d => Math.floor((NOW - new Date(d))/864e5);
 const daysUntil = d => Math.floor((new Date(d) - NOW)/864e5);
 const currentMonthKey = () => `${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,"0")}`;
@@ -254,142 +283,271 @@ function getActionItems(accounts) {
   return { count: items.length, items };
 }
 
-// Quick deterministic pre-score for initial render (before AI runs)
-function quickScore(c) {
-  let s=0;
-  const ds = c.eng[0] ? daysAgo(c.eng[0].d) : 999;
-  if(ds<=14) s+=20; else if(ds<=30) s+=10; else if(ds<=60) s+=5;
-  s += c.qt.length * 15;
-  s += c.loc.filter(l=>l.s==="on-net").length * 8;
-  s += c.loc.filter(l=>l.s==="near-net").length * 5;
-  s += c.con.filter(x=>x.eng==="champion").length * 10;
-  if(c.cEnd){const de=daysAgo(c.cEnd)*-1;if(de<=90&&de>0) s+=8;}
-  return {score:Math.min(100,Math.max(0,s)),ds,pending:true};
+// Quick deterministic pre-score (addressable spend gap, white space, coverage, billing, engagement)
+function quickScore(c, products) {
+  let s = 0;
+  const totalBilling = (c.loc || []).reduce((sum, l) => sum + (l.billing || 0), 0) || c.mrr;
+  const totalTarget = (c.loc || []).reduce((sum, l) => sum + (l.targetSpend || 0), 0);
+  if (totalTarget > 0) {
+    const gapRatio = Math.max(0, (totalTarget - totalBilling) / totalTarget);
+    s += Math.round(gapRatio * 30);
+  }
+  const ownedNames = new Set([...(c.cur || []), ...(c.qt || []).map(q => q.name)]);
+  const whiteSpace = (products || []).filter(p => !ownedNames.has(p.name)).length;
+  const totalProducts = (products || []).length || 1;
+  s += Math.round((whiteSpace / totalProducts) * 25);
+  const totalLocs = c.totalLocationCount ?? (c.loc || []).length;
+  const servicedLocs = (c.loc || []).filter(l => l.s === "on-net" || l.s === "near-net").length;
+  if (totalLocs > 0) {
+    const coverageGap = 1 - (servicedLocs / totalLocs);
+    s += Math.round(coverageGap * 15);
+    s += Math.min(5, servicedLocs * 1);
+  }
+  if (c.mrr >= 10000) s += 15;
+  else if (c.mrr >= 5000) s += 12;
+  else if (c.mrr >= 2000) s += 8;
+  else if (c.mrr >= 500) s += 4;
+  const ds = c.eng?.[0] ? daysAgo(c.eng[0].d) : 999;
+  if (ds <= 14) s += 10;
+  else if (ds <= 30) s += 7;
+  else if (ds <= 60) s += 3;
+  s += Math.min(10, (c.qt?.length || 0) * 5);
+  if (c.con?.some(x => x.eng === "champion")) s += 5;
+  return {
+    score: Math.min(100, Math.max(0, s)),
+    ds,
+    pending: true,
+    spendGap: totalTarget > 0 ? totalTarget - totalBilling : null,
+    whiteSpaceCount: whiteSpace,
+    coverageRatio: totalLocs > 0 ? Math.round((servicedLocs / totalLocs) * 100) : null
+  };
 }
 
-// Full AI analysis prompt — this is the brain
-function buildAnalysisPrompt(c, products) {
-  const ds = c.eng[0] ? daysAgo(c.eng[0].d) : 999;
-  const prodCatalog = (products || []).filter(p=>!c.cur.includes(p.name)&&!c.qt.some(q=>q.name===p.name))
-    .map(p=>{
-      let block = `Product: ${p.name}. MRR: $${p.mrr}/mo. Category: ${p.cat}.\nDescription: ${p.desc}`;
-      if (p.fit_signals) block += `\nFit signals (when to recommend): ${p.fit_signals}`;
-      if (p.value_props) block += `\nValue props: ${p.value_props}`;
-      if (p.use_cases) block += `\nUse cases: ${p.use_cases}`;
-      return block;
-    }).join("\n\n");
+function buildDealIntelligence(closedWon, closedLost) {
+  const di = { totalDeals: (closedWon?.length || 0) + (closedLost?.length || 0), winRates: { byProduct: {}, byIndustry: {}, byProductIndustry: {} }, crossSellSequences: [], lossPatterns: { byProduct: {}, byCompetitor: {} } };
+  const allDeals = [...(closedWon || []).map(d => ({ ...d, won: true })), ...(closedLost || []).map(d => ({ ...d, won: false }))];
+  const byProd = {};
+  allDeals.forEach(d => {
+    const p = d.product_name || d.productname;
+    if (!p) return;
+    if (!byProd[p]) byProd[p] = { won: 0, lost: 0, totalMRR: 0 };
+    if (d.won) { byProd[p].won++; byProd[p].totalMRR += parseFloat(d.mrr) || 0; } else byProd[p].lost++;
+  });
+  for (const [p, v] of Object.entries(byProd)) {
+    const total = v.won + v.lost;
+    di.winRates.byProduct[p] = { won: v.won, total, rate: Math.round((v.won / total) * 100), avgMRR: v.won > 0 ? Math.round(v.totalMRR / v.won) : 0 };
+  }
+  const byInd = {};
+  allDeals.forEach(d => {
+    const ind = d.industry;
+    if (!ind) return;
+    if (!byInd[ind]) byInd[ind] = { won: 0, lost: 0 };
+    if (d.won) byInd[ind].won++; else byInd[ind].lost++;
+  });
+  for (const [ind, v] of Object.entries(byInd)) {
+    const total = v.won + v.lost;
+    di.winRates.byIndustry[ind] = { won: v.won, total, rate: Math.round((v.won / total) * 100) };
+  }
+  const byPI = {};
+  allDeals.forEach(d => {
+    const p = d.product_name || d.productname;
+    const ind = d.industry;
+    if (!p || !ind) return;
+    const key = `${p}|${ind}`;
+    if (!byPI[key]) byPI[key] = { won: 0, lost: 0, totalMRR: 0 };
+    if (d.won) { byPI[key].won++; byPI[key].totalMRR += parseFloat(d.mrr) || 0; } else byPI[key].lost++;
+  });
+  for (const [key, v] of Object.entries(byPI)) {
+    const [p, ind] = key.split("|");
+    const total = v.won + v.lost;
+    if (!di.winRates.byProductIndustry[p]) di.winRates.byProductIndustry[p] = {};
+    di.winRates.byProductIndustry[p][ind] = { won: v.won, total, rate: Math.round((v.won / total) * 100), avgMRR: v.won > 0 ? Math.round(v.totalMRR / v.won) : 0 };
+  }
+  (closedLost || []).forEach(d => {
+    const p = d.product_name || d.productname;
+    const reason = d.loss_reason || d.lossreason || "Unknown";
+    const comp = d.competitor;
+    if (p) { if (!di.lossPatterns.byProduct[p]) di.lossPatterns.byProduct[p] = {}; di.lossPatterns.byProduct[p][reason] = (di.lossPatterns.byProduct[p][reason] || 0) + 1; }
+    if (comp) { if (!di.lossPatterns.byCompetitor[comp]) di.lossPatterns.byCompetitor[comp] = { wins: 0, losses: 0 }; di.lossPatterns.byCompetitor[comp].losses++; }
+  });
+  const wonByAccount = {};
+  (closedWon || []).forEach(d => {
+    const aid = d.account_id || d.accountid;
+    if (!aid) return;
+    if (!wonByAccount[aid]) wonByAccount[aid] = [];
+    wonByAccount[aid].push({ product: d.product_name || d.productname, date: d.close_date || d.closedate, mrr: parseFloat(d.mrr) || 0 });
+  });
+  const seqCounts = {};
+  for (const deals of Object.values(wonByAccount)) {
+    const sorted = deals.sort((a, b) => new Date(a.date) - new Date(b.date));
+    for (let i = 0; i < sorted.length - 1; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        const key = `${sorted[i].product}→${sorted[j].product}`;
+        if (!seqCounts[key]) seqCounts[key] = { count: 0, totalMonths: 0 };
+        const months = (new Date(sorted[j].date) - new Date(sorted[i].date)) / (1000 * 60 * 60 * 24 * 30);
+        seqCounts[key].count++;
+        seqCounts[key].totalMonths += months;
+      }
+    }
+  }
+  di.crossSellSequences = Object.entries(seqCounts).map(([key, v]) => { const [from, to] = key.split("→"); return { fromProduct: from, toProduct: to, frequency: v.count, avgMonths: Math.round(v.totalMonths / v.count) }; }).sort((a, b) => b.frequency - a.frequency).slice(0, 20);
+  return di;
+}
 
-  return `You are an elite B2B sales intelligence analyst. Analyze this account with surgical precision. Read between the lines of engagement notes — detect sentiment, urgency, competitive threats, buying signals, organizational dynamics, and timing.
+function getRelevantDealIntel(dealIntelligence, account, availableProducts) {
+  if (!dealIntelligence) return null;
+  const industry = account.ind;
+  const availableNames = (availableProducts || []).map(p => p.name);
+  return {
+    totalDeals: dealIntelligence.totalDeals,
+    relevantWinRates: Object.fromEntries(availableNames.filter(p => dealIntelligence.winRates?.byProductIndustry?.[p]?.[industry]).map(p => [p, dealIntelligence.winRates.byProductIndustry[p][industry]])),
+    relevantCrossSells: (dealIntelligence.crossSellSequences || []).filter(s => (account.cur || []).includes(s.fromProduct) && availableNames.includes(s.toProduct)).slice(0, 5),
+    relevantLossPatterns: Object.fromEntries(availableNames.filter(p => dealIntelligence.lossPatterns?.byProduct?.[p]).map(p => [p, dealIntelligence.lossPatterns.byProduct[p]])),
+    competitiveRecord: dealIntelligence.lossPatterns?.byCompetitor || {}
+  };
+}
 
-TODAY'S DATE: 2025-02-23
+// Full AI analysis prompt — MEDDIC + deal intelligence + playbook briefs
+function buildAnalysisPrompt(account, products, dealIntelligence, playbookBriefs) {
+  const ds = account.eng?.[0] ? daysAgo(account.eng[0].d) : 999;
+  const availableProducts = (products || []).filter(p => !(account.cur || []).includes(p.name) && !(account.qt || []).some(q => q.name === p.name));
+  const todayStr = NOW.toISOString().split("T")[0];
+  const locLines = (account.loc || []).map(l => {
+    let s = `${l.a} [${l.s}]`;
+    if (l.billing) s += ` billing:$${l.billing}/mo`;
+    if (l.targetSpend) s += ` target:$${l.targetSpend}/mo`;
+    return s;
+  }).join("; ");
+  const addressableGap = (account.loc || []).reduce((s, l) => s + (l.targetSpend || 0), 0) - account.mrr;
+  const prodBlock = availableProducts.map(p => {
+    let entry = `${p.name} ($${p.mrr}/mo, ${p.cat}): ${p.desc || ""}`;
+    if (playbookBriefs?.[p.name]) entry += `\n  PLAYBOOK: ${playbookBriefs[p.name]}`;
+    else { if (p.fit_signals) entry += `\n  Signals: ${p.fit_signals}`; if (p.value_props) entry += `\n  Value: ${p.value_props}`; if (p.use_cases) entry += `\n  Use cases: ${p.use_cases}`; }
+    return entry;
+  }).join("\n\n") || "All products owned or quoted.";
+  const dealIntelBlock = dealIntelligence ? `
+═══ DEAL INTELLIGENCE (from ${dealIntelligence.totalDeals || "historical"} closed deals) ═══
+Win Rates: ${JSON.stringify(dealIntelligence.relevantWinRates || {})}
+Cross-Sell Patterns: ${JSON.stringify(dealIntelligence.relevantCrossSells || [])}
+Loss Patterns: ${JSON.stringify(dealIntelligence.relevantLossPatterns || {})}
+Competitive Record: ${JSON.stringify(dealIntelligence.competitiveRecord || {})}
+Use these patterns to inform your recommendations. Cite specific win rates and benchmarks.
+` : "";
+
+  return `You are an elite B2B sales intelligence analyst who uses MEDDIC to qualify opportunities and product playbook intelligence to match solutions to customer needs. Analyze this account with surgical precision.
+
+TODAY'S DATE: ${todayStr}
 DAYS SINCE LAST ENGAGEMENT: ${ds}
 
+═══ METHODOLOGY: MEDDIC ═══
+For every opportunity you identify, assess:
+- Metrics: How does the customer measure success? What KPIs matter?
+- Economic Buyer: Who has budget authority? Do we have access?
+- Decision Criteria: How will they evaluate? Technical? Price? Relationship?
+- Decision Process: What are the steps to a PO? Timeline?
+- Identify Pain: What business pain is compelling enough to drive action?
+- Champion: Who is selling internally for us? How strong?
+Score each: Strong / Partial / Gap. Flag critical gaps.
+${dealIntelBlock}
 ═══ ACCOUNT DATA ═══
-Company: ${c.name}
-Industry: ${c.ind} | Tier: ${c.tier} | Current MRR: $${c.mrr}/mo
-Contract End: ${c.cEnd}
-Locations (${c.loc.length}): ${c.loc.map(l=>`${l.a} [${l.s}]`).join("; ")}
+Company: ${account.name}
+Industry: ${account.ind} | Tier: ${account.tier} | Current MRR: $${account.mrr}/mo
+Contract End: ${account.cEnd || "Unknown"}
+Locations (${account.loc?.length || 0}): ${locLines}
+${account.totalLocationCount ? `Total customer locations (estimated): ${account.totalLocationCount} (we serve ${account.loc?.length || 0})` : ""}
+Addressable Spend Gap: $${addressableGap}/mo uncaptured
 
-Current Products: ${c.cur.join(", ")||"None"}
-Open Quotes: ${c.qt.map(q=>`${q.name} — $${q.mrr}/mo — status: ${q.st} — quoted: ${q.date}`).join("; ")||"None"}
-Prior/Churned Services: ${c.prior.join("; ")||"None"}
+Current Products: ${(account.cur || []).join(", ") || "None"}
+Open Quotes: ${(account.qt || []).map(q => `${q.name} — $${q.mrr}/mo — ${q.st} — quoted ${q.date}${q.closeDate ? " close: " + q.closeDate : ""}`).join("; ") || "None"}
+Prior/Churned: ${(account.prior || []).join("; ") || "None"}
+${account.dealHistory ? `Past Deals with This Account:
+Won: ${(account.dealHistory.won || []).map(d => `${d.product} $${d.mrr}/mo (${d.closeDate})`).join("; ") || "None"}
+Lost: ${(account.dealHistory.lost || []).map(d => `${d.product} $${d.mrr}/mo (${d.closeDate}) reason:${d.lossReason}${d.competitor ? " vs " + d.competitor : ""}`).join("; ") || "None"}` : ""}
 
 Contacts:
-${c.con.map(x=>`• ${x.name}, ${x.title} — engagement: ${x.eng} — last touch: ${x.last||"never"}`).join("\n")}
+${(account.con || []).map(x => `• ${x.name}, ${x.title} — engagement: ${x.eng} — last: ${x.last || "never"}`).join("\n")}
 
-Engagement History (most recent first):
-${c.eng.map(e=>`[${e.d}] ${e.t}: ${e.n}`).join("\n")}
+Engagement History (recent first):
+${(account.eng || []).map(e => `[${e.d}] ${e.t}: ${e.n}`).join("\n")}
 
-═══ AVAILABLE PRODUCTS (not yet owned/quoted) ═══
-${prodCatalog||"All products already owned or quoted."}
+═══ AVAILABLE PRODUCTS (not owned/quoted) ═══
+${prodBlock}
 
-Use each product's fit signals, value props, and use cases to justify recommendations and to phrase outreach in the customer's language (reference their situation and use the product's value props where relevant).
+═══ INSTRUCTIONS ═══
+Analyze holistically. Consider buying signals (explicit + implicit), customer sentiment, competitive threats, org dynamics, timing, product fit based on playbook criteria, and risks.
+For product recommendations, use the PLAYBOOK intelligence above — match specific buying signals and ICP criteria, not generic assumptions. If deal intelligence is available, cite relevant win rates and patterns.
 
-═══ YOUR ANALYSIS ═══
-Analyze everything above holistically. Consider:
-- What buying signals exist in the engagement notes (explicit and implicit)?
-- What is the customer's emotional state / satisfaction level?
-- Are there competitive threats? If so, how urgent?
-- What organizational dynamics are at play (champion vs. blocker, procurement involvement, budget authority)?
-- What timing factors matter (fiscal years, contract dates, budget cycles, seasonal patterns)?
-- Which products genuinely fit based on their situation — not keyword matching, but real business need?
-- What risks could derail opportunities?
-- What is the single most important thing to do THIS WEEK?
-- For additionalOpportunities: identify any extra revenue potential as new-service (new product they don't have), upsell (more of same), upgrade (tier/plan upgrade), or cross-sell (related product to current usage). Omit categories with no clear opportunity.
-
-Respond in this exact JSON (no markdown, no backticks, no extra text):
+Respond in this exact JSON (no markdown, no backticks):
 {
-  "score": 0-100 integer,
-  "scoreReasoning": "2 sentences explaining the score — what's driving it up or down",
-  "accountSummary": "3 sentence executive summary of this account's situation right now. What would you brief a VP of Sales on?",
+  "score": 0-100,
+  "scoreReasoning": "2 sentences",
+  "accountSummary": "3 sentence executive summary",
   "sentiment": "positive|neutral|at-risk|critical",
-  "sentimentDetail": "1 sentence — how does this customer feel about us right now?",
+  "sentimentDetail": "1 sentence",
+  "addressableSpendAnalysis": "1-2 sentences on where the spend gap is and what drives it",
+  "meddic": {
+    "metrics": { "status": "strong|partial|gap", "note": "1 sentence" },
+    "economicBuyer": { "status": "strong|partial|gap", "note": "1 sentence" },
+    "decisionCriteria": { "status": "strong|partial|gap", "note": "1 sentence" },
+    "decisionProcess": { "status": "strong|partial|gap", "note": "1 sentence" },
+    "pain": { "status": "strong|partial|gap", "note": "1 sentence" },
+    "champion": { "status": "strong|partial|gap", "note": "1 sentence" },
+    "criticalGaps": ["gap that needs immediate attention"]
+  },
   "immediateOpportunity": {
     "type": "close-deal|advance-quote|cross-sell|win-back|renewal|save-account|re-engage|expand-footprint",
-    "description": "1-2 sentences — the #1 opportunity right now",
+    "description": "1-2 sentences",
     "estimatedMRR": number,
     "confidence": "high|medium|low",
+    "confidenceReason": "1 sentence citing deal intelligence if available",
     "timeframe": "this-week|this-month|this-quarter|next-quarter"
   },
   "productRecommendations": [
-    {"product": "product name", "mrr": number, "fitReason": "1-2 sentences — WHY this product, based on their specific situation, not generic fit", "priority": "primary|secondary|future"}
+    { "product": "name", "mrr": number, "fitReason": "1-2 sentences citing specific playbook signals matched to account data", "priority": "primary|secondary|future", "winRate": "X% in [industry] (from deal intelligence)" or null, "crossSellTiming": "Usually added X months after [product]" or null, "discoveryQuestions": ["question adapted to this account"], "topObjection": "likely objection", "objectionResponse": "response from playbook adapted to context" }
   ],
-  "additionalOpportunities": [
-    {"type": "new-service|upsell|upgrade|cross-sell", "description": "1 sentence — what additional opportunity exists", "estimatedMRR": number}
-  ],
-  "competitiveIntel": "What competitors are in play? How do we defend/win? Say 'None detected' if no signals.",
-  "risks": ["specific risk 1", "specific risk 2"],
-  "contactStrategy": {
-    "primaryTarget": "Contact name",
-    "approach": "1-2 sentences — how to approach this specific person given the relationship dynamics",
-    "secondaryTarget": "Contact name or null",
-    "multiThreadNote": "Do we need to engage additional stakeholders? Who and why?"
-  },
-  "engagementPlan": {
-    "thisWeek": "THE specific action for this week — be precise: who, what, how",
-    "channel": "email|call|meeting|linkedin",
-    "talkingPoints": ["specific point referencing their data", "point 2", "point 3"],
-    "avoid": "What NOT to do or say with this account right now"
-  },
-  "outreach": {
-    "emailSubject": "compelling subject line personalized to their situation",
-    "emailBody": "Full email, 4-6 sentences. Reference SPECIFIC details from their engagement history. Sound human, not templated. Sign as [Your Name].",
-    "callOpener": "Exact words for the first 15 seconds of a phone call to this person — natural and specific to the relationship"
-  },
-  "ninetyDayTarget": "$X,XXX/mo — what's achievable and how"
+  "additionalOpportunities": [{ "type": "string", "description": "string", "estimatedMRR": number }],
+  "competitiveIntel": "string",
+  "risks": ["string"],
+  "contactStrategy": { "primaryTarget": "name", "approach": "1-2 sentences", "secondaryTarget": "name or null", "multiThreadNote": "string or null" },
+  "engagementPlan": { "thisWeek": "specific action", "channel": "email|call|meeting|linkedin", "talkingPoints": ["point 1", "point 2", "point 3"], "avoid": "what not to do" },
+  "outreach": { "emailSubject": "personalized subject", "emailBody": "4-6 sentences referencing specific details", "callOpener": "exact first 15 seconds" },
+  "ninetyDayTarget": "$X,XXX/mo — rationale"
 }`;
 }
 
-async function runAIAnalysis(account, products) {
-  const prompt = buildAnalysisPrompt(account, products);
+async function runAIAnalysis(account, products, dealIntelligence) {
+  const availableProducts = (products || []).filter(p => !(account.cur || []).includes(p.name) && !(account.qt || []).some(q => q.name === p.name));
+  const relevantDeal = getRelevantDealIntel(dealIntelligence, account, availableProducts);
+  const playbookBriefs = (products || []).reduce((acc, p) => { if (p.playbookBrief) acc[p.name] = p.playbookBrief; return acc; }, {});
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:prompt}]})
+    const r = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ account, products, dealIntelligence: relevantDeal, playbookBriefs })
     });
     const d = await r.json();
-    const tx = (d.content||[]).map(i=>i.text||"").join("");
-    return JSON.parse(tx.replace(/```json|```/g,"").trim());
-  } catch(e) { console.error("AI analysis failed:",e); return null; }
+    if (!r.ok) throw new Error(d.error || "Analysis failed");
+    const result = d.result;
+    const analyzedAt = d.analyzedAt || new Date().toISOString();
+    const dataHash = d.dataHash || hashAccountData(account);
+    return result ? { ...result, _meta: { dataHash, analyzedAt, isStale: false } } : null;
+  } catch (e) {
+    console.error("AI analysis failed:", e);
+    return null;
+  }
 }
 
 // Batch AI analysis for all accounts
-async function runBatchAnalysis(accounts, products, onUpdate) {
+async function runBatchAnalysis(accounts, products, dealIntelligence, onUpdate) {
   const results = {};
   const queue = [...accounts];
-  
   const runNext = async () => {
     if (queue.length === 0) return;
     const acct = queue.shift();
-    const result = await runAIAnalysis(acct, products);
-    if (result) {
-      results[acct.id] = result;
-      onUpdate(acct.id, result);
-    }
-    running.delete(acct.id);
+    const result = await runAIAnalysis(acct, products, dealIntelligence);
+    if (result) { results[acct.id] = result; onUpdate(acct.id, result); }
     await runNext();
   };
-  
   await Promise.all([runNext(), runNext()]);
   return results;
 }
@@ -489,12 +647,81 @@ function scC(s){return s>=70?{b:"var(--gnd)",c:"var(--gn)"}:s>=45?{b:"var(--yld)
 function tlT(t){return t.includes("QBR")?"QBR":t.includes("Call")?"Call":t.includes("Email")?"Email":t.includes("Quote")?"Quote":t.includes("Support")?"Support":t.includes("Event")?"Event":t.includes("Churn")?"Churn":"Call"}
 const oppLabels={"close-deal":"Close Deal","advance-quote":"Advance Quote","cross-sell":"Cross-Sell","win-back":"Win-Back","renewal":"Renewal","save-account":"Save Account","re-engage":"Re-Engage","expand-footprint":"Expand"};
 
+function hashAccountData(account) {
+  const significant = JSON.stringify({
+    mrr: account.mrr,
+    products: (account.cur || []).sort(),
+    quotes: (account.qt || []).map(q => `${q.name}:${q.st}:${q.mrr}`).sort(),
+    lastEngagement: account.eng?.[0]?.d,
+    lastEngagementNote: account.eng?.[0]?.n,
+    engagementCount: (account.eng || []).length,
+    contactCount: (account.con || []).length,
+    locationCount: (account.loc || []).length
+  });
+  let hash = 5381;
+  for (let i = 0; i < significant.length; i++) { hash = ((hash << 5) + hash) + significant.charCodeAt(i); }
+  return (hash >>> 0).toString(36);
+}
+function formatTimeAgo(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const min = Math.floor((NOW - d) / 6e4);
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ago`;
+  const day = Math.floor(h / 24);
+  if (day < 7) return `${day}d ago`;
+  return d.toLocaleDateString();
+}
+
 function Skeleton({w,h}){return <div className="skeleton" style={{width:w||"100%",height:h||14}}/>}
 
 function copyText(txt){navigator.clipboard?.writeText(txt)}
 
+function LocationMap({ locations, style }) {
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  useEffect(() => {
+    if (map.current || !locations?.length) return;
+    const token = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!token) return;
+    let mounted = true;
+    import("mapbox-gl").then((mapboxgl) => {
+      if (!mounted || !mapContainer.current) return;
+      import("mapbox-gl/dist/mapbox-gl.css");
+      mapboxgl.default.accessToken = token;
+      map.current = new mapboxgl.default.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-95.7, 37.0],
+        zoom: 3
+      });
+      const bounds = new mapboxgl.default.LngLatBounds();
+      locations.forEach(loc => {
+        if (loc.lat != null && loc.lng != null) {
+          const color = loc.s === "on-net" ? "#34d399" : loc.s === "near-net" ? "#fbbf24" : "#f87171";
+          const popup = new mapboxgl.default.Popup({ offset: 25 }).setHTML(
+            `<div style="color:#000;font-family:DM Sans,sans-serif;font-size:12px">
+              <strong>${(loc.a || "").replace(/</g, "&lt;")}</strong><br/>
+              Status: <span style="color:${color};font-weight:600">${(loc.s || "").replace(/</g, "&lt;")}</span><br/>
+              ${loc.billing ? `Billing: $${Number(loc.billing).toLocaleString()}/mo<br/>` : ""}
+              ${loc.targetSpend ? `Target: $${Number(loc.targetSpend).toLocaleString()}/mo<br/>` : ""}
+              ${loc.productsAtSite?.length ? `Products: ${loc.productsAtSite.join(", ")}` : ""}
+            </div>`
+          );
+          new mapboxgl.default.Marker({ color }).setLngLat([loc.lng, loc.lat]).setPopup(popup).addTo(map.current);
+          bounds.extend([loc.lng, loc.lat]);
+        }
+      });
+      if (!bounds.isEmpty()) map.current.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+    }).catch(() => {});
+    return () => { mounted = false; map.current?.remove(); map.current = null; };
+  }, [locations]);
+  return <div ref={mapContainer} style={{ width: "100%", height: 280, borderRadius: 8, ...style }} />;
+}
+
 /* ═══════════════ ENGAGEMENT HUB (AI-Powered) ═══════════════ */
-function EngagementHub({accounts,aiData,onSelect,onAnalyze,analyzing}) {
+function EngagementHub({accounts,products,aiData,onSelect,onAnalyze,analyzing}) {
   const [expanded,setExpanded] = useState(null);
   const [filter,setFilter] = useState("all");
   const [copied,setCopied] = useState(null);
@@ -503,7 +730,7 @@ function EngagementHub({accounts,aiData,onSelect,onAnalyze,analyzing}) {
   const items = accounts.map(c=>{
     const ai = aiData[c.id];
     const ds = c.eng[0]?daysAgo(c.eng[0].d):999;
-    const qs = quickScore(c);
+    const qs = quickScore(c, products);
     return {
       ...c, ds, 
       score: ai?.score || qs.score,
@@ -555,6 +782,7 @@ function EngagementHub({accounts,aiData,onSelect,onAnalyze,analyzing}) {
               <span className={`opp-type ${e.oppType}`}>{oppLabels[e.oppType]||e.oppType}</span>
               {e.ds>30&&<span className="tg critical">{e.ds}d gap</span>}
               {ai&&<span className="ai-badge">AI</span>}
+              {ai?._meta?.isStale&&<span className="tg warning" style={{fontSize:8}}>⚠ DATA CHANGED — Re-analyze</span>}
             </div>
             <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
               {ai ? ai.immediateOpportunity?.description?.slice(0,80) : `${e.ind} · $${e.mrr.toLocaleString()}/mo · Last: ${e.eng[0]?.t||"N/A"} ${e.eng[0]?.d?.slice(5)||""}`}
@@ -585,6 +813,7 @@ function EngagementHub({accounts,aiData,onSelect,onAnalyze,analyzing}) {
               </div>
               <div style={{fontSize:11,color:"var(--t2)",fontStyle:"italic",marginBottom:6}}>{ai.sentimentDetail}</div>
               <div style={{fontSize:11,color:"var(--t2)"}}><strong style={{color:"var(--t1)"}}>Score reasoning:</strong> {ai.scoreReasoning}</div>
+              {ai._meta?.analyzedAt&&<span style={{fontSize:9,color:"var(--t3)"}}>Analyzed {formatTimeAgo(ai._meta.analyzedAt)}{ai._meta.isStale?" (stale)":""}</span>}
             </div>
 
             {/* Strategy + Outreach side by side */}
@@ -669,22 +898,27 @@ function EngagementHub({accounts,aiData,onSelect,onAnalyze,analyzing}) {
 }
 
 /* ═══════════════ BRIEFING ═══════════════ */
-function Briefing({accounts,aiData,onS,onAnalyze,onOppClick,analyzing}){
+function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing}){
   const tM=accounts.reduce((s,c)=>s+c.mrr,0);
+  const addressableGapTotal=accounts.reduce((s,c)=>{
+    const totalTarget=(c.loc||[]).reduce((sum,l)=>sum+(l.targetSpend||0),0);
+    const totalBilling=(c.loc||[]).reduce((sum,l)=>sum+(l.billing||0),0)||c.mrr;
+    return s+Math.max(0,(totalTarget||0)-totalBilling);
+  },0);
   const allPipeline=accounts.flatMap(c=>c.qt.map(q=>({...q,anm:c.name,aid:c.id})));
   const pipelineCurrentMonth=allPipeline.filter(q=>isCloseDateInCurrentMonth(q.closeDate));
-  const tQAll=allPipeline.reduce((s,q)=>s+q.mrr,0);
   const tQMonth=pipelineCurrentMonth.reduce((s,q)=>s+q.mrr,0);
   const aiCount=Object.keys(aiData).length;
-  const scored=accounts.map(c=>({...c,score:aiData[c.id]?.score||quickScore(c).score,ds:c.eng[0]?daysAgo(c.eng[0].d):999})).sort((a,b)=>b.score-a.score);
+  const scored=accounts.map(c=>({...c,score:aiData[c.id]?.score||quickScore(c,products).score,ds:c.eng[0]?daysAgo(c.eng[0].d):999})).sort((a,b)=>b.score-a.score);
   const { count: actionCount, items: actionItems } = getActionItems(accounts);
-  const avg=Math.round(scored.reduce((s,c)=>s+c.score,0)/scored.length);
+  const avg=Math.round(scored.reduce((s,c)=>s+c.score,0)/(scored.length||1));
   return(<div className="ct" style={{animation:"fi .3s ease"}}>
     <div className="sr">
       <div className="st"><div className="sl">Book of Business</div><div className="sv" style={{color:"var(--gn)"}}>${tM.toLocaleString()}</div><div className="ss">current MRR</div></div>
-      <div className="st"><div className="sl">Pipeline</div><div className="sv" style={{color:"var(--yl)"}}>${tQMonth.toLocaleString()}</div><div className="ss">this month close</div></div>
+      <div className="st"><div className="sl">Addressable Gap</div><div className="sv" style={{color:"var(--ac)"}}>${addressableGapTotal.toLocaleString()}</div><div className="ss">/mo uncaptured</div></div>
+      <div className="st"><div className="sl">Pipeline (This Month)</div><div className="sv" style={{color:"var(--yl)"}}>${tQMonth.toLocaleString()}</div><div className="ss">/mo close this month</div></div>
+      <div className="st"><div className="sl">Urgent Actions</div><div className="sv" style={{color:actionCount>0?"var(--rd)":"var(--t3)"}}>{actionCount}</div><div className="ss">need attention</div></div>
       <div className="st"><div className="sl">Avg Score</div><div className="sv" style={{color:avg>=60?"var(--gn)":"var(--yl)"}}>{avg}</div><div className="ss">{aiCount>0?`${aiCount} AI-scored`:accounts.length+" accounts"}</div></div>
-      <div className="st"><div className="sl">Action items</div><div className="sv" style={{color:actionCount>0?"var(--rd)":"var(--t3)"}}>{actionCount}</div><div className="ss">need attention</div></div>
       <div className="st" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",cursor:"pointer",border:analyzing?"1px solid var(--ac)":"1px solid var(--bd)"}} onClick={()=>!analyzing&&onAnalyze("all")}>
         {analyzing?<><span className="spin" style={{width:20,height:20}}/><div className="ss" style={{marginTop:4}}>Analyzing...</div></>:<><div style={{fontSize:16}}>✨</div><div className="ss">Run AI Analysis</div></>}
       </div>
@@ -735,8 +969,8 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div className="asc" style={{background:s.b,color:s.c,width:46,height:46,fontSize:18,borderRadius:10}}>{score}</div>
-        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20,fontWeight:700,letterSpacing:"-.4px"}}>{cu.name}</span>{ai&&<span className="ai-badge">AI Analyzed</span>}</div>
-          <div style={{fontSize:12,color:"var(--t2)"}}>{cu.ind} · {cu.tier} · Ends {cu.cEnd}</div></div></div>
+        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20,fontWeight:700,letterSpacing:"-.4px"}}>{cu.name}</span>{ai&&<span className="ai-badge">AI Analyzed</span>}{ai?._meta?.isStale&&<span className="tg warning" style={{fontSize:8}}>⚠ DATA CHANGED — Re-analyze</span>}</div>
+          <div style={{fontSize:12,color:"var(--t2)"}}>{cu.ind} · {cu.tier} · Ends {cu.cEnd}{ai?._meta?.analyzedAt?` · Analyzed ${formatTimeAgo(ai._meta.analyzedAt)}${ai._meta.isStale?" (stale)":""}`:""}</div></div></div>
       <button className="btn bp" onClick={()=>onAnalyze(cu.id)} disabled={analyzing}>{analyzing?<><span className="spin"/>Analyzing...</>:ai?"🔄 Re-Analyze":"✨ Run AI Analysis"}</button>
     </div>
     <div className="sr">
@@ -772,6 +1006,28 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
         {ai.risks?.map((r,i)=><span key={i} className="tg critical" style={{fontSize:9}}>⚠ {r}</span>)}
       </div>
+      {ai?.meddic&&(
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)",marginBottom:8}}>MEDDIC Qualification</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+            {["metrics","economicBuyer","decisionCriteria","decisionProcess","pain","champion"].map(key=>{
+              const el=ai.meddic[key];
+              if(!el) return null;
+              const icon=el.status==="strong"?"✅":el.status==="partial"?"⚠️":"❌";
+              const label=key.replace(/([A-Z])/g," $1").replace(/^./,s=>s.toUpperCase());
+              return (
+                <div key={key} style={{padding:"8px 10px",background:"var(--b1)",borderRadius:6,border:"1px solid var(--bd)"}}>
+                  <div style={{fontSize:10,fontWeight:600,marginBottom:2}}>{icon} {label}</div>
+                  <div style={{fontSize:10,color:"var(--t2)",lineHeight:1.4}}>{el.note}</div>
+                </div>
+              );
+            })}
+          </div>
+          {ai.meddic.criticalGaps?.length>0&&(
+            <div style={{marginTop:6,fontSize:11,color:"var(--rd)"}}>Critical gaps: {ai.meddic.criticalGaps.join(" · ")}</div>
+          )}
+        </div>
+      )}
     </div>}
 
     <div className="tabs">{["overview","timeline","contacts","products"].map(t=><button key={t} className={`tab ${tab===t?"on":""}`} onClick={()=>sTab(t)}>{t}</button>)}</div>
@@ -783,6 +1039,12 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
         {cu.prior.length>0&&<div style={{borderTop:"1px solid var(--bd)",marginTop:8,paddingTop:8}}>{cu.prior.map((s,i)=><div key={i} style={{fontSize:11,color:"var(--rd)",marginBottom:2}}>↩ {s}</div>)}</div>}</div>
       <div className="cd"><div className="ch"><span>📍</span><div className="ctit">Locations</div></div>
         {cu.loc.map((l,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6,padding:"7px 0",borderBottom:i<cu.loc.length-1?"1px solid var(--bd)":"none"}}><div style={{fontSize:12,color:"var(--t2)",flex:1,minWidth:0}}><div>{l.a}</div>{(l.billing != null && l.billing > 0) || (l.targetSpend != null && l.targetSpend > 0) ? <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{(l.billing != null && l.billing > 0) && <>Billing: ${l.billing.toLocaleString()}/mo</>}{(l.billing != null && l.billing > 0) && (l.targetSpend != null && l.targetSpend > 0) && " · "}{(l.targetSpend != null && l.targetSpend > 0) && <>Target addressable: ${l.targetSpend.toLocaleString()}</>}</div> : null}</div><span className={`tg ${l.s}`}>{l.s}</span></div>)}</div>
+      {cu.loc?.some(l=>l.lat!=null&&l.lng!=null)&&import.meta.env.VITE_MAPBOX_TOKEN&&(
+        <div className="cd fw">
+          <div className="ch"><span>🗺️</span><div className="ctit">Location Map</div></div>
+          <LocationMap locations={cu.loc} />
+        </div>
+      )}
       {ai?.productRecommendations?.length>0&&<div className="cd fw"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>
         {ai.productRecommendations.map((p,i)=><div key={i} className="pf"><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div></div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>}
     </div>}
@@ -861,12 +1123,14 @@ function OpportunityDetail({ account, quote, ai, onBack, onGoToAccount }) {
 const TABLE_OPTIONS = [
   { key: "productCatalog", label: "Product Catalog", required: "product_name, category, mrr, description" },
   { key: "accounts", label: "Accounts", required: "account_id, account_name, industry, tier, mrr, contract_end" },
-  { key: "locations", label: "Locations", required: "account_id, address, net_status", optional: "billing_amount, target_addressable_spend" },
+  { key: "locations", label: "Locations", required: "account_id, address, net_status", optional: "billing_amount, target_addressable_spend, latitude, longitude" },
   { key: "currentProducts", label: "Current Products", required: "account_id, product_name" },
   { key: "quotes", label: "Quotes / Pipeline", required: "account_id, product_name, quoted_mrr, quote_date, status" },
   { key: "contacts", label: "Contacts", required: "account_id, contact_name, title, engagement_level" },
   { key: "engagement", label: "Engagement History", required: "account_id, date, type, notes" },
   { key: "churned", label: "Prior / Churned Services", required: "account_id, service_description" },
+  { key: "closedWon", label: "Closed Won", icon: "✅", desc: "Won deals (3+ years)" },
+  { key: "closedLost", label: "Closed Lost", icon: "❌", desc: "Lost deals (3+ years)" },
 ];
 
 function readFileAsText(file) {
@@ -881,7 +1145,7 @@ function readFileAsText(file) {
 function applyTables(next, setUploadTables, setProducts, setAccounts, onPersist) {
   setUploadTables(next);
   setProducts(buildProductsFromRows(next.productCatalog || []));
-  setAccounts(buildAccountsFromTables(next.accounts, next.locations, next.currentProducts, next.quotes, next.contacts, next.engagement, next.churned));
+  setAccounts(buildAccountsFromTables(next.accounts, next.locations, next.currentProducts, next.quotes, next.contacts, next.engagement, next.churned, next.closedWon, next.closedLost));
   if (typeof onPersist === "function") onPersist(next);
 }
 
@@ -1036,7 +1300,7 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
 }
 
 /* ═══════════════ APP ═══════════════ */
-const INITIAL_UPLOAD_TABLES = { productCatalog: [], accounts: [], locations: [], currentProducts: [], quotes: [], contacts: [], engagement: [], churned: [] };
+const INITIAL_UPLOAD_TABLES = { productCatalog: [], accounts: [], locations: [], currentProducts: [], quotes: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: [] };
 
 export default function App() {
   const[vw,sVw]=useState("brief");
@@ -1058,7 +1322,29 @@ export default function App() {
       if (tables != null) {
         setUploadTables(tables);
         setProducts(buildProductsFromRows(tables.productCatalog || []));
-        setAccounts(buildAccountsFromTables(tables.accounts, tables.locations, tables.currentProducts, tables.quotes, tables.contacts, tables.engagement, tables.churned));
+        const accountsBuilt = buildAccountsFromTables(tables.accounts, tables.locations, tables.currentProducts, tables.quotes, tables.contacts, tables.engagement, tables.churned, tables.closedWon, tables.closedLost);
+        setAccounts(accountsBuilt);
+        fetch("/api/ai-results")
+          .then((res) => (res.ok ? res.json() : {}))
+          .then((persisted) => {
+            if (cancelled) return;
+            const aiDataFromApi = {};
+            for (const [id, entry] of Object.entries(persisted)) {
+              const account = accountsBuilt.find((a) => a.id === id);
+              if (!account || !entry.result) continue;
+              const currentHash = hashAccountData(account);
+              aiDataFromApi[id] = {
+                ...entry.result,
+                _meta: {
+                  analyzedAt: entry.analyzedAt,
+                  dataHash: entry.dataHash,
+                  isStale: currentHash !== entry.dataHash
+                }
+              };
+            }
+            setAiData((prev) => ({ ...prev, ...aiDataFromApi }));
+          })
+          .catch(() => {});
       }
       setDataHydrated(true);
     }).catch(() => setDataHydrated(true));
@@ -1077,12 +1363,15 @@ export default function App() {
   const gap30=accounts.filter(c=>{const ds=c.eng[0]?daysAgo(c.eng[0].d):999;return ds>30}).length;
   const aiCount=Object.keys(aiData).length;
 
+  const dealIntelligence = useCallback(() => buildDealIntelligence(uploadTables.closedWon, uploadTables.closedLost), [uploadTables.closedWon, uploadTables.closedLost]);
+
   const handleAnalyze = useCallback(async(target)=>{
     setAnalyzing(true);
+    const di = dealIntelligence();
     if(target==="all"){
       setProgress(`Analyzing 0/${accounts.length}...`);
       let done=0;
-      await runBatchAnalysis(accounts,products,(id,result)=>{
+      await runBatchAnalysis(accounts,products,di,(id,result)=>{
         done++;
         setProgress(`Analyzing ${done}/${accounts.length}...`);
         setAiData(prev=>({...prev,[id]:result}));
@@ -1091,12 +1380,12 @@ export default function App() {
       const acct=accounts.find(c=>c.id===target);
       if(acct){
         setProgress(`Analyzing ${acct.name}...`);
-        const result=await runAIAnalysis(acct,products);
+        const result=await runAIAnalysis(acct,products,di);
         if(result) setAiData(prev=>({...prev,[target]:result}));
       }
     }
     setAnalyzing(false);setProgress("");
-  },[accounts,products]);
+  },[accounts,products,dealIntelligence]);
 
   const handlePersist = useCallback((tables) => {
     saveUploadTablesToSupabase(tables);
@@ -1132,7 +1421,7 @@ export default function App() {
       </div>
       {analyzing&&<div style={{padding:"8px 16px",fontSize:10,color:"var(--ac)",display:"flex",alignItems:"center",gap:6}}><span className="spin"/>{progress}</div>}
       <div className="sb-lb">Accounts {aiCount>0&&`(${aiCount} AI-scored)`}</div>
-      <div className="sb-n">{filt.map(c=>{const score=aiData[c.id]?.score||quickScore(c).score;const s=scC(score);const hasAI=!!aiData[c.id];
+      <div className="sb-n">{filt.map(c=>{const score=aiData[c.id]?.score||quickScore(c,products).score;const s=scC(score);const hasAI=!!aiData[c.id];
         return(<div key={c.id} className={`ai-i ${sel===c.id?"on":""}`} onClick={()=>pick(c.id)}>
           <div className="asc" style={{background:s.b,color:s.c}}>{score}</div>
           <div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontSize:12}}>{c.name}</span>{hasAI&&<span className="ai-badge" style={{fontSize:7,padding:"1px 4px"}}>AI</span>}</div><div style={{fontSize:10,color:"var(--t3)"}}>${c.mrr.toLocaleString()}/mo · {c.ind}</div></div></div>)})}</div>
@@ -1145,8 +1434,8 @@ export default function App() {
         {vw==="data"&&<><h1>📤 Upload Data</h1><p>Load your CSV exports from Salesforce or Excel. See the how-to doc for column names.</p></>}
         {vw==="opp"&&selOpp&&<><div style={{display:"flex",alignItems:"center",gap:7}}><span onClick={()=>{sVw("brief");setSelOpp(null)}} style={{cursor:"pointer",color:"var(--t3)",fontSize:12}}>← Back</span><span style={{color:"var(--bd)"}}>/</span><h1 style={{fontSize:16}}>Opportunity: {selOpp.quote?.name}</h1></div><p>{oppAccount?.name}</p></>}
       </div>
-      {vw==="brief"&&<Briefing accounts={accounts} aiData={aiData} onS={pick} onAnalyze={handleAnalyze} onOppClick={handleOppClick} analyzing={analyzing}/>}
-      {vw==="engage"&&<EngagementHub accounts={accounts} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
+      {vw==="brief"&&<Briefing accounts={accounts} products={products} aiData={aiData} onS={pick} onAnalyze={handleAnalyze} onOppClick={handleOppClick} analyzing={analyzing}/>}
+      {vw==="engage"&&<EngagementHub accounts={accounts} products={products} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="det"&&selC&&<Detail cu={selC} ai={aiData[selC.id]} products={products} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="opp"&&selOpp&&oppAccount&&<OpportunityDetail account={oppAccount} quote={selOpp.quote} ai={aiData[oppAccount.id]} onBack={()=>{sVw("brief");setSelOpp(null)}} onGoToAccount={(id)=>{sSel(id);sVw("det");setSelOpp(null)}}/>}
       {vw==="data"&&<DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample} onPersist={handlePersist}/>}

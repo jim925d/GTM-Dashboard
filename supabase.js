@@ -26,6 +26,8 @@ export async function loadUploadTablesFromSupabase() {
         "contacts",
         "engagement",
         "churned",
+        "closedWon",
+        "closedLost",
       ]);
     if (error) {
       console.warn("Supabase load error:", error.message);
@@ -40,6 +42,8 @@ export async function loadUploadTablesFromSupabase() {
       contacts: [],
       engagement: [],
       churned: [],
+      closedWon: [],
+      closedLost: [],
     };
     (data || []).forEach((row) => {
       if (row.table_key && Array.isArray(row.data)) {
@@ -68,6 +72,8 @@ export async function saveUploadTablesToSupabase(tables) {
     "contacts",
     "engagement",
     "churned",
+    "closedWon",
+    "closedLost",
   ];
   try {
     for (const key of keys) {
