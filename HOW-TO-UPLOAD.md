@@ -74,6 +74,23 @@ After each successful upload, **Dashboard mapping status** shows how many rows a
 
 ---
 
+## Optional: Persist data with Supabase
+
+If you configure **Supabase**, the app saves your uploaded tables to the cloud and restores them when you reload the page (or open the app on another device). Without Supabase, data is in-memory only and is lost on refresh.
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com) (free tier is fine).
+2. **Run the migration**: In the Supabase Dashboard → **SQL Editor**, run the SQL in `supabase/migrations/20250225000000_gtm_upload_store.sql` to create the `gtm_upload_store` table and policies.
+3. **Get your API keys**: Dashboard → **Project Settings** → **API** — copy the **Project URL** and **anon public** key.
+4. **Configure the app**: In the project root, copy `.env.example` to `.env` and set:
+   - `VITE_SUPABASE_URL` = your Project URL  
+   - `VITE_SUPABASE_ANON_KEY` = your anon key  
+   Restart the dev server after changing `.env`.
+5. **Build/deploy**: For production (e.g. GitHub Pages), set the same env vars in your host’s environment or build config so they are available at build time.
+
+Once configured, every CSV upload (and **Load sample data**) is persisted to Supabase and loaded on next visit.
+
+---
+
 ## Column Name Reference (for your CSV headers)
 
 Use these (or close variants; the app normalizes spaces and case):

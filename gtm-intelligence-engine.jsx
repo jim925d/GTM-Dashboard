@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { loadUploadTablesFromSupabase, saveUploadTablesToSupabase } from "./supabase.js";
 
 /* ═══════════════════ DATA ═══════════════════ */
 const PRODUCTS = [
@@ -877,13 +878,14 @@ function readFileAsText(file) {
   });
 }
 
-function applyTables(next, setUploadTables, setProducts, setAccounts) {
+function applyTables(next, setUploadTables, setProducts, setAccounts, onPersist) {
   setUploadTables(next);
   setProducts(buildProductsFromRows(next.productCatalog || []));
   setAccounts(buildAccountsFromTables(next.accounts, next.locations, next.currentProducts, next.quotes, next.contacts, next.engagement, next.churned));
+  if (typeof onPersist === "function") onPersist(next);
 }
 
-function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onLoadSample }) {
+function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onLoadSample, onPersist }) {
   const [tableKey, setTableKey] = useState("accounts");
   const [parseError, setParseError] = useState("");
   const [lastLoaded, setLastLoaded] = useState("");
@@ -903,7 +905,7 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
         const meta = parseCSVWithMeta(text);
         if (!meta || meta.rows.length === 0) throw new Error("No rows found. Check that the file has a header row and at least one data row.");
         const next = { ...uploadTables, [tableKey]: meta.rows };
-        applyTables(next, setUploadTables, setProducts, setAccounts);
+        applyTables(next, setUploadTables, setProducts, setAccounts, onPersist);
         setLastLoaded(`${TABLE_OPTIONS.find(t => t.key === tableKey)?.label}: ${meta.rows.length} rows → dashboard mapped`);
       } catch (err) {
         setParseError(err.message || "Failed to parse file.");
@@ -937,7 +939,7 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
   const loadAllPending = () => {
     const next = { ...uploadTables };
     pendingFiles.forEach(p => { next[p.assignedTable] = p.rows; });
-    applyTables(next, setUploadTables, setProducts, setAccounts);
+    applyTables(next, setUploadTables, setProducts, setAccounts, onPersist);
     setPendingFiles([]);
     setLastLoaded(`${pendingFiles.length} file(s) loaded and mapped to dashboard`);
   };
@@ -1047,6 +1049,21 @@ export default function App() {
   const[accounts,setAccounts]=useState(ACCOUNTS);
   const[uploadTables,setUploadTables]=useState(INITIAL_UPLOAD_TABLES);
   const[selOpp,setSelOpp]=useState(null);
+  const[dataHydrated,setDataHydrated]=useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadUploadTablesFromSupabase().then((tables) => {
+      if (cancelled) return;
+      if (tables != null) {
+        setUploadTables(tables);
+        setProducts(buildProductsFromRows(tables.productCatalog || []));
+        setAccounts(buildAccountsFromTables(tables.accounts, tables.locations, tables.currentProducts, tables.quotes, tables.contacts, tables.engagement, tables.churned));
+      }
+      setDataHydrated(true);
+    }).catch(() => setDataHydrated(true));
+    return () => { cancelled = true; };
+  }, []);
 
   const sorted=[...accounts].sort((a,b)=>{
     const sa=aiData[a.id]?.score||quickScore(a).score;
@@ -1081,10 +1098,15 @@ export default function App() {
     setAnalyzing(false);setProgress("");
   },[accounts,products]);
 
+  const handlePersist = useCallback((tables) => {
+    saveUploadTablesToSupabase(tables);
+  }, []);
+
   const handleLoadSample = useCallback(()=>{
     setProducts(PRODUCTS);
     setAccounts(ACCOUNTS);
     setUploadTables(INITIAL_UPLOAD_TABLES);
+    saveUploadTablesToSupabase(INITIAL_UPLOAD_TABLES);
   },[]);
 
   const handleOppClick = useCallback((accountId, quote)=>{
@@ -1093,6 +1115,10 @@ export default function App() {
     sSel(null);
   },[]);
   const oppAccount = selOpp ? accounts.find(c=>c.id===selOpp.accountId) : null;
+
+  if (!dataHydrated) {
+    return (<><style>{CSS}</style><div className="app" style={{ alignItems: "center", justifyContent: "center" }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--t2)", fontSize: 13 }}><span className="spin" style={{ width: 24, height: 24, borderWidth: 2 }}/><span>Loading data…</span></div></div></>);
+  }
 
   return(<><style>{CSS}</style><div className="app">
     <div className="sb">
@@ -1123,7 +1149,7 @@ export default function App() {
       {vw==="engage"&&<EngagementHub accounts={accounts} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="det"&&selC&&<Detail cu={selC} ai={aiData[selC.id]} products={products} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="opp"&&selOpp&&oppAccount&&<OpportunityDetail account={oppAccount} quote={selOpp.quote} ai={aiData[oppAccount.id]} onBack={()=>{sVw("brief");setSelOpp(null)}} onGoToAccount={(id)=>{sSel(id);sVw("det");setSelOpp(null)}}/>}
-      {vw==="data"&&<DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample}/>}
+      {vw==="data"&&<DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample} onPersist={handlePersist}/>}
     </div>
   </div></>);
 }
