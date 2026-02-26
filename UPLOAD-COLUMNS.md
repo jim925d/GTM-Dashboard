@@ -1,11 +1,11 @@
 # CSV and Excel column headings for each upload
 
-You can upload **one Excel file (.xlsx) with multiple tabs**: name each sheet after the function (e.g. **Accounts**, **Locations**, **Quotes**, **Product Catalog**). The app maps sheet names to tables and loads all in one go. Column rules below apply to each sheet; first row = headers.
+You can upload **one Excel file (.xlsx) with multiple tabs**: name each sheet after the function (e.g. **Accounts**, **Locations**, **Quotes**, **Product Catalog**, **ICBs**). The app maps sheet names to tables and loads all in one go. Column rules below apply to each sheet; first row = headers.
 
-**Sheet name → table mapping:** Accounts, Locations, Product Catalog (or Products), Current Products, Quotes (or Pipeline), Contacts, Engagement, Churned (or Prior), Closed Won, Closed Lost.
+**Sheet name → table mapping:** Accounts, Locations, Product Catalog (or Products), Current Products, Quotes (or Pipeline), **ICBs**, Contacts, Engagement, Churned (or Prior), Closed Won, Closed Lost.
 
 Headers are **auto-normalized**: spaces → underscore, lowercase, special characters removed.  
-So `Account ID` and `Account ID` both become `account_id`. Use either style in your CSV/Excel; the first row must be headers.
+So `Account ID` becomes `account_id`. Use either style in your CSV/Excel; the first row must be headers.
 
 ---
 
@@ -22,8 +22,7 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | use_cases / usecases | | |
 | playbook_brief / playbookbrief | | Compressed playbook text |
 
-**Example header row:**  
-`product_name,category,mrr,description,fit_signals,value_props,use_cases`
+**Example:** `product_name,category,mrr,description,fit_signals,value_props,use_cases`
 
 ---
 
@@ -38,8 +37,7 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | mrr | ✓ | Current total MRR (number) |
 | contract_end / contractend | | YYYY-MM-DD |
 
-**Example:**  
-`account_id,account_name,industry,tier,mrr,contract_end`
+**Example:** `account_id,account_name,industry,tier,mrr,contract_end`
 
 ---
 
@@ -56,8 +54,7 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | longitude / lng / lon | | For map |
 | products / products_at_site | | Comma-separated product names at this site |
 
-**Example:**  
-`account_id,address,net_status,billing_amount,target_addressable_spend,latitude,longitude`
+**Example:** `account_id,address,net_status,billing_amount,target_addressable_spend,latitude,longitude`
 
 ---
 
@@ -68,8 +65,7 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | account_id / accountid | ✓ |
 | product_name / productname | ✓ |
 
-**Example:**  
-`account_id,product_name`
+**Example:** `account_id,product_name`
 
 ---
 
@@ -83,16 +79,33 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | product_name / productname / product | ✓ | |
 | quoted_mrr / quotedmrr / mrr | ✓ | Number |
 | quote_date / quotedate / date | | |
-| close_date / closedate | | For “Pipeline this month” |
+| close_date / closedate | | For period filter (e.g. Pipeline this month) |
 | status / st | ✓ | e.g. pending, stalled, pending-board. Default "pending" |
 | notes | | |
+| opportunity_id / opportunityid / quote_id | | **Links to ICBs**; if omitted, an id is generated per quote |
 
 **Example:**  
-`account_id,product_name,quoted_mrr,quote_date,close_date,status,notes`
+`account_id,product_name,quoted_mrr,quote_date,close_date,status,notes`  
+With ICB linking: `opportunity_id,account_id,product_name,quoted_mrr,quote_date,close_date,status,notes`
 
 ---
 
-## 6. Contacts
+## 6. ICBs (Identifying Customer Benefits)
+
+ICBs link to opportunities (quotes) by **opportunity_id**. Use the same ID in your Quotes/Pipeline upload (optional column **opportunity_id**) so each opportunity can have one or more ICB rows.
+
+| Column (use one of) | Required | Notes |
+|---------------------|----------|--------|
+| opportunity_id / opportunityid | ✓ | Must match opportunity_id on the quote/opportunity |
+| description / icb_description | | Benefit or outcome description |
+| value / icb_value | | Value statement |
+| stakeholder | | Role or contact |
+
+**Example:** `opportunity_id,description,value,stakeholder`
+
+---
+
+## 7. Contacts
 
 | Column (use one of) | Required | Notes |
 |---------------------|----------|--------|
@@ -102,12 +115,11 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | engagement_level / engagementlevel / eng | ✓ | e.g. champion, engaged, cooling, cold |
 | last_touch / lasttouch / last | | Last contact date |
 
-**Example:**  
-`account_id,contact_name,title,engagement_level,last_touch`
+**Example:** `account_id,contact_name,title,engagement_level,last_touch`
 
 ---
 
-## 7. Engagement History
+## 8. Engagement History
 
 | Column (use one of) | Required | Notes |
 |---------------------|----------|--------|
@@ -116,24 +128,22 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | type / t | | e.g. Call, Email, QBR, Quote Sent. Default "Call" |
 | notes / n | ✓ | |
 
-**Example:**  
-`account_id,date,type,notes`
+**Example:** `account_id,date,type,notes`
 
 ---
 
-## 8. Prior / Churned Services
+## 9. Prior / Churned Services
 
 | Column (use one of) | Required |
 |---------------------|----------|
 | account_id / accountid | ✓ |
 | service_description / servicedescription | ✓ |
 
-**Example:**  
-`account_id,service_description`
+**Example:** `account_id,service_description`
 
 ---
 
-## 9. Closed Won
+## 10. Closed Won
 
 | Column (use one of) | Required | Notes |
 |---------------------|----------|--------|
@@ -147,12 +157,11 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | close_date / closedate | ✓ | |
 | opp_type | | Optional |
 
-**Example:**  
-`opp_id,account_id,account_name,industry,product_name,mrr,close_date`
+**Example:** `opp_id,account_id,account_name,industry,product_name,mrr,close_date`
 
 ---
 
-## 10. Closed Lost
+## 11. Closed Lost
 
 | Column (use one of) | Required | Notes |
 |---------------------|----------|--------|
@@ -166,14 +175,13 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 | loss_reason / lossreason | ✓ | |
 | competitor | | Who won |
 
-**Example:**  
-`opp_id,account_id,account_name,industry,product_name,mrr,close_date,loss_reason,competitor`
+**Example:** `opp_id,account_id,account_name,industry,product_name,mrr,close_date,loss_reason,competitor`
 
 ---
 
 ## Tips
 
-- **Upload order:** Load **Accounts** first, then Locations, Current Products, Quotes, Contacts, Engagement, Churned. Product Catalog is independent. Closed Won/Lost can be last.
-- **Same ID everywhere:** Use the same `account_id` in every table that has it so rows merge correctly.
+- **Upload order:** Load **Accounts** first, then Locations, Current Products, Quotes (add **opportunity_id** if using ICBs), then **ICBs**, Contacts, Engagement, Churned. Product Catalog is independent. Closed Won/Lost can be last.
+- **Same ID everywhere:** Use the same `account_id` in every table that has it; use the same `opportunity_id` in Quotes and ICBs to link benefits to opportunities.
 - **Dates:** Use YYYY-MM-DD (e.g. 2025-02-28) for date columns.
 - **Encoding:** Save CSVs as **UTF-8** (Excel: “CSV UTF-8” or export with UTF-8).

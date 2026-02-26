@@ -149,16 +149,26 @@ function buildSampleUploadTables() {
   const currentProductsRows = ACCOUNTS.flatMap((a) =>
     (a.cur || []).map((p) => ({ account_id: a.id, product_name: p }))
   );
+  let oppIndex = 0;
   const quotesRows = ACCOUNTS.flatMap((a) =>
-    (a.qt || []).map((q) => ({
-      account_id: a.id,
-      product_name: q.name,
-      quoted_mrr: q.mrr,
-      quote_date: q.date || "",
-      close_date: q.closeDate || "",
-      status: q.st || "pending"
-    }))
+    (a.qt || []).map((q) => {
+      const oppId = q.id || `opp_${++oppIndex}`;
+      return {
+        opportunity_id: oppId,
+        account_id: a.id,
+        product_name: q.name,
+        quoted_mrr: q.mrr,
+        quote_date: q.date || "",
+        close_date: q.closeDate || "",
+        status: q.st || "pending"
+      };
+    })
   );
+  const icbsRows = [
+    { opportunity_id: quotesRows[0]?.opportunity_id || "opp_1", description: "Reduce latency for trading apps", value: "Faster execution", stakeholder: "CTO" },
+    { opportunity_id: quotesRows[0]?.opportunity_id || "opp_1", description: "Compliance and audit trail", value: "Regulatory readiness", stakeholder: "CISO" },
+    { opportunity_id: quotesRows[1]?.opportunity_id || "opp_2", description: "Unified visibility across sites", value: "Single pane of glass", stakeholder: "Network team" }
+  ].filter(r => r.opportunity_id);
   const contactsRows = ACCOUNTS.flatMap((a) =>
     (a.con || []).map((c) => ({
       account_id: a.id,
@@ -194,6 +204,7 @@ function buildSampleUploadTables() {
     locations: locationsRows,
     currentProducts: currentProductsRows,
     quotes: quotesRows,
+    icbs: icbsRows,
     contacts: contactsRows,
     engagement: engagementRows,
     churned: churnedRows,
@@ -240,7 +251,9 @@ function sheetNameToTableKey(sheetName) {
     "closed won": "closedWon",
     "closedwon": "closedWon",
     "closed lost": "closedLost",
-    "closedlost": "closedLost"
+    "closedlost": "closedLost",
+    "icbs": "icbs",
+    "icb": "icbs"
   };
   if (map[n]) return map[n];
   if (map[nNoSpace]) return map[nNoSpace];
@@ -281,7 +294,7 @@ function parseExcelWorkbook(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: "array", raw: false });
   const tables = {
     productCatalog: [], accounts: [], locations: [], currentProducts: [],
-    quotes: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: []
+    quotes: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: [], icbs: []
   };
   const summary = [];
   (wb.SheetNames || []).forEach((name) => {
@@ -334,6 +347,7 @@ function detectTableType(normalizedHeaders) {
   if (has(["account_id", "account_name"]) && (set.has("industry") || set.has("ind") || set.has("tier") || set.has("mrr") || set.has("contract_end") || set.has("contractend"))) return "accounts";
   if (has(["account_id", "account_name"]) && (set.has("product_name") || set.has("productname")) && (set.has("close_date") || set.has("closedate")) && (set.has("mrr") && !set.has("loss_reason") && !set.has("lossreason"))) return "closedWon";
   if (has(["account_id", "account_name"]) && (set.has("product_name") || set.has("productname")) && (set.has("loss_reason") || set.has("lossreason") || set.has("competitor"))) return "closedLost";
+  if (set.has("opportunity_id") || set.has("opportunityid")) return "icbs";
   return null;
 }
 
@@ -352,7 +366,7 @@ function buildProductsFromRows(rows) {
   })).filter(p => p.name !== "Unknown");
 }
 
-function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRows, quotesRows, contactsRows, engagementRows, churnedRows, closedWonRows, closedLostRows) {
+function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRows, quotesRows, contactsRows, engagementRows, churnedRows, closedWonRows, closedLostRows, icbsRows) {
   const accountMap = new Map();
   (accountsRows || []).forEach((r, i) => {
     const id = (r.account_id || r.accountid || "").trim() || "acc_" + (i + 1);
@@ -398,13 +412,34 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     const productName = (r.product_name || r.productname || r.product || "").trim();
     if (!aid || !productName) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
-    accountMap.get(aid).qt.push({
+    const acc = accountMap.get(aid);
+    const oppId = (r.opportunity_id || r.opportunityid || r.quote_id || r.quoteid || r.opp_id || "").trim() || `q_${aid}_${acc.qt.length}`;
+    acc.qt.push({
+      id: oppId,
       name: productName,
       mrr: Math.round(parseFloat(r.quoted_mrr || r.quotedmrr || r.mrr) || 0),
       date: (r.quote_date || r.quotedate || r.date || "").trim() || "",
       closeDate: (r.close_date || r.closedate || "").trim() || "",
       st: (r.status || r.st || "pending").trim().toLowerCase(),
       notes: (r.notes || "").trim() || ""
+    });
+  });
+  const icbsByOppId = new Map();
+  const norm = (id) => (id || "").trim().toLowerCase();
+  (icbsRows || []).forEach(r => {
+    const oppId = (r.opportunity_id || r.opportunityid || "").trim();
+    if (!oppId) return;
+    const key = norm(oppId);
+    if (!icbsByOppId.has(key)) icbsByOppId.set(key, []);
+    icbsByOppId.get(key).push({
+      description: (r.description || r.icb_description || r.icbdescription || "").trim() || "",
+      value: (r.value || r.icb_value || r.icbvalue || "").trim() || "",
+      stakeholder: (r.stakeholder || "").trim() || ""
+    });
+  });
+  accountMap.forEach(acc => {
+    (acc.qt || []).forEach(q => {
+      q.icbs = icbsByOppId.get(norm(q.id)) || [];
     });
   });
   (contactsRows || []).forEach(r => {
@@ -526,6 +561,8 @@ function getActionItems(accounts) {
       const created = icb.createdDate || icb.created_date || "";
       return created && daysAgo(created) >= 14;
     });
+    const onNetNotBillingCount = (c.loc || []).filter(l => l.s === "on-net" && !(l.billing != null && l.billing > 0)).length;
+    if (onNetNotBillingCount > 0) items.push({ accountId: c.id, accountName: c.name, reason: `On-net not billing (${onNetNotBillingCount} location${onNetNotBillingCount > 1 ? "s" : ""})`, reasonKey: "onnet_not_billing" });
     if (ds >= 30) items.push({ accountId: c.id, accountName: c.name, reason: "No contact 30+ days", reasonKey: "gap_30" });
     if (ds >= 14 && hasOpenOpp) items.push({ accountId: c.id, accountName: c.name, reason: "No contact 14+ days (open opp)", reasonKey: "gap_14_opp" });
     if (hasStalledQuote) items.push({ accountId: c.id, accountName: c.name, reason: "Stalled quote", reasonKey: "stalled_quote" });
@@ -1189,10 +1226,11 @@ function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing,p
         :pipelineInPeriod.sort((a,b)=>b.mrr-a.mrr).map((q,i)=>(
           <div key={i} className="act" onClick={()=>onOppClick(q.aid,q)} style={{marginBottom:4}}>
             <div style={{width:3,minHeight:24,borderRadius:2,background:q.st==="stalled"?"var(--rd)":q.st==="pending-board"?"var(--yl)":"var(--ac)"}}/>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{q.anm} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div></div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{q.anm} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div>
+              {q.icbs?.length>0&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>ICB: {(q.icbs[0].description||q.icbs[0].value||"—").slice(0,50)}{(q.icbs[0].description||q.icbs[0].value)?.length>50?"…":""}{q.icbs.length>1?` (+${q.icbs.length-1})`:""}</div>}</div>
             <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:600,color:"var(--gn)"}}>${q.mrr.toLocaleString()}</div></div>))}</div>
       {actionCount>0&&<div className="cd fw"><div className="ch"><span style={{fontSize:15}}>⚠️</span><div className="ctit">Action items ({actionCount})</div></div>
-        <div style={{fontSize:11,color:"var(--t3)",marginBottom:8}}>No contact 30+d (all) · No contact 14+d (open opp) · Stalled quote · Stalled ICB 14+d · Renewal in 90d · Renewal in 60d</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:8}}>On-net not billing · No contact 30+d · No contact 14+d (open opp) · Stalled quote · Stalled ICB 14+d · Renewal in 90d · Renewal in 60d</div>
         {actionItems.slice(0,12).map((a,i)=>(<div key={i} className="act" onClick={()=>onS(a.accountId)} style={{marginBottom:4}}>
           <span className="tg critical" style={{fontSize:9}}>{a.reason}</span>
           <div style={{flex:1,minWidth:0}}><span style={{fontSize:12,fontWeight:600}}>{a.accountName}</span></div>
@@ -1291,7 +1329,7 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
         {cu.qt.length>0&&<div style={{borderTop:"1px solid var(--bd)",marginTop:8,paddingTop:8}}>{cu.qt.map((q,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0"}}><div><div style={{fontSize:12,fontWeight:600}}>{q.name} <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)",fontSize:10}}>({q.st})</span></div><div style={{fontSize:10,color:"var(--t3)"}}>Quoted {q.date}</div></div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
         {cu.prior.length>0&&<div style={{borderTop:"1px solid var(--bd)",marginTop:8,paddingTop:8}}>{cu.prior.map((s,i)=><div key={i} style={{fontSize:11,color:"var(--rd)",marginBottom:2}}>↩ {s}</div>)}</div>}</div>
       <div className="cd"><div className="ch"><span>📍</span><div className="ctit">Locations</div></div>
-        {cu.loc.map((l,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6,padding:"7px 0",borderBottom:i<cu.loc.length-1?"1px solid var(--bd)":"none"}}><div style={{fontSize:12,color:"var(--t2)",flex:1,minWidth:0}}><div>{l.a}</div>{(l.billing != null && l.billing > 0) || (l.targetSpend != null && l.targetSpend > 0) ? <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{(l.billing != null && l.billing > 0) && <>Billing: ${l.billing.toLocaleString()}/mo</>}{(l.billing != null && l.billing > 0) && (l.targetSpend != null && l.targetSpend > 0) && " · "}{(l.targetSpend != null && l.targetSpend > 0) && <>Target addressable: ${l.targetSpend.toLocaleString()}</>}</div> : null}</div><span className={`tg ${l.s}`}>{l.s}</span></div>)}</div>
+        {cu.loc.map((l,i)=>{ const isBilling = (l.billing != null && l.billing > 0); const onNetNotBilling = l.s === "on-net" && !isBilling; return (<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6,padding:"7px 0",borderBottom:i<cu.loc.length-1?"1px solid var(--bd)":"none",...(onNetNotBilling?{background:"var(--acd)",margin:"0 -10px",padding:"7px 10px",borderRadius:6,border:"1px solid var(--ac)"}:{})}}><div style={{fontSize:12,color:"var(--t2)",flex:1,minWidth:0}}><div>{l.a}</div><div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{isBilling ? <>Billing: ${l.billing.toLocaleString()}/mo</> : <span style={{color:"var(--t3)"}}>Not billing</span>}{(l.targetSpend != null && l.targetSpend > 0) && <> · Target: ${l.targetSpend.toLocaleString()}</>}</div>{onNetNotBilling&&<div style={{fontSize:9.5,fontWeight:600,color:"var(--ac)",marginTop:4,textTransform:"uppercase",letterSpacing:".5px"}}>Top priority — engage</div>}</div><span className={`tg ${l.s}`}>{l.s}</span></div>);})}</div>
       {cu.loc?.some(l=>l.lat!=null&&l.lng!=null)&&import.meta.env.VITE_MAPBOX_TOKEN&&(
         <div className="cd fw">
           <div className="ch"><span>🗺️</span><div className="ctit">Location Map</div></div>
@@ -1305,7 +1343,7 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
     {tab==="contacts"&&<div className="cd">{cu.con.map((c,i)=><div key={i} className="cr"><div className="cav">{c.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{c.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{c.title}</div></div><span className={`ce ${c.eng}`}>{c.eng}</span>{c.last&&<div style={{fontSize:10,color:"var(--t3)"}}>Last: {c.last}</div>}</div>)}
       {ai?.contactStrategy&&<div style={{marginTop:12,padding:12,background:"var(--b1)",borderRadius:8,border:"1px solid var(--bd)"}}><div style={{fontSize:10,fontWeight:600,color:"var(--t3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>AI Contact Strategy</div><div style={{fontSize:11,color:"var(--t2)",lineHeight:1.5}}><strong style={{color:"var(--t1)"}}>Primary:</strong> {ai.contactStrategy.primaryTarget} — {ai.contactStrategy.approach}</div>{ai.contactStrategy.multiThreadNote&&<div style={{fontSize:11,color:"var(--pr)",marginTop:4}}>{ai.contactStrategy.multiThreadNote}</div>}</div>}</div>}
     {tab==="products"&&<div>
-      {cu.qt.length>0&&<div className="cd" style={{marginBottom:14}}><div className="ch"><span>📝</span><div className="ctit">Open Quotes</div></div>{cu.qt.map((q,i)=><div key={i} className="pf"><div style={{width:3,minHeight:28,borderRadius:2,background:q.st==="stalled"?"var(--rd)":"var(--yl)"}}/><div><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10,color:"var(--t3)"}}>Quoted {q.date} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div></div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
+      {cu.qt.length>0&&<div className="cd" style={{marginBottom:14}}><div className="ch"><span>📝</span><div className="ctit">Open Quotes</div></div>{cu.qt.map((q,i)=><div key={i} className="pf"><div style={{width:3,minHeight:28,borderRadius:2,background:q.st==="stalled"?"var(--rd)":"var(--yl)"}}/><div><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10,color:"var(--t3)"}}>Quoted {q.date} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div>{q.icbs?.length>0&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>ICB: {(q.icbs[0].description||q.icbs[0].value||"—").slice(0,40)}{(q.icbs[0].description||q.icbs[0].value)?.length>40?"…":""}{q.icbs.length>1?` (+${q.icbs.length-1} more)`:""}</div>}</div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
       {ai?.productRecommendations?.length>0?<div className="cd"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>{ai.productRecommendations.map((p,i)=><div key={i} className="pf"><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div></div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>
       :<div className="cd"><div style={{textAlign:"center",padding:16}}><div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Run AI analysis for intelligent product recommendations</div><button className="btn bp" onClick={()=>onAnalyze(cu.id)} disabled={analyzing}>✨ Analyze</button></div></div>}
     </div>}
@@ -1337,6 +1375,18 @@ function OpportunityDetail({ account, quote, ai, onBack, onGoToAccount }) {
         <div style={{ fontSize: 12, color: "var(--t2)", marginBottom: 8 }}>{quote?.name} · ${(quote?.mrr || 0).toLocaleString()}/mo · {quote?.st} · Quoted {quote?.date}</div>
         {quote?.closeDate && <div style={{ fontSize: 11, color: "var(--t3)" }}>Expected close: {quote.closeDate}</div>}
         {quote?.notes && <div className="ebox" style={{ marginTop: 8 }}><div className="ebox-b">{quote.notes}</div></div>}
+        {quote?.icbs?.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 6 }}>ICBs (Identifying Customer Benefits)</div>
+            {quote.icbs.map((icb, i) => (
+              <div key={i} className="ebox" style={{ marginBottom: 6, padding: 10 }}>
+                {icb.description && <div style={{ fontSize: 12, color: "var(--t2)" }}>{icb.description}</div>}
+                {icb.value && <div style={{ fontSize: 11, color: "var(--ac)", marginTop: 4 }}>{icb.value}</div>}
+                {icb.stakeholder && <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>Stakeholder: {icb.stakeholder}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="cd fw" style={{ marginTop: 12 }}>
         <div className="ch"><span>✨</span><div className="ctit">AI Opportunity — Additional potential</div></div>
@@ -1378,7 +1428,8 @@ const TABLE_OPTIONS = [
   { key: "accounts", label: "Accounts", required: "account_id, account_name, industry, tier, mrr, contract_end" },
   { key: "locations", label: "Locations", required: "account_id, address, net_status", optional: "billing_amount, target_addressable_spend, latitude, longitude" },
   { key: "currentProducts", label: "Current Products", required: "account_id, product_name" },
-  { key: "quotes", label: "Quotes / Pipeline", required: "account_id, product_name, quoted_mrr, quote_date, status" },
+  { key: "quotes", label: "Quotes / Pipeline", required: "account_id, product_name, quoted_mrr, quote_date, status", optional: "opportunity_id (to link ICBs)" },
+  { key: "icbs", label: "ICBs", required: "opportunity_id", optional: "description, value, stakeholder" },
   { key: "contacts", label: "Contacts", required: "account_id, contact_name, title, engagement_level" },
   { key: "engagement", label: "Engagement History", required: "account_id, date, type, notes" },
   { key: "churned", label: "Prior / Churned Services", required: "account_id, service_description" },
@@ -1407,7 +1458,7 @@ function readFileAsArrayBuffer(file) {
 function applyTables(next, setUploadTables, setProducts, setAccounts, onPersist) {
   setUploadTables(next);
   setProducts(buildProductsFromRows(next.productCatalog || []));
-  setAccounts(buildAccountsFromTables(next.accounts, next.locations, next.currentProducts, next.quotes, next.contacts, next.engagement, next.churned, next.closedWon, next.closedLost));
+  setAccounts(buildAccountsFromTables(next.accounts, next.locations, next.currentProducts, next.quotes, next.contacts, next.engagement, next.churned, next.closedWon, next.closedLost, next.icbs));
   if (typeof onPersist === "function") onPersist(next);
 }
 
@@ -1622,7 +1673,7 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
 }
 
 /* ═══════════════ APP ═══════════════ */
-const INITIAL_UPLOAD_TABLES = { productCatalog: [], accounts: [], locations: [], currentProducts: [], quotes: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: [] };
+const INITIAL_UPLOAD_TABLES = { productCatalog: [], accounts: [], locations: [], currentProducts: [], quotes: [], icbs: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: [] };
 
 export default function App() {
   const[vw,sVw]=useState("brief");
