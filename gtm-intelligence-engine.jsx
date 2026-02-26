@@ -469,6 +469,49 @@ const daysUntil = d => Math.floor((new Date(d) - NOW)/864e5);
 const currentMonthKey = () => `${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,"0")}`;
 const isCloseDateInCurrentMonth = (closeDate) => !closeDate ? false : closeDate.startsWith(currentMonthKey());
 
+const PERIOD_OPTIONS = [
+  { key: "currentMonth", label: "Current Month" },
+  { key: "nextMonth", label: "Next Month" },
+  { key: "currentQuarter", label: "Current Quarter" },
+  { key: "currentYear", label: "Current Year" }
+];
+function getPeriodRange(period) {
+  const y = NOW.getFullYear();
+  const m = NOW.getMonth();
+  let start, end;
+  if (period === "currentMonth") {
+    start = new Date(y, m, 1);
+    end = new Date(y, m + 1, 0);
+  } else if (period === "nextMonth") {
+    start = new Date(y, m + 1, 1);
+    end = new Date(y, m + 2, 0);
+  } else if (period === "currentQuarter") {
+    const q = Math.floor(m / 3) + 1;
+    start = new Date(y, (q - 1) * 3, 1);
+    end = new Date(y, q * 3, 0);
+  } else if (period === "currentYear") {
+    start = new Date(y, 0, 1);
+    end = new Date(y, 11, 31);
+  } else {
+    start = new Date(y, m, 1);
+    end = new Date(y, m + 1, 0);
+  }
+  return { start, end };
+}
+function isCloseDateInPeriod(closeDate, period) {
+  if (!closeDate || !period) return false;
+  const { start, end } = getPeriodRange(period);
+  const d = new Date(closeDate);
+  if (isNaN(d.getTime())) return false;
+  d.setHours(0, 0, 0, 0);
+  const s = new Date(start); s.setHours(0, 0, 0, 0);
+  const e = new Date(end); e.setHours(23, 59, 59, 999);
+  return d >= s && d <= e;
+}
+function getPeriodLabel(period) {
+  return PERIOD_OPTIONS.find((p) => p.key === period)?.label || "Current Month";
+}
+
 /** Urgent triggers: returns list of concrete action items for the briefing. */
 function getActionItems(accounts) {
   const items = [];
@@ -1108,7 +1151,7 @@ function EngagementHub({accounts,products,aiData,onSelect,onAnalyze,analyzing}) 
 }
 
 /* ═══════════════ BRIEFING ═══════════════ */
-function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing}){
+function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing,periodFilter}){
   const tM=accounts.reduce((s,c)=>s+c.mrr,0);
   const addressableGapTotal=accounts.reduce((s,c)=>{
     const totalTarget=(c.loc||[]).reduce((sum,l)=>sum+(l.targetSpend||0),0);
@@ -1116,8 +1159,8 @@ function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing})
     return s+Math.max(0,(totalTarget||0)-totalBilling);
   },0);
   const allPipeline=accounts.flatMap(c=>c.qt.map(q=>({...q,anm:c.name,aid:c.id})));
-  const pipelineCurrentMonth=allPipeline.filter(q=>isCloseDateInCurrentMonth(q.closeDate));
-  const tQMonth=pipelineCurrentMonth.reduce((s,q)=>s+q.mrr,0);
+  const pipelineInPeriod=allPipeline.filter(q=>isCloseDateInPeriod(q.closeDate,periodFilter));
+  const tQPeriod=pipelineInPeriod.reduce((s,q)=>s+q.mrr,0);
   const aiCount=Object.keys(aiData).length;
   const scored=accounts.map(c=>({...c,score:aiData[c.id]?.score||quickScore(c,products).score,ds:c.eng[0]?daysAgo(c.eng[0].d):999})).sort((a,b)=>b.score-a.score);
   const { count: actionCount, items: actionItems } = getActionItems(accounts);
@@ -1126,7 +1169,7 @@ function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing})
     <div className="sr">
       <div className="st"><div className="sl">Book of Business</div><div className="sv" style={{color:"var(--gn)"}}>${tM.toLocaleString()}</div><div className="ss">current MRR</div></div>
       <div className="st"><div className="sl">Addressable Gap</div><div className="sv" style={{color:"var(--ac)"}}>${addressableGapTotal.toLocaleString()}</div><div className="ss">/mo uncaptured</div></div>
-      <div className="st"><div className="sl">Pipeline (This Month)</div><div className="sv" style={{color:"var(--yl)"}}>${tQMonth.toLocaleString()}</div><div className="ss">/mo close this month</div></div>
+      <div className="st"><div className="sl">Pipeline ({getPeriodLabel(periodFilter)})</div><div className="sv" style={{color:"var(--yl)"}}>${tQPeriod.toLocaleString()}</div><div className="ss">/mo close in period</div></div>
       <div className="st"><div className="sl">Urgent Actions</div><div className="sv" style={{color:actionCount>0?"var(--rd)":"var(--t3)"}}>{actionCount}</div><div className="ss">need attention</div></div>
       <div className="st"><div className="sl">Avg Score</div><div className="sv" style={{color:avg>=60?"var(--gn)":"var(--yl)"}}>{avg}</div><div className="ss">{aiCount>0?`${aiCount} AI-scored`:accounts.length+" accounts"}</div></div>
       <div className="st" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",cursor:"pointer",border:analyzing?"1px solid var(--ac)":"1px solid var(--bd)"}} onClick={()=>!analyzing&&onAnalyze("all")}>
@@ -1141,9 +1184,9 @@ function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing})
             <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12,fontWeight:600}}>{c.name}</span>{ai&&<span className="ai-badge">AI</span>}</div>
               <div style={{fontSize:10.5,color:"var(--t3)",marginTop:1}}>{ai?ai.immediateOpportunity?.description?.slice(0,60)+"…":`$${c.mrr.toLocaleString()}/mo · ${c.ind}`}</div></div>
             <div style={{fontSize:10,color:"var(--t3)"}}>→</div></div>)})}</div>
-      <div className="cd"><div className="ch"><span style={{fontSize:15}}>💰</span><div className="ctit">Open Pipeline (current month)</div></div>
-        {pipelineCurrentMonth.length===0?<div style={{fontSize:12,color:"var(--t3)",padding:8}}>No opportunities with close date this month. Add close_date to quotes in CSV.</div>
-        :pipelineCurrentMonth.sort((a,b)=>b.mrr-a.mrr).map((q,i)=>(
+      <div className="cd"><div className="ch"><span style={{fontSize:15}}>💰</span><div className="ctit">Open Pipeline ({getPeriodLabel(periodFilter)})</div></div>
+        {pipelineInPeriod.length===0?<div style={{fontSize:12,color:"var(--t3)",padding:8}}>No opportunities with close date in {getPeriodLabel(periodFilter).toLowerCase()}. Add close_date to quotes in CSV.</div>
+        :pipelineInPeriod.sort((a,b)=>b.mrr-a.mrr).map((q,i)=>(
           <div key={i} className="act" onClick={()=>onOppClick(q.aid,q)} style={{marginBottom:4}}>
             <div style={{width:3,minHeight:24,borderRadius:2,background:q.st==="stalled"?"var(--rd)":q.st==="pending-board"?"var(--yl)":"var(--ac)"}}/>
             <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{q.anm} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div></div>
@@ -1585,6 +1628,7 @@ export default function App() {
   const[vw,sVw]=useState("brief");
   const[sel,sSel]=useState(null);
   const[srch,sSrch]=useState("");
+  const[periodFilter,setPeriodFilter]=useState("currentMonth");
   const[aiData,setAiData]=useState({});
   const[analyzing,setAnalyzing]=useState(false);
   const[progress,setProgress]=useState("");
@@ -1705,13 +1749,27 @@ export default function App() {
     </div>
     <div className="mn">
       <div className="mh">
+        <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:12,marginBottom:8}}>
+          <span style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)"}}>Close date filter:</span>
+          {PERIOD_OPTIONS.map((p)=>(
+            <button
+              key={p.key}
+              type="button"
+              className={`btn ${periodFilter===p.key?"bp":"bg"}`}
+              style={{fontSize:11,padding:"5px 10px"}}
+              onClick={()=>setPeriodFilter(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         {vw==="brief"&&<><h1>☀️ Good Morning — Here's Your Day</h1><p>Your book of business, scored and strategized.{aiCount===0?" Hit ✨ to run AI analysis.":` ${aiCount} accounts AI-analyzed.`}</p></>}
         {vw==="engage"&&<><h1>🎯 Engagement Hub — AI-Powered Outreach</h1><p>Every account analyzed for opportunity, sentiment, and competitive risk. Outreach generated from your data.</p></>}
         {vw==="det"&&selC&&<><div style={{display:"flex",alignItems:"center",gap:7}}><span onClick={()=>{sVw("brief");sSel(null)}} style={{cursor:"pointer",color:"var(--t3)",fontSize:12}}>← Back</span><span style={{color:"var(--bd)"}}>/</span><h1 style={{fontSize:16}}>{selC.name}</h1><span className={`tg ${selC.tier==="Strategic"?"positive":selC.tier==="Growth"?"accent":"warning"}`}>{selC.tier}</span>{aiData[selC.id]&&<span className="ai-badge">AI</span>}</div><p>Account Intelligence</p></>}
         {vw==="data"&&<><h1>📤 Upload Data</h1><p>Load your CSV exports from Salesforce or Excel. See the how-to doc for column names.</p></>}
         {vw==="opp"&&selOpp&&<><div style={{display:"flex",alignItems:"center",gap:7}}><span onClick={()=>{sVw("brief");setSelOpp(null)}} style={{cursor:"pointer",color:"var(--t3)",fontSize:12}}>← Back</span><span style={{color:"var(--bd)"}}>/</span><h1 style={{fontSize:16}}>Opportunity: {selOpp.quote?.name}</h1></div><p>{oppAccount?.name}</p></>}
       </div>
-      {vw==="brief"&&<Briefing accounts={accounts} products={products} aiData={aiData} onS={pick} onAnalyze={handleAnalyze} onOppClick={handleOppClick} analyzing={analyzing}/>}
+      {vw==="brief"&&<Briefing accounts={accounts} products={products} aiData={aiData} onS={pick} onAnalyze={handleAnalyze} onOppClick={handleOppClick} analyzing={analyzing} periodFilter={periodFilter}/>}
       {vw==="engage"&&<EngagementHub accounts={accounts} products={products} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="det"&&selC&&<Detail cu={selC} ai={aiData[selC.id]} products={products} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="opp"&&selOpp&&oppAccount&&<OpportunityDetail account={oppAccount} quote={selOpp.quote} ai={aiData[oppAccount.id]} onBack={()=>{sVw("brief");setSelOpp(null)}} onGoToAccount={(id)=>{sSel(id);sVw("det");setSelOpp(null)}}/>}
