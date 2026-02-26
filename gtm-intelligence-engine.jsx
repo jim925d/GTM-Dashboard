@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { loadUploadTablesFromSupabase, saveUploadTablesToSupabase } from "./supabase.js";
+import * as XLSX from "xlsx";
 
 /* ═══════════════════ DATA ═══════════════════ */
 const PRODUCTS = [
@@ -209,6 +210,74 @@ function parseCSV(text) {
 
 function normalizeHeader(s) {
   return String(s).toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+
+/** Map Excel sheet name to upload table key. Case-insensitive, strips extra spaces. */
+function sheetNameToTableKey(sheetName) {
+  const n = String(sheetName || "").toLowerCase().trim().replace(/\s+/g, " ");
+  const map = {
+    "accounts": "accounts",
+    "account": "accounts",
+    "locations": "locations",
+    "location": "locations",
+    "product catalog": "productCatalog",
+    "products": "productCatalog",
+    "current products": "currentProducts",
+    "quotes": "quotes",
+    "pipeline": "quotes",
+    "quotes / pipeline": "quotes",
+    "contacts": "contacts",
+    "contact": "contacts",
+    "engagement": "engagement",
+    "engagement history": "engagement",
+    "churned": "churned",
+    "prior": "churned",
+    "prior / churned services": "churned",
+    "closed won": "closedWon",
+    "closedwon": "closedWon",
+    "closed lost": "closedLost",
+    "closedlost": "closedLost"
+  };
+  return map[n] || map[n.replace(/\s/g, "")] || null;
+}
+
+/** Parse one Excel sheet into rows (array of objects with normalized header keys). */
+function sheetToRows(sheet) {
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+  if (!raw || raw.length < 2) return [];
+  const rawHeaders = raw[0].map((h) => String(h ?? "").trim());
+  const headers = rawHeaders.map((h) => normalizeHeader(h));
+  const rows = [];
+  for (let i = 1; i < raw.length; i++) {
+    const obj = {};
+    const row = raw[i] || [];
+    headers.forEach((h, idx) => {
+      const v = row[idx];
+      obj[h] = v != null && v !== "" ? String(v).trim() : "";
+    });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+/** Parse an Excel workbook (multi-sheet) into upload tables. Each sheet name maps to a table (e.g. "Accounts" → accounts). */
+function parseExcelWorkbook(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: "array", raw: false });
+  const tables = {
+    productCatalog: [], accounts: [], locations: [], currentProducts: [],
+    quotes: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: []
+  };
+  const summary = [];
+  (wb.SheetNames || []).forEach((name) => {
+    const tableKey = sheetNameToTableKey(name);
+    if (!tableKey) return;
+    const sheet = wb.Sheets[name];
+    const rows = sheetToRows(sheet);
+    if (rows.length === 0) return;
+    tables[tableKey] = rows;
+    summary.push({ sheetName: name, tableKey, rowCount: rows.length });
+  });
+  return { tables, summary };
 }
 
 function parseCSVWithMeta(text) {
@@ -1266,6 +1335,15 @@ function readFileAsText(file) {
   });
 }
 
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve({ name: file.name, buffer: r.result });
+    r.onerror = () => reject(new Error("Could not read file"));
+    r.readAsArrayBuffer(file);
+  });
+}
+
 function applyTables(next, setUploadTables, setProducts, setAccounts, onPersist) {
   setUploadTables(next);
   setProducts(buildProductsFromRows(next.productCatalog || []));
@@ -1280,6 +1358,7 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
   const [pendingFiles, setPendingFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
+  const excelFileRef = useRef(null);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -1303,21 +1382,56 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
     e.target.value = "";
   };
 
+  const handleExcelApply = (buffer) => {
+    try {
+      const { tables, summary } = parseExcelWorkbook(buffer);
+      if (summary.length === 0) {
+        setParseError("No sheet names matched. Name your tabs: Accounts, Locations, Quotes, Product Catalog, Contacts, Engagement, Churned, Closed Won, Closed Lost.");
+        return;
+      }
+      const next = { ...uploadTables };
+      Object.keys(tables).forEach((k) => { if (tables[k].length > 0) next[k] = tables[k]; });
+      applyTables(next, setUploadTables, setProducts, setAccounts, onPersist);
+      const msg = summary.map((s) => `${s.sheetName} → ${s.tableKey} (${s.rowCount})`).join("; ");
+      setLastLoaded(`Excel: ${msg}`);
+      setParseError("");
+    } catch (err) {
+      setParseError(err?.message || "Failed to parse Excel file.");
+    }
+  };
+
   const handleMultiDrop = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer?.files || []).filter(f => /\.(csv|txt)$/i.test(f.name));
-    if (files.length === 0) return;
-    Promise.all(files.map(readFileAsText)).then(results => {
+    setParseError("");
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length === 0) {
+      setParseError("No files received. Try dropping a .csv or .xlsx file again.");
+      return;
+    }
+    const excelFiles = files.filter((f) => /\.(xlsx|xls|xlsm)$/i.test(f.name));
+    if (excelFiles.length > 0) {
+      readFileAsArrayBuffer(excelFiles[0])
+        .then(({ buffer }) => handleExcelApply(buffer))
+        .catch((err) => setParseError(err?.message || "Could not read Excel file."));
+      return;
+    }
+    const csvFiles = files.filter((f) => /\.(csv|txt)$/i.test(f.name));
+    if (csvFiles.length === 0) {
+      setParseError("Unsupported file type. Use .csv, .txt, or .xlsx / .xls files.");
+      return;
+    }
+    Promise.all(csvFiles.map(readFileAsText)).then((results) => {
       const pending = results.map(({ name, text }) => {
         const meta = parseCSVWithMeta(text);
         const rows = meta ? meta.rows : [];
         const detected = meta ? detectTableType(meta.normalizedHeaders) : null;
-        const label = TABLE_OPTIONS.find(t => t.key === (detected || "accounts"))?.label || "Unknown";
         return { name, rows, detected, assignedTable: detected || "accounts", rawHeaders: meta?.rawHeaders || [], rowCount: rows.length };
-      }).filter(p => p.rowCount > 0);
-      setPendingFiles(prev => [...prev, ...pending]);
-    }).catch(() => setParseError("Could not read one or more files."));
+      }).filter((p) => p.rowCount > 0);
+      setPendingFiles((prev) => [...prev, ...pending]);
+      if (pending.length === 0) setParseError("No valid rows in CSV(s). Need a header row and at least one data row.");
+    }).catch((err) => setParseError(err?.message || "Could not read one or more files."));
   };
 
   const setAssigned = (idx, key) => {
@@ -1337,10 +1451,15 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
       <div className="cd fw" style={{ marginBottom: 16 }}>
         <div className="ch"><span>📤</span><div className="ctit">Upload by function — auto-maps to dashboard</div></div>
         <p style={{ fontSize: 12, color: "var(--t2)", marginBottom: 12, lineHeight: 1.5 }}>
-          Drop one or more CSVs here, or upload per function below. Column headers are auto-mapped (e.g. Account ID → account_id). First row must be headers. Excel: save as CSV (UTF-8) first.
+          Drop CSVs or one Excel file (.xlsx) with multiple tabs (e.g. Accounts, Locations, Quotes). Each tab name maps to a function. Or upload per function below. First row of each sheet = headers.
         </p>
         <div
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleMultiDrop}
           style={{
@@ -1354,7 +1473,28 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
             color: "var(--t2)",
           }}
         >
-          Drop CSV files here (multiple allowed)
+          Drop CSV or Excel (.xlsx) files here — or click "Upload Excel" below
+        </div>
+        {parseError && <div style={{ marginTop: 8, marginBottom: 8, fontSize: 12, color: "var(--rd)", background: "var(--rdd)", padding: "8px 10px", borderRadius: 6 }}>{parseError}</div>}
+        {lastLoaded && !parseError && <div style={{ marginTop: 8, marginBottom: 8, fontSize: 12, color: "var(--gn)" }}>✓ {lastLoaded}</div>}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          <button type="button" className="btn bp" style={{ fontSize: 11 }} onClick={() => excelFileRef.current?.click()}>
+            📊 Upload Excel (one file, multiple tabs)
+          </button>
+          <input
+            type="file"
+            ref={excelFileRef}
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setParseError("");
+              setLastLoaded("");
+              readFileAsArrayBuffer(file).then(({ buffer }) => handleExcelApply(buffer)).catch(() => setParseError("Could not read Excel file."));
+              e.target.value = "";
+            }}
+          />
         </div>
         {pendingFiles.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -1399,8 +1539,6 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn bg" onClick={onLoadSample}>Load sample data</button>
         </div>
-        {parseError && <div style={{ marginTop: 10, fontSize: 12, color: "var(--rd)", background: "var(--rdd)", padding: "8px 10px", borderRadius: 6 }}>{parseError}</div>}
-        {lastLoaded && <div style={{ marginTop: 10, fontSize: 12, color: "var(--gn)" }}>✓ {lastLoaded}</div>}
       </div>
       <div className="cd fw">
         <div className="ch"><span>📋</span><div className="ctit">Dashboard mapping status</div></div>
