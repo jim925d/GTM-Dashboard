@@ -75,10 +75,12 @@ So `Account ID` and `Account ID` both become `account_id`. Use either style in y
 
 ## 5. Quotes / Pipeline
 
+**Excel:** Name the tab **Quotes**, **Pipeline**, or **Quotes/Pipeline** (or any name containing "quote" or "pipeline").
+
 | Column (use one of) | Required | Notes |
 |---------------------|----------|--------|
-| account_id / accountid | ✓ | |
-| product_name / productname | ✓ | |
+| account_id / accountid / account | ✓ | |
+| product_name / productname / product | ✓ | |
 | quoted_mrr / quotedmrr / mrr | ✓ | Number |
 | quote_date / quotedate / date | | |
 | close_date / closedate | | For “Pipeline this month” |

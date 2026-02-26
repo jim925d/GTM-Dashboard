@@ -215,6 +215,7 @@ function normalizeHeader(s) {
 /** Map Excel sheet name to upload table key. Case-insensitive, strips extra spaces. */
 function sheetNameToTableKey(sheetName) {
   const n = String(sheetName || "").toLowerCase().trim().replace(/\s+/g, " ");
+  const nNoSpace = n.replace(/\s/g, "");
   const map = {
     "accounts": "accounts",
     "account": "accounts",
@@ -226,6 +227,9 @@ function sheetNameToTableKey(sheetName) {
     "quotes": "quotes",
     "pipeline": "quotes",
     "quotes / pipeline": "quotes",
+    "quotes/pipeline": "quotes",
+    "quotes - pipeline": "quotes",
+    "quotes-pipeline": "quotes",
     "contacts": "contacts",
     "contact": "contacts",
     "engagement": "engagement",
@@ -238,7 +242,19 @@ function sheetNameToTableKey(sheetName) {
     "closed lost": "closedLost",
     "closedlost": "closedLost"
   };
-  return map[n] || map[n.replace(/\s/g, "")] || null;
+  if (map[n]) return map[n];
+  if (map[nNoSpace]) return map[nNoSpace];
+  if (n.includes("quote") || n.includes("pipeline")) return "quotes";
+  if (n.includes("account") && !n.includes("contact")) return "accounts";
+  if (n.includes("location")) return "locations";
+  if (n.includes("product") && n.includes("catalog")) return "productCatalog";
+  if (n.includes("current") && n.includes("product")) return "currentProducts";
+  if (n.includes("contact")) return "contacts";
+  if (n.includes("engagement")) return "engagement";
+  if (n.includes("churn") || n.includes("prior")) return "churned";
+  if (n.includes("closed") && n.includes("won")) return "closedWon";
+  if (n.includes("closed") && n.includes("lost")) return "closedLost";
+  return null;
 }
 
 /** Parse one Excel sheet into rows (array of objects with normalized header keys). */
@@ -370,19 +386,20 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     });
   });
   (currentProductsRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || "").trim();
-    const name = (r.product_name || r.productname || "").trim();
+    const aid = (r.account_id || r.accountid || r.account || "").trim();
+    const name = (r.product_name || r.productname || r.product || "").trim();
     if (!aid || !name) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
     const acc = accountMap.get(aid);
     if (!acc.cur.includes(name)) acc.cur.push(name);
   });
   (quotesRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || "").trim();
-    if (!aid) return;
+    const aid = (r.account_id || r.accountid || r.account || "").trim();
+    const productName = (r.product_name || r.productname || r.product || "").trim();
+    if (!aid || !productName) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
     accountMap.get(aid).qt.push({
-      name: (r.product_name || r.productname || "").trim() || "—",
+      name: productName,
       mrr: Math.round(parseFloat(r.quoted_mrr || r.quotedmrr || r.mrr) || 0),
       date: (r.quote_date || r.quotedate || r.date || "").trim() || "",
       closeDate: (r.close_date || r.closedate || "").trim() || "",
