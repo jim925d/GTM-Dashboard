@@ -6,9 +6,42 @@
 const NOW = new Date();
 const daysAgo = (d) => Math.floor((NOW - new Date(d)) / 864e5);
 
-export function buildAnalysisPrompt(account, products, dealIntelligence, playbookBriefs) {
+function mergeExtractedProducts(catalogProducts, extractedProducts) {
+  if (!extractedProducts?.length) return catalogProducts;
+  const byName = new Map();
+  (catalogProducts || []).forEach((p) => byName.set(p.name, { ...p }));
+  extractedProducts.forEach((ep) => {
+    const name = ep.product_name || ep.name || "";
+    if (!name) return;
+    const existing = byName.get(name);
+    const merged = {
+      name,
+      cat: existing?.cat || ep.category || "Other",
+      mrr: existing?.mrr ?? 0,
+      desc: existing?.desc || ep.description || "",
+      fit_signals: existing?.fit_signals || ep.buying_signals_implicit || "",
+      value_props: existing?.value_props || ep.value_props_by_persona || "",
+      use_cases: existing?.use_cases || "",
+      ideal_customer_profile: existing?.ideal_customer_profile || ep.ideal_customer_profile || "",
+      buying_signals_explicit: existing?.buying_signals_explicit || ep.buying_signals_explicit || "",
+      buying_signals_implicit: existing?.buying_signals_implicit || ep.buying_signals_implicit || "",
+      buying_signals_negative: existing?.buying_signals_negative || ep.buying_signals_negative || "",
+      cross_sell_relationships: existing?.cross_sell_relationships || ep.cross_sell_relationships || "",
+      competitive_positioning: existing?.competitive_positioning || ep.competitive_positioning || "",
+      objection_handling: existing?.objection_handling || ep.objection_handling || "",
+      value_props_by_persona: existing?.value_props_by_persona || ep.value_props_by_persona || "",
+      pricing_packaging: existing?.pricing_packaging || ep.pricing_packaging || "",
+      proof_points: existing?.proof_points || ep.proof_points || "",
+    };
+    byName.set(name, merged);
+  });
+  return Array.from(byName.values());
+}
+
+export function buildAnalysisPrompt(account, products, dealIntelligence, playbookBriefs, playbookExtraction = null) {
+  const mergedProducts = mergeExtractedProducts(products || [], playbookExtraction?.products || []);
   const ds = account.eng?.[0] ? daysAgo(account.eng[0].d) : 999;
-  const availableProducts = (products || []).filter(
+  const availableProducts = mergedProducts.filter(
     (p) => !(account.cur || []).includes(p.name) && !(account.qt || []).some((q) => q.name === p.name)
   );
   const todayStr = NOW.toISOString().split("T")[0];
@@ -24,7 +57,7 @@ export function buildAnalysisPrompt(account, products, dealIntelligence, playboo
     (account.loc || []).reduce((s, l) => s + (l.targetSpend || 0), 0) - account.mrr;
   const prodBlock = availableProducts
     .map((p) => {
-      let entry = `${p.name} ($${p.mrr}/mo, ${p.cat}): ${p.desc || ""}`;
+      let entry = `${p.name} ($${p.mrr || 0}/mo, ${p.cat}): ${p.desc || ""}`;
       if (playbookBriefs?.[p.name]) entry += `\n  PLAYBOOK: ${playbookBriefs[p.name]}`;
       else {
         if (p.fit_signals) entry += `\n  Signals: ${p.fit_signals}`;
@@ -44,6 +77,33 @@ export function buildAnalysisPrompt(account, products, dealIntelligence, playboo
       return entry;
     })
     .join("\n\n") || "All products owned or quoted.";
+
+  const extractedPlaybookBlock = playbookExtraction
+    ? `
+═══ EXTRACTED PLAYBOOK INTELLIGENCE (from uploaded PDF/document) ═══
+Use this as the authoritative playbook for stages, plays, buyers, and qualification. Match account data to these elements.
+
+Products & Solutions:
+${JSON.stringify(playbookExtraction.products || [], null, 2)}
+
+Buyers & Decision Makers:
+${JSON.stringify(playbookExtraction.buyers || [], null, 2)}
+
+Sales Stages:
+${JSON.stringify(playbookExtraction.stages || [], null, 2)}
+
+Sales Plays (Know/Say/Show/Do):
+${JSON.stringify(playbookExtraction.plays || [], null, 2)}
+
+Qualification Methodology: ${typeof playbookExtraction.qualification_methodology === "string" ? playbookExtraction.qualification_methodology : JSON.stringify(playbookExtraction.qualification_methodology || {})}
+
+Process/Documentation: ${playbookExtraction.process_documentation || "[NOT DEFINED]"}
+
+Competitive Intelligence:
+${JSON.stringify(playbookExtraction.competitive_intelligence || [], null, 2)}
+`
+    : "";
+
   const dealIntelBlock = dealIntelligence
     ? `
 ═══ DEAL INTELLIGENCE (from ${dealIntelligence.totalDeals || "historical"} closed deals) ═══
@@ -85,6 +145,7 @@ For every opportunity, assess:
 - Champion: Internal advocate selling on our behalf? Can they access EB?
 Score each: Strong / Partial / Gap. Flag critical gaps.
 ${dealIntelBlock}
+${extractedPlaybookBlock}
 ═══ ACCOUNT DATA ═══
 Company: ${account.name}
 Industry: ${account.ind} | Tier: ${account.tier} | Current MRR: $${account.mrr}/mo

@@ -1,131 +1,142 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { loadUploadTablesFromSupabase, saveUploadTablesToSupabase } from "./supabase.js";
+import { loadUploadTablesFromSupabase, saveUploadTablesToSupabase, loadPlaybookExtractionFromSupabase, savePlaybookExtractionToSupabase } from "./supabase.js";
+import { extractTextFromPdfFile } from "./pdfExtract.js";
 import { mapRowsToCanonical, detectTableType as detectTableTypeFromSchema } from "./csv-column-map.js";
 import * as XLSX from "xlsx";
 
 /* ═══════════════════ DATA ═══════════════════ */
 const PRODUCTS = [
-  {id:"p1",name:"SD-WAN Managed",cat:"Network",mrr:1200,desc:"Software-defined WAN with managed routing and traffic optimization across multi-site environments",fit_signals:"multiple locations, bandwidth, MPLS, network modernization, branch consolidation",value_props:"Single pane of glass; reduce MPLS spend; SLA-backed performance",use_cases:"Multi-site enterprises replacing MPLS; retail with PCI needs"},
-  {id:"p2",name:"DDoS Protection",cat:"Security",mrr:800,desc:"Volumetric and application-layer DDoS mitigation with 24/7 SOC monitoring",fit_signals:"security, uptime, compliance, SOC, volumetric attack",value_props:"24/7 SOC; inline mitigation; compliance reporting",use_cases:"Financial services, healthcare, any uptime-critical operations"},
-  {id:"p3",name:"Unified Comms",cat:"UCaaS",mrr:2500,desc:"Cloud PBX, video conferencing, team messaging, and contact center platform",fit_signals:"UCaaS, contact center, remote work, video, PBX replacement",value_props:"One platform for voice, video, messaging; easy management",use_cases:"Distributed teams; contact center consolidation; legacy PBX replacement"},
-  {id:"p4",name:"Dedicated Internet",cat:"Network",mrr:950,desc:"Symmetric, SLA-backed internet access with guaranteed bandwidth and uptime",fit_signals:"internet, bandwidth, SLA, symmetric, uptime",value_props:"SLA-backed; symmetric bandwidth; dedicated (not shared)",use_cases:"Primary or backup internet; bandwidth-heavy applications"},
-  {id:"p5",name:"Cloud Connect",cat:"Cloud",mrr:600,desc:"Private low-latency connectivity to AWS, Azure, and GCP environments",fit_signals:"cloud, AWS, Azure, GCP, migration, hybrid",value_props:"Private link; low latency; no public internet",use_cases:"Cloud migration; hybrid; multi-cloud"},
-  {id:"p6",name:"Managed Firewall",cat:"Security",mrr:700,desc:"Next-gen firewall with 24/7 SOC, threat intelligence, and compliance reporting",fit_signals:"firewall, security, SOC, compliance, HIPAA, PCI",value_props:"24/7 SOC; compliance support; threat intelligence",use_cases:"Healthcare, financial, retail; lean IT teams needing managed security"},
-  {id:"p7",name:"SIP Trunking",cat:"Voice",mrr:350,desc:"Scalable SIP trunks with automatic failover and nationwide number porting",fit_signals:"SIP, voice, PBX, trunks, number porting",value_props:"Scalable; failover; nationwide porting",use_cases:"Existing PBX modernization; voice consolidation"},
-  {id:"p8",name:"Wavelength",cat:"Network",mrr:3500,desc:"High-capacity point-to-point optical transport for data center interconnect",fit_signals:"data center, DCI, wavelength, high capacity, low latency",value_props:"High capacity; low latency; dedicated fiber",use_cases:"Data center interconnect; financial trading; media"},
+  { id: "p1", name: "SD-WAN Managed", cat: "Network", mrr: 1200, desc: "Software-defined WAN with managed routing and traffic optimization across multi-site environments", fit_signals: "multiple locations, bandwidth, MPLS, network modernization, branch consolidation", value_props: "Single pane of glass; reduce MPLS spend; SLA-backed performance", use_cases: "Multi-site enterprises replacing MPLS; retail with PCI needs" },
+  { id: "p2", name: "DDoS Protection", cat: "Security", mrr: 800, desc: "Volumetric and application-layer DDoS mitigation with 24/7 SOC monitoring", fit_signals: "security, uptime, compliance, SOC, volumetric attack", value_props: "24/7 SOC; inline mitigation; compliance reporting", use_cases: "Financial services, healthcare, any uptime-critical operations" },
+  { id: "p3", name: "Unified Comms", cat: "UCaaS", mrr: 2500, desc: "Cloud PBX, video conferencing, team messaging, and contact center platform", fit_signals: "UCaaS, contact center, remote work, video, PBX replacement", value_props: "One platform for voice, video, messaging; easy management", use_cases: "Distributed teams; contact center consolidation; legacy PBX replacement" },
+  { id: "p4", name: "Dedicated Internet", cat: "Network", mrr: 950, desc: "Symmetric, SLA-backed internet access with guaranteed bandwidth and uptime", fit_signals: "internet, bandwidth, SLA, symmetric, uptime", value_props: "SLA-backed; symmetric bandwidth; dedicated (not shared)", use_cases: "Primary or backup internet; bandwidth-heavy applications" },
+  { id: "p5", name: "Cloud Connect", cat: "Cloud", mrr: 600, desc: "Private low-latency connectivity to AWS, Azure, and GCP environments", fit_signals: "cloud, AWS, Azure, GCP, migration, hybrid", value_props: "Private link; low latency; no public internet", use_cases: "Cloud migration; hybrid; multi-cloud" },
+  { id: "p6", name: "Managed Firewall", cat: "Security", mrr: 700, desc: "Next-gen firewall with 24/7 SOC, threat intelligence, and compliance reporting", fit_signals: "firewall, security, SOC, compliance, HIPAA, PCI", value_props: "24/7 SOC; compliance support; threat intelligence", use_cases: "Healthcare, financial, retail; lean IT teams needing managed security" },
+  { id: "p7", name: "SIP Trunking", cat: "Voice", mrr: 350, desc: "Scalable SIP trunks with automatic failover and nationwide number porting", fit_signals: "SIP, voice, PBX, trunks, number porting", value_props: "Scalable; failover; nationwide porting", use_cases: "Existing PBX modernization; voice consolidation" },
+  { id: "p8", name: "Wavelength", cat: "Network", mrr: 3500, desc: "High-capacity point-to-point optical transport for data center interconnect", fit_signals: "data center, DCI, wavelength, high capacity, low latency", value_props: "High capacity; low latency; dedicated fiber", use_cases: "Data center interconnect; financial trading; media" },
 ];
 
 const ACCOUNTS = [
-  {id:"c1",name:"Meridian Health Systems",ind:"Healthcare",tier:"Growth",
-    loc:[{a:"450 Medical Center Dr, Chicago IL",s:"on-net",billing:1800,targetSpend:2400},{a:"1200 Lake Shore Blvd, Chicago IL",s:"on-net",billing:1200,targetSpend:1900},{a:"890 Prairie Ave, Naperville IL",s:"near-net",billing:950,targetSpend:1400},{a:"2100 Wellness Way, Milwaukee WI",s:"off-net",billing:250,targetSpend:1100}],
-    cur:["Dedicated Internet","SIP Trunking"],
-    qt:[{name:"SD-WAN Managed",date:"2024-11-20",closeDate:"2025-02-28",mrr:3600,st:"pending"},{name:"Managed Firewall",date:"2024-11-20",closeDate:"",mrr:2100,st:"pending"}],
-    prior:["MPLS Network (churned 2023)","Legacy PBX (replaced 2022)"],mrr:4200,cEnd:"2025-09-30",
-    eng:[
-      {d:"2025-02-15",t:"QBR",n:"Discussed network modernization across all 4 sites. CTO Dr. Chen very interested in SD-WAN to replace legacy routing. Wants a pilot at Naperville."},
-      {d:"2025-02-01",t:"Support Ticket",n:"Outage at Naperville — upstream ISP issue. Customer frustrated with 4-hour resolution time. Wants SLA review."},
-      {d:"2024-11-20",t:"Quote Sent",n:"SD-WAN + Managed Firewall bundle for 3 locations. $5,700/mo. CTO favorable but procurement hasn't engaged."},
-      {d:"2024-10-05",t:"Email",n:"VP of IT Mark Williams asked about HIPAA compliance capabilities for managed security."},
-      {d:"2024-08-12",t:"Event",n:"Dr. Chen and Mark Williams attended Healthcare IT Summit. Strong interest in security + compliance roadmap."},
+  {
+    id: "c1", name: "Meridian Health Systems", ind: "Healthcare", tier: "Growth",
+    loc: [{ a: "450 Medical Center Dr, Chicago IL", s: "on-net", billing: 1800, targetSpend: 2400 }, { a: "1200 Lake Shore Blvd, Chicago IL", s: "on-net", billing: 1200, targetSpend: 1900 }, { a: "890 Prairie Ave, Naperville IL", s: "near-net", billing: 950, targetSpend: 1400 }, { a: "2100 Wellness Way, Milwaukee WI", s: "off-net", billing: 250, targetSpend: 1100 }],
+    cur: ["Dedicated Internet", "SIP Trunking"],
+    qt: [{ name: "SD-WAN Managed", date: "2024-11-20", closeDate: "2025-02-28", mrr: 3600, st: "pending" }, { name: "Managed Firewall", date: "2024-11-20", closeDate: "", mrr: 2100, st: "pending" }],
+    prior: ["MPLS Network (churned 2023)", "Legacy PBX (replaced 2022)"], mrr: 4200, cEnd: "2025-09-30",
+    eng: [
+      { d: "2025-02-15", t: "QBR", n: "Discussed network modernization across all 4 sites. CTO Dr. Chen very interested in SD-WAN to replace legacy routing. Wants a pilot at Naperville." },
+      { d: "2025-02-01", t: "Support Ticket", n: "Outage at Naperville — upstream ISP issue. Customer frustrated with 4-hour resolution time. Wants SLA review." },
+      { d: "2024-11-20", t: "Quote Sent", n: "SD-WAN + Managed Firewall bundle for 3 locations. $5,700/mo. CTO favorable but procurement hasn't engaged." },
+      { d: "2024-10-05", t: "Email", n: "VP of IT Mark Williams asked about HIPAA compliance capabilities for managed security." },
+      { d: "2024-08-12", t: "Event", n: "Dr. Chen and Mark Williams attended Healthcare IT Summit. Strong interest in security + compliance roadmap." },
     ],
-    con:[{name:"Dr. Sarah Chen",title:"CTO",eng:"champion",last:"2025-02-15"},{name:"Mark Williams",title:"VP of IT",eng:"engaged",last:"2024-10-05"},{name:"Lisa Park",title:"Dir. Procurement",eng:"cold",last:null}]},
-  {id:"c2",name:"Atlas Manufacturing",ind:"Manufacturing",tier:"Win-Back",
-    loc:[{a:"7800 Industrial Pkwy, Detroit MI",s:"on-net",billing:950,targetSpend:2200},{a:"3200 Factory Rd, Toledo OH",s:"near-net",billing:0,targetSpend:1800},{a:"550 Commerce Dr, Indianapolis IN",s:"off-net",billing:0,targetSpend:1200}],
-    cur:["Dedicated Internet"],qt:[],
-    prior:["Wavelength Services (churned 2024 — budget cuts)"],mrr:950,cEnd:"2025-06-15",
-    eng:[
-      {d:"2025-01-28",t:"Email",n:"Sent Q1 planning outreach to Tom Bradley. No response after 3 weeks."},
-      {d:"2024-12-10",t:"Call",n:"IT Dir. Tom Bradley actively evaluating SD-WAN — Masergy and Aryaka in mix. Timeline Q1."},
-      {d:"2024-09-15",t:"Churn Event",n:"Wavelength cancelled. Budget cuts forced consolidation. 'Maybe revisit next fiscal year' (July)."},
+    con: [{ name: "Dr. Sarah Chen", title: "CTO", eng: "champion", last: "2025-02-15" }, { name: "Mark Williams", title: "VP of IT", eng: "engaged", last: "2024-10-05" }, { name: "Lisa Park", title: "Dir. Procurement", eng: "cold", last: null }]
+  },
+  {
+    id: "c2", name: "Atlas Manufacturing", ind: "Manufacturing", tier: "Win-Back",
+    loc: [{ a: "7800 Industrial Pkwy, Detroit MI", s: "on-net", billing: 950, targetSpend: 2200 }, { a: "3200 Factory Rd, Toledo OH", s: "near-net", billing: 0, targetSpend: 1800 }, { a: "550 Commerce Dr, Indianapolis IN", s: "off-net", billing: 0, targetSpend: 1200 }],
+    cur: ["Dedicated Internet"], qt: [],
+    prior: ["Wavelength Services (churned 2024 — budget cuts)"], mrr: 950, cEnd: "2025-06-15",
+    eng: [
+      { d: "2025-01-28", t: "Email", n: "Sent Q1 planning outreach to Tom Bradley. No response after 3 weeks." },
+      { d: "2024-12-10", t: "Call", n: "IT Dir. Tom Bradley actively evaluating SD-WAN — Masergy and Aryaka in mix. Timeline Q1." },
+      { d: "2024-09-15", t: "Churn Event", n: "Wavelength cancelled. Budget cuts forced consolidation. 'Maybe revisit next fiscal year' (July)." },
     ],
-    con:[{name:"Tom Bradley",title:"IT Director",eng:"cooling",last:"2024-12-10"},{name:"Jennifer Walsh",title:"CFO",eng:"cold",last:null}]},
-  {id:"c3",name:"Pinnacle Financial",ind:"Financial Services",tier:"Strategic",
-    loc:[{a:"200 LaSalle St, Chicago IL",s:"on-net",billing:4200,targetSpend:5800},{a:"55 Wall St, New York NY",s:"on-net",billing:5100,targetSpend:6200},{a:"100 Peachtree St, Atlanta GA",s:"near-net",billing:1800,targetSpend:3400},{a:"800 Wilshire Blvd, Los Angeles CA",s:"near-net",billing:1700,targetSpend:3100},{a:"1500 Market St, Philadelphia PA",s:"off-net",billing:0,targetSpend:2600}],
-    cur:["Dedicated Internet","DDoS Protection","Cloud Connect","SIP Trunking"],
-    qt:[{name:"Wavelength",date:"2025-01-22",closeDate:"2025-02-28",mrr:3500,st:"pending-board"},{name:"Unified Comms",date:"2024-10-15",closeDate:"",mrr:7500,st:"stalled"}],
-    icbs:[{createdDate:"2025-02-01"}],
-    prior:[],mrr:12800,cEnd:"2026-03-31",
-    eng:[
-      {d:"2025-02-10",t:"QBR",n:"Excellent meeting. Confirmed expansion to Atlanta and LA in Q2. Need connectivity proposals by March 1."},
-      {d:"2025-01-22",t:"Quote Sent",n:"Wavelength Chicago-NY. $3,500/mo. Board meeting Feb 28 for approval."},
-      {d:"2025-01-05",t:"Call",n:"CISO Diana Morales concerned about ransomware. Wants managed firewall + enhanced DDoS for all 5 locations."},
-      {d:"2024-12-18",t:"Support Ticket",n:"Minor Cloud Connect latency to Azure East. Resolved same day. Customer appreciated fast response."},
-      {d:"2024-11-30",t:"Event",n:"CEO Robert Hayes keynoted at our FinServ Roundtable. Very aligned with product roadmap."},
-      {d:"2024-10-15",t:"Email",n:"Kevin Patel asked about UCaaS for all 5 offices. Quote sent but stalled during holidays."},
+    con: [{ name: "Tom Bradley", title: "IT Director", eng: "cooling", last: "2024-12-10" }, { name: "Jennifer Walsh", title: "CFO", eng: "cold", last: null }]
+  },
+  {
+    id: "c3", name: "Pinnacle Financial", ind: "Financial Services", tier: "Strategic",
+    loc: [{ a: "200 LaSalle St, Chicago IL", s: "on-net", billing: 4200, targetSpend: 5800 }, { a: "55 Wall St, New York NY", s: "on-net", billing: 5100, targetSpend: 6200 }, { a: "100 Peachtree St, Atlanta GA", s: "near-net", billing: 1800, targetSpend: 3400 }, { a: "800 Wilshire Blvd, Los Angeles CA", s: "near-net", billing: 1700, targetSpend: 3100 }, { a: "1500 Market St, Philadelphia PA", s: "off-net", billing: 0, targetSpend: 2600 }],
+    cur: ["Dedicated Internet", "DDoS Protection", "Cloud Connect", "SIP Trunking"],
+    qt: [{ name: "Wavelength", date: "2025-01-22", closeDate: "2025-02-28", mrr: 3500, st: "pending-board" }, { name: "Unified Comms", date: "2024-10-15", closeDate: "", mrr: 7500, st: "stalled" }],
+    icbs: [{ createdDate: "2025-02-01" }],
+    prior: [], mrr: 12800, cEnd: "2026-03-31",
+    eng: [
+      { d: "2025-02-10", t: "QBR", n: "Excellent meeting. Confirmed expansion to Atlanta and LA in Q2. Need connectivity proposals by March 1." },
+      { d: "2025-01-22", t: "Quote Sent", n: "Wavelength Chicago-NY. $3,500/mo. Board meeting Feb 28 for approval." },
+      { d: "2025-01-05", t: "Call", n: "CISO Diana Morales concerned about ransomware. Wants managed firewall + enhanced DDoS for all 5 locations." },
+      { d: "2024-12-18", t: "Support Ticket", n: "Minor Cloud Connect latency to Azure East. Resolved same day. Customer appreciated fast response." },
+      { d: "2024-11-30", t: "Event", n: "CEO Robert Hayes keynoted at our FinServ Roundtable. Very aligned with product roadmap." },
+      { d: "2024-10-15", t: "Email", n: "Kevin Patel asked about UCaaS for all 5 offices. Quote sent but stalled during holidays." },
     ],
-    con:[{name:"Robert Hayes",title:"CEO",eng:"champion",last:"2025-02-10"},{name:"Diana Morales",title:"CISO",eng:"champion",last:"2025-01-05"},{name:"Kevin Patel",title:"VP Ops",eng:"engaged",last:"2024-10-15"},{name:"Amy Nguyen",title:"Head of Procurement",eng:"engaged",last:"2025-02-10"}]},
-  {id:"c4",name:"Bright Horizons Edu",ind:"Education",tier:"Win-Back",
-    loc:[{a:"1000 University Ave, Madison WI",s:"on-net",billing:350,targetSpend:1200},{a:"450 Campus Dr, Ann Arbor MI",s:"near-net",billing:0,targetSpend:950}],
-    cur:["SIP Trunking"],
-    qt:[{name:"Unified Comms",date:"2024-05-15",mrr:2500,st:"stalled"}],
-    prior:["Dedicated Internet (churned 2023 — lost to competitor on price)"],mrr:350,cEnd:"2025-04-30",
-    eng:[
-      {d:"2024-11-01",t:"Call",n:"IT Manager Greg Foster unhappy with current ISP — frequent outages. DIA win-back opportunity."},
-      {d:"2024-07-20",t:"Churn Event",n:"Lost DIA to competitor ($150/mo difference). Service was fine, purely budget."},
-      {d:"2024-05-15",t:"Quote Sent",n:"UCaaS for both campuses. $2,500/mo. Stalled — budget freeze until July."},
+    con: [{ name: "Robert Hayes", title: "CEO", eng: "champion", last: "2025-02-10" }, { name: "Diana Morales", title: "CISO", eng: "champion", last: "2025-01-05" }, { name: "Kevin Patel", title: "VP Ops", eng: "engaged", last: "2024-10-15" }, { name: "Amy Nguyen", title: "Head of Procurement", eng: "engaged", last: "2025-02-10" }]
+  },
+  {
+    id: "c4", name: "Bright Horizons Edu", ind: "Education", tier: "Win-Back",
+    loc: [{ a: "1000 University Ave, Madison WI", s: "on-net", billing: 350, targetSpend: 1200 }, { a: "450 Campus Dr, Ann Arbor MI", s: "near-net", billing: 0, targetSpend: 950 }],
+    cur: ["SIP Trunking"],
+    qt: [{ name: "Unified Comms", date: "2024-05-15", mrr: 2500, st: "stalled" }],
+    prior: ["Dedicated Internet (churned 2023 — lost to competitor on price)"], mrr: 350, cEnd: "2025-04-30",
+    eng: [
+      { d: "2024-11-01", t: "Call", n: "IT Manager Greg Foster unhappy with current ISP — frequent outages. DIA win-back opportunity." },
+      { d: "2024-07-20", t: "Churn Event", n: "Lost DIA to competitor ($150/mo difference). Service was fine, purely budget." },
+      { d: "2024-05-15", t: "Quote Sent", n: "UCaaS for both campuses. $2,500/mo. Stalled — budget freeze until July." },
     ],
-    con:[{name:"Greg Foster",title:"IT Manager",eng:"engaged",last:"2024-11-01"},{name:"Patricia Moore",title:"VP Admin",eng:"cold",last:null}]},
-  {id:"c5",name:"Velocity Logistics",ind:"Transportation",tier:"Growth",
-    loc:[{a:"500 Distribution Way, Memphis TN",s:"on-net",billing:2200,targetSpend:3200},{a:"1200 Freight Blvd, Louisville KY",s:"on-net",billing:1900,targetSpend:2800},{a:"800 Cargo Rd, Nashville TN",s:"near-net",billing:1100,targetSpend:2100},{a:"300 Shipping Ln, Dallas TX",s:"near-net",billing:1200,targetSpend:2400},{a:"950 Logistics Dr, Phoenix AZ",s:"off-net",billing:600,targetSpend:1800},{a:"2200 Transport Ave, Denver CO",s:"off-net",billing:400,targetSpend:1500}],
-    cur:["Dedicated Internet","SD-WAN Managed","SIP Trunking"],
-    qt:[{name:"Cloud Connect",date:"2025-02-05",closeDate:"2025-02-15",mrr:1800,st:"pending"}],
-    prior:[],mrr:7400,cEnd:"2026-01-15",
-    eng:[
-      {d:"2025-02-18",t:"Call",n:"CTO wants to accelerate Azure migration. SD-WAN performing well. Needs Cloud Connect all 6 sites by Q3."},
-      {d:"2025-02-05",t:"Quote Sent",n:"Cloud Connect Memphis + Louisville. $1,800/mo. CTO reviewing."},
-      {d:"2025-01-10",t:"QBR",n:"22% YoY growth driving bandwidth needs. Nashville/Dallas need upgrades. Mentioned 7th site in Atlanta."},
-      {d:"2024-12-01",t:"Email",n:"Asked about managed security. Warehouse break-in attempts triggered interest in network security audit."},
+    con: [{ name: "Greg Foster", title: "IT Manager", eng: "engaged", last: "2024-11-01" }, { name: "Patricia Moore", title: "VP Admin", eng: "cold", last: null }]
+  },
+  {
+    id: "c5", name: "Velocity Logistics", ind: "Transportation", tier: "Growth",
+    loc: [{ a: "500 Distribution Way, Memphis TN", s: "on-net", billing: 2200, targetSpend: 3200 }, { a: "1200 Freight Blvd, Louisville KY", s: "on-net", billing: 1900, targetSpend: 2800 }, { a: "800 Cargo Rd, Nashville TN", s: "near-net", billing: 1100, targetSpend: 2100 }, { a: "300 Shipping Ln, Dallas TX", s: "near-net", billing: 1200, targetSpend: 2400 }, { a: "950 Logistics Dr, Phoenix AZ", s: "off-net", billing: 600, targetSpend: 1800 }, { a: "2200 Transport Ave, Denver CO", s: "off-net", billing: 400, targetSpend: 1500 }],
+    cur: ["Dedicated Internet", "SD-WAN Managed", "SIP Trunking"],
+    qt: [{ name: "Cloud Connect", date: "2025-02-05", closeDate: "2025-02-15", mrr: 1800, st: "pending" }],
+    prior: [], mrr: 7400, cEnd: "2026-01-15",
+    eng: [
+      { d: "2025-02-18", t: "Call", n: "CTO wants to accelerate Azure migration. SD-WAN performing well. Needs Cloud Connect all 6 sites by Q3." },
+      { d: "2025-02-05", t: "Quote Sent", n: "Cloud Connect Memphis + Louisville. $1,800/mo. CTO reviewing." },
+      { d: "2025-01-10", t: "QBR", n: "22% YoY growth driving bandwidth needs. Nashville/Dallas need upgrades. Mentioned 7th site in Atlanta." },
+      { d: "2024-12-01", t: "Email", n: "Asked about managed security. Warehouse break-in attempts triggered interest in network security audit." },
     ],
-    con:[{name:"Rachel Torres",title:"CTO",eng:"champion",last:"2025-02-18"},{name:"David Kim",title:"Network Mgr",eng:"champion",last:"2025-01-10"},{name:"Susan Blake",title:"VP Finance",eng:"engaged",last:"2025-01-10"}]},
+    con: [{ name: "Rachel Torres", title: "CTO", eng: "champion", last: "2025-02-18" }, { name: "David Kim", title: "Network Mgr", eng: "champion", last: "2025-01-10" }, { name: "Susan Blake", title: "VP Finance", eng: "engaged", last: "2025-01-10" }]
+  },
   // 25 more accounts (c6–c30) for 30-account sample
-  {id:"c6",name:"Summit Retail Group",ind:"Retail",tier:"Growth",loc:[{a:"2000 Mall Dr, Columbus OH",s:"on-net",billing:1600,targetSpend:2200},{a:"4500 Store Way, Cincinnati OH",s:"near-net",billing:800,targetSpend:1500}],cur:["Dedicated Internet","SIP Trunking"],qt:[],prior:[],mrr:2400,cEnd:"2025-11-30",eng:[{d:"2025-02-01",t:"Call",n:"Discussed PCI scope for new locations."}],con:[{name:"Chris Bell",title:"IT Director",eng:"engaged",last:"2025-02-01"}]},
-  {id:"c7",name:"Northgate Technology",ind:"Technology",tier:"Strategic",loc:[{a:"100 Innovation Pkwy, Austin TX",s:"on-net",billing:5200,targetSpend:7200},{a:"500 Data Center Rd, Phoenix AZ",s:"on-net",billing:3800,targetSpend:5000}],cur:["Dedicated Internet","Cloud Connect","Managed Firewall"],qt:[{name:"DDoS Protection",date:"2025-01-15",closeDate:"2025-03-15",mrr:1600,st:"pending"}],prior:[],mrr:9000,cEnd:"2026-06-30",eng:[{d:"2025-02-12",t:"QBR",n:"Expanding to second region. Need DDoS and redundancy."}],con:[{name:"Jordan Lee",title:"CTO",eng:"champion",last:"2025-02-12"},{name:"Sam Rivera",title:"VP Eng",eng:"engaged",last:"2025-01-15"}]},
-  {id:"c8",name:"Metro Hospital Network",ind:"Healthcare",tier:"Strategic",loc:[{a:"800 Medical Plaza, Cleveland OH",s:"on-net",billing:3100,targetSpend:4500},{a:"1200 Health Way, Pittsburgh PA",s:"near-net",billing:1400,targetSpend:2800}],cur:["Dedicated Internet","DDoS Protection","SIP Trunking"],qt:[],prior:[],mrr:4500,cEnd:"2025-12-31",eng:[{d:"2025-02-08",t:"Email",n:"HIPAA audit scheduled. Need compliance summary."}],con:[{name:"Dr. Amy Foster",title:"CIO",eng:"champion",last:"2025-02-08"}]},
-  {id:"c9",name:"Prairie Ag Solutions",ind:"Manufacturing",tier:"Growth",loc:[{a:"5000 Farm Rd, Des Moines IA",s:"on-net",billing:1100,targetSpend:1900},{a:"3200 Grain Ave, Omaha NE",s:"off-net",billing:0,targetSpend:1200}],cur:["Dedicated Internet"],qt:[{name:"SD-WAN Managed",date:"2024-12-01",mrr:2400,st:"stalled"}],prior:[],mrr:1100,cEnd:"2025-08-15",eng:[{d:"2024-12-10",t:"Call",n:"Evaluating SD-WAN for two sites. Budget in Q2."}],con:[{name:"Mike Olson",title:"Operations Mgr",eng:"engaged",last:"2024-12-10"}]},
-  {id:"c10",name:"Coastal Financial",ind:"Financial Services",tier:"Growth",loc:[{a:"100 Bay St, Tampa FL",s:"on-net",billing:2800,targetSpend:4000},{a:"200 Ocean Dr, Miami FL",s:"near-net",billing:1200,targetSpend:2200}],cur:["Dedicated Internet","Managed Firewall"],qt:[],prior:[],mrr:4000,cEnd:"2026-01-31",eng:[{d:"2025-01-20",t:"QBR",n:"Miami office upgrade in plan. Need proposal."}],con:[{name:"Elena Vasquez",title:"CISO",eng:"champion",last:"2025-01-20"}]},
-  {id:"c11",name:"Valley State University",ind:"Education",tier:"Growth",loc:[{a:"1 Campus Dr, San Jose CA",s:"on-net",billing:1900,targetSpend:3200},{a:"500 Research Way, Palo Alto CA",s:"near-net",billing:900,targetSpend:1800}],cur:["Dedicated Internet","Unified Comms"],qt:[],prior:[],mrr:2800,cEnd:"2025-07-01",eng:[{d:"2025-02-05",t:"Call",n:"Student portal needs better uptime. DDoS discussion."}],con:[{name:"Dr. James Wu",title:"VP IT",eng:"engaged",last:"2025-02-05"}]},
-  {id:"c12",name:"Great Lakes Shipping",ind:"Transportation",tier:"Win-Back",loc:[{a:"4000 Port Rd, Cleveland OH",s:"on-net",billing:0,targetSpend:2600},{a:"2100 Dock St, Detroit MI",s:"near-net",billing:0,targetSpend:1800}],cur:[],qt:[],prior:["Dedicated Internet (churned 2024)"],mrr:0,cEnd:"",eng:[{d:"2024-11-15",t:"Email",n:"New leadership. Open to revisiting connectivity."}],con:[{name:"Karen Booth",title:"COO",eng:"cold",last:null}]},
-  {id:"c13",name:"Sunrise Healthcare",ind:"Healthcare",tier:"Growth",loc:[{a:"600 Clinic Blvd, Phoenix AZ",s:"on-net",billing:2200,targetSpend:3100},{a:"900 Care Way, Tucson AZ",s:"near-net",billing:700,targetSpend:1400}],cur:["Dedicated Internet","SIP Trunking"],qt:[{name:"Managed Firewall",date:"2025-01-10",closeDate:"2025-03-01",mrr:1400,st:"pending"}],prior:[],mrr:2900,cEnd:"2025-10-15",eng:[{d:"2025-01-10",t:"Quote Sent",n:"HIPAA requirement. Firewall for both sites."}],con:[{name:"Dr. Lisa Park",title:"CTO",eng:"champion",last:"2025-01-10"}]},
-  {id:"c14",name:"Pacific Manufacturing",ind:"Manufacturing",tier:"Growth",loc:[{a:"7000 Industrial Blvd, Portland OR",s:"on-net",billing:3400,targetSpend:4800},{a:"2000 Factory Ln, Seattle WA",s:"on-net",billing:2600,targetSpend:3600}],cur:["Dedicated Internet","SD-WAN Managed"],qt:[],prior:[],mrr:6000,cEnd:"2026-02-28",eng:[{d:"2025-02-14",t:"QBR",n:"Cloud migration to AWS. Cloud Connect next."}],con:[{name:"Dave Chen",title:"IT Director",eng:"champion",last:"2025-02-14"}]},
-  {id:"c15",name:"First Metro Bank",ind:"Financial Services",tier:"Strategic",loc:[{a:"300 Main St, Charlotte NC",s:"on-net",billing:4500,targetSpend:6200},{a:"100 Commerce Sq, Raleigh NC",s:"on-net",billing:2800,targetSpend:4000}],cur:["Dedicated Internet","DDoS Protection","Managed Firewall","SIP Trunking"],qt:[{name:"Wavelength",date:"2025-02-01",closeDate:"2025-03-31",mrr:3500,st:"pending-board"}],prior:[],mrr:7300,cEnd:"2026-05-31",eng:[{d:"2025-02-01",t:"Quote Sent",n:"DCI between Charlotte and Raleigh. Board March."}],con:[{name:"Sarah Mitchell",title:"CTO",eng:"champion",last:"2025-02-01"}]},
-  {id:"c16",name:"Riverside School District",ind:"Education",tier:"Growth",loc:[{a:"100 Education Ave, Sacramento CA",s:"on-net",billing:1200,targetSpend:2100},{a:"200 School St, Stockton CA",s:"near-net",billing:400,targetSpend:1100}],cur:["Dedicated Internet"],qt:[],prior:[],mrr:1600,cEnd:"2025-06-30",eng:[{d:"2024-12-01",t:"Call",n:"E-rate cycle. Need quote for both sites."}],con:[{name:"Tom Garcia",title:"Technology Dir",eng:"engaged",last:"2024-12-01"}]},
-  {id:"c17",name:"Urban Retail Corp",ind:"Retail",tier:"Growth",loc:[{a:"5000 Commerce Dr, Chicago IL",s:"on-net",billing:4100,targetSpend:5500},{a:"3000 Store Blvd, Minneapolis MN",s:"near-net",billing:1800,targetSpend:3200}],cur:["Dedicated Internet","SD-WAN Managed","SIP Trunking"],qt:[{name:"Managed Firewall",date:"2025-02-10",mrr:1400,st:"pending"}],prior:[],mrr:5900,cEnd:"2026-04-15",eng:[{d:"2025-02-10",t:"Quote Sent",n:"PCI scope expansion. Firewall for 2 sites."}],con:[{name:"Nancy Webb",title:"VP IT",eng:"champion",last:"2025-02-10"}]},
-  {id:"c18",name:"Delta Logistics",ind:"Transportation",tier:"Growth",loc:[{a:"8000 Freight Way, Atlanta GA",s:"on-net",billing:3800,targetSpend:5200},{a:"4000 Cargo Dr, Birmingham AL",s:"near-net",billing:1100,targetSpend:2400}],cur:["Dedicated Internet","Cloud Connect"],qt:[],prior:[],mrr:4900,cEnd:"2025-12-31",eng:[{d:"2025-01-25",t:"QBR",n:"Azure and AWS. Happy with Cloud Connect."}],con:[{name:"Rick Torres",title:"CTO",eng:"champion",last:"2025-01-25"}]},
-  {id:"c19",name:"Central Tech Solutions",ind:"Technology",tier:"Growth",loc:[{a:"1500 Software Blvd, Denver CO",s:"on-net",billing:2700,targetSpend:3800}],cur:["Dedicated Internet","Unified Comms"],qt:[{name:"Cloud Connect",date:"2025-02-01",closeDate:"2025-02-28",mrr:1200,st:"pending"}],prior:[],mrr:2700,cEnd:"2025-09-30",eng:[{d:"2025-02-01",t:"Quote Sent",n:"Multi-cloud. Need Azure and GCP connect."}],con:[{name:"Julia Kim",title:"VP Engineering",eng:"champion",last:"2025-02-01"}]},
-  {id:"c20",name:"Midwest Medical Group",ind:"Healthcare",tier:"Strategic",loc:[{a:"2500 Hospital Dr, St Louis MO",s:"on-net",billing:5200,targetSpend:7000},{a:"1800 Care Center, Kansas City MO",s:"on-net",billing:3400,targetSpend:4800}],cur:["Dedicated Internet","DDoS Protection","Managed Firewall","SIP Trunking"],qt:[{name:"Unified Comms",date:"2024-11-01",mrr:5000,st:"stalled"}],prior:[],mrr:8600,cEnd:"2026-08-31",eng:[{d:"2025-02-09",t:"QBR",n:"UCaaS still on hold. Security and DIA solid."}],con:[{name:"Dr. Paul Adams",title:"CIO",eng:"champion",last:"2025-02-09"}]},
-  {id:"c21",name:"Heritage Manufacturing",ind:"Manufacturing",tier:"Win-Back",loc:[{a:"6000 Steel Rd, Pittsburgh PA",s:"on-net",billing:0,targetSpend:2200},{a:"3500 Mill Ave, Youngstown OH",s:"off-net",billing:0,targetSpend:1400}],cur:[],qt:[],prior:["SD-WAN Managed (churned 2023)"],mrr:0,cEnd:"",eng:[{d:"2024-10-01",t:"Call",n:"New plant manager. Re-evaluating network."}],con:[{name:"Steve Miller",title:"Plant Mgr",eng:"cold",last:null}]},
-  {id:"c22",name:"Gulf Coast Bank",ind:"Financial Services",tier:"Growth",loc:[{a:"200 Water St, New Orleans LA",s:"on-net",billing:2600,targetSpend:3800},{a:"500 Canal Blvd, Houston TX",s:"near-net",billing:1400,targetSpend:2600}],cur:["Dedicated Internet","Managed Firewall"],qt:[],prior:[],mrr:4000,cEnd:"2025-11-30",eng:[{d:"2025-01-15",t:"Email",n:"DDoS review. Interested in upgrade."}],con:[{name:"Maria Santos",title:"CISO",eng:"engaged",last:"2025-01-15"}]},
-  {id:"c23",name:"Lakeside College",ind:"Education",tier:"Growth",loc:[{a:"100 College Way, Grand Rapids MI",s:"on-net",billing:1500,targetSpend:2400}],cur:["Dedicated Internet","SIP Trunking"],qt:[{name:"Unified Comms",date:"2024-09-01",mrr:2500,st:"stalled"}],prior:[],mrr:1500,cEnd:"2025-05-31",eng:[{d:"2024-09-15",t:"Quote Sent",n:"Campus-wide UC. Budget delayed."}],con:[{name:"Dr. Helen Brown",title:"VP Admin",eng:"engaged",last:"2024-09-15"}]},
-  {id:"c24",name:"National Store Chain",ind:"Retail",tier:"Strategic",loc:[{a:"10000 Retail Pkwy, Dallas TX",s:"on-net",billing:8200,targetSpend:11000},{a:"5000 Outlet Dr, Fort Worth TX",s:"on-net",billing:4100,targetSpend:6000}],cur:["Dedicated Internet","SD-WAN Managed","Managed Firewall","SIP Trunking"],qt:[{name:"DDoS Protection",date:"2025-02-05",closeDate:"2025-03-15",mrr:1600,st:"pending"}],prior:[],mrr:12300,cEnd:"2026-12-31",eng:[{d:"2025-02-05",t:"Quote Sent",n:"Black Friday prep. DDoS for both DCs."}],con:[{name:"Carlos Mendez",title:"CISO",eng:"champion",last:"2025-02-05"}]},
-  {id:"c25",name:"Eastern Freight",ind:"Transportation",tier:"Growth",loc:[{a:"9000 Highway Dr, Newark NJ",s:"on-net",billing:4400,targetSpend:6000},{a:"3000 Terminal Way, Philadelphia PA",s:"near-net",billing:1900,targetSpend:3400}],cur:["Dedicated Internet","SD-WAN Managed"],qt:[],prior:[],mrr:6300,cEnd:"2026-03-31",eng:[{d:"2025-02-11",t:"QBR",n:"Cloud Connect for AWS. Proposal by March."}],con:[{name:"Tony Russo",title:"CTO",eng:"champion",last:"2025-02-11"}]},
-  {id:"c26",name:"CloudNine Software",ind:"Technology",tier:"Strategic",loc:[{a:"2000 Dev Center, San Francisco CA",s:"on-net",billing:6100,targetSpend:8500},{a:"1000 Code Way, San Diego CA",s:"on-net",billing:3200,targetSpend:4800}],cur:["Dedicated Internet","Cloud Connect","Managed Firewall"],qt:[{name:"DDoS Protection",date:"2025-01-20",closeDate:"2025-02-28",mrr:1600,st:"pending"}],prior:[],mrr:9300,cEnd:"2026-07-31",eng:[{d:"2025-01-20",t:"Quote Sent",n:"Security hardening. DDoS and WAF."}],con:[{name:"Alex Morgan",title:"CISO",eng:"champion",last:"2025-01-20"}]},
-  {id:"c27",name:"Tri-State Health",ind:"Healthcare",tier:"Growth",loc:[{a:"4000 Health Pkwy, Nashville TN",s:"on-net",billing:2900,targetSpend:4200},{a:"1500 Clinic Rd, Memphis TN",s:"near-net",billing:900,targetSpend:1800}],cur:["Dedicated Internet","SIP Trunking"],qt:[],prior:[],mrr:3800,cEnd:"2025-09-30",eng:[{d:"2025-01-28",t:"Call",n:"Consolidating voice. UCaaS interest."}],con:[{name:"Dr. Susan Lee",title:"CIO",eng:"engaged",last:"2025-01-28"}]},
-  {id:"c28",name:"Apex Industrial",ind:"Manufacturing",tier:"Growth",loc:[{a:"7000 Factory Blvd, Charlotte NC",s:"on-net",billing:3800,targetSpend:5200},{a:"2500 Machine Dr, Greenville SC",s:"near-net",billing:1400,targetSpend:2600}],cur:["Dedicated Internet","Managed Firewall"],qt:[{name:"SD-WAN Managed",date:"2025-02-01",mrr:2400,st:"pending"}],prior:[],mrr:5200,cEnd:"2026-01-15",eng:[{d:"2025-02-01",t:"Quote Sent",n:"Replacing MPLS. SD-WAN for 2 sites."}],con:[{name:"Bob Wilson",title:"IT Director",eng:"champion",last:"2025-02-01"}]},
-  {id:"c29",name:"Premier Credit Union",ind:"Financial Services",tier:"Growth",loc:[{a:"500 Financial Plaza, Salt Lake City UT",s:"on-net",billing:2100,targetSpend:3200},{a:"300 Branch Way, Denver CO",s:"near-net",billing:800,targetSpend:1600}],cur:["Dedicated Internet","SIP Trunking"],qt:[],prior:[],mrr:2900,cEnd:"2025-10-31",eng:[{d:"2024-11-20",t:"Email",n:"DDoS and firewall review for exam."}],con:[{name:"Jennifer Hall",title:"VP IT",eng:"engaged",last:"2024-11-20"}]},
-  {id:"c30",name:"Metro Community College",ind:"Education",tier:"Growth",loc:[{a:"2000 Campus Dr, Las Vegas NV",s:"on-net",billing:1800,targetSpend:2800}],cur:["Dedicated Internet","Unified Comms"],qt:[],prior:[],mrr:1800,cEnd:"2025-07-15",eng:[{d:"2025-02-03",t:"Call",n:"New building. Need DIA and UC quote."}],con:[{name:"Dr. Robert Clark",title:"VP Technology",eng:"champion",last:"2025-02-03"}]},
+  { id: "c6", name: "Summit Retail Group", ind: "Retail", tier: "Growth", loc: [{ a: "2000 Mall Dr, Columbus OH", s: "on-net", billing: 1600, targetSpend: 2200 }, { a: "4500 Store Way, Cincinnati OH", s: "near-net", billing: 800, targetSpend: 1500 }], cur: ["Dedicated Internet", "SIP Trunking"], qt: [], prior: [], mrr: 2400, cEnd: "2025-11-30", eng: [{ d: "2025-02-01", t: "Call", n: "Discussed PCI scope for new locations." }], con: [{ name: "Chris Bell", title: "IT Director", eng: "engaged", last: "2025-02-01" }] },
+  { id: "c7", name: "Northgate Technology", ind: "Technology", tier: "Strategic", loc: [{ a: "100 Innovation Pkwy, Austin TX", s: "on-net", billing: 5200, targetSpend: 7200 }, { a: "500 Data Center Rd, Phoenix AZ", s: "on-net", billing: 3800, targetSpend: 5000 }], cur: ["Dedicated Internet", "Cloud Connect", "Managed Firewall"], qt: [{ name: "DDoS Protection", date: "2025-01-15", closeDate: "2025-03-15", mrr: 1600, st: "pending" }], prior: [], mrr: 9000, cEnd: "2026-06-30", eng: [{ d: "2025-02-12", t: "QBR", n: "Expanding to second region. Need DDoS and redundancy." }], con: [{ name: "Jordan Lee", title: "CTO", eng: "champion", last: "2025-02-12" }, { name: "Sam Rivera", title: "VP Eng", eng: "engaged", last: "2025-01-15" }] },
+  { id: "c8", name: "Metro Hospital Network", ind: "Healthcare", tier: "Strategic", loc: [{ a: "800 Medical Plaza, Cleveland OH", s: "on-net", billing: 3100, targetSpend: 4500 }, { a: "1200 Health Way, Pittsburgh PA", s: "near-net", billing: 1400, targetSpend: 2800 }], cur: ["Dedicated Internet", "DDoS Protection", "SIP Trunking"], qt: [], prior: [], mrr: 4500, cEnd: "2025-12-31", eng: [{ d: "2025-02-08", t: "Email", n: "HIPAA audit scheduled. Need compliance summary." }], con: [{ name: "Dr. Amy Foster", title: "CIO", eng: "champion", last: "2025-02-08" }] },
+  { id: "c9", name: "Prairie Ag Solutions", ind: "Manufacturing", tier: "Growth", loc: [{ a: "5000 Farm Rd, Des Moines IA", s: "on-net", billing: 1100, targetSpend: 1900 }, { a: "3200 Grain Ave, Omaha NE", s: "off-net", billing: 0, targetSpend: 1200 }], cur: ["Dedicated Internet"], qt: [{ name: "SD-WAN Managed", date: "2024-12-01", mrr: 2400, st: "stalled" }], prior: [], mrr: 1100, cEnd: "2025-08-15", eng: [{ d: "2024-12-10", t: "Call", n: "Evaluating SD-WAN for two sites. Budget in Q2." }], con: [{ name: "Mike Olson", title: "Operations Mgr", eng: "engaged", last: "2024-12-10" }] },
+  { id: "c10", name: "Coastal Financial", ind: "Financial Services", tier: "Growth", loc: [{ a: "100 Bay St, Tampa FL", s: "on-net", billing: 2800, targetSpend: 4000 }, { a: "200 Ocean Dr, Miami FL", s: "near-net", billing: 1200, targetSpend: 2200 }], cur: ["Dedicated Internet", "Managed Firewall"], qt: [], prior: [], mrr: 4000, cEnd: "2026-01-31", eng: [{ d: "2025-01-20", t: "QBR", n: "Miami office upgrade in plan. Need proposal." }], con: [{ name: "Elena Vasquez", title: "CISO", eng: "champion", last: "2025-01-20" }] },
+  { id: "c11", name: "Valley State University", ind: "Education", tier: "Growth", loc: [{ a: "1 Campus Dr, San Jose CA", s: "on-net", billing: 1900, targetSpend: 3200 }, { a: "500 Research Way, Palo Alto CA", s: "near-net", billing: 900, targetSpend: 1800 }], cur: ["Dedicated Internet", "Unified Comms"], qt: [], prior: [], mrr: 2800, cEnd: "2025-07-01", eng: [{ d: "2025-02-05", t: "Call", n: "Student portal needs better uptime. DDoS discussion." }], con: [{ name: "Dr. James Wu", title: "VP IT", eng: "engaged", last: "2025-02-05" }] },
+  { id: "c12", name: "Great Lakes Shipping", ind: "Transportation", tier: "Win-Back", loc: [{ a: "4000 Port Rd, Cleveland OH", s: "on-net", billing: 0, targetSpend: 2600 }, { a: "2100 Dock St, Detroit MI", s: "near-net", billing: 0, targetSpend: 1800 }], cur: [], qt: [], prior: ["Dedicated Internet (churned 2024)"], mrr: 0, cEnd: "", eng: [{ d: "2024-11-15", t: "Email", n: "New leadership. Open to revisiting connectivity." }], con: [{ name: "Karen Booth", title: "COO", eng: "cold", last: null }] },
+  { id: "c13", name: "Sunrise Healthcare", ind: "Healthcare", tier: "Growth", loc: [{ a: "600 Clinic Blvd, Phoenix AZ", s: "on-net", billing: 2200, targetSpend: 3100 }, { a: "900 Care Way, Tucson AZ", s: "near-net", billing: 700, targetSpend: 1400 }], cur: ["Dedicated Internet", "SIP Trunking"], qt: [{ name: "Managed Firewall", date: "2025-01-10", closeDate: "2025-03-01", mrr: 1400, st: "pending" }], prior: [], mrr: 2900, cEnd: "2025-10-15", eng: [{ d: "2025-01-10", t: "Quote Sent", n: "HIPAA requirement. Firewall for both sites." }], con: [{ name: "Dr. Lisa Park", title: "CTO", eng: "champion", last: "2025-01-10" }] },
+  { id: "c14", name: "Pacific Manufacturing", ind: "Manufacturing", tier: "Growth", loc: [{ a: "7000 Industrial Blvd, Portland OR", s: "on-net", billing: 3400, targetSpend: 4800 }, { a: "2000 Factory Ln, Seattle WA", s: "on-net", billing: 2600, targetSpend: 3600 }], cur: ["Dedicated Internet", "SD-WAN Managed"], qt: [], prior: [], mrr: 6000, cEnd: "2026-02-28", eng: [{ d: "2025-02-14", t: "QBR", n: "Cloud migration to AWS. Cloud Connect next." }], con: [{ name: "Dave Chen", title: "IT Director", eng: "champion", last: "2025-02-14" }] },
+  { id: "c15", name: "First Metro Bank", ind: "Financial Services", tier: "Strategic", loc: [{ a: "300 Main St, Charlotte NC", s: "on-net", billing: 4500, targetSpend: 6200 }, { a: "100 Commerce Sq, Raleigh NC", s: "on-net", billing: 2800, targetSpend: 4000 }], cur: ["Dedicated Internet", "DDoS Protection", "Managed Firewall", "SIP Trunking"], qt: [{ name: "Wavelength", date: "2025-02-01", closeDate: "2025-03-31", mrr: 3500, st: "pending-board" }], prior: [], mrr: 7300, cEnd: "2026-05-31", eng: [{ d: "2025-02-01", t: "Quote Sent", n: "DCI between Charlotte and Raleigh. Board March." }], con: [{ name: "Sarah Mitchell", title: "CTO", eng: "champion", last: "2025-02-01" }] },
+  { id: "c16", name: "Riverside School District", ind: "Education", tier: "Growth", loc: [{ a: "100 Education Ave, Sacramento CA", s: "on-net", billing: 1200, targetSpend: 2100 }, { a: "200 School St, Stockton CA", s: "near-net", billing: 400, targetSpend: 1100 }], cur: ["Dedicated Internet"], qt: [], prior: [], mrr: 1600, cEnd: "2025-06-30", eng: [{ d: "2024-12-01", t: "Call", n: "E-rate cycle. Need quote for both sites." }], con: [{ name: "Tom Garcia", title: "Technology Dir", eng: "engaged", last: "2024-12-01" }] },
+  { id: "c17", name: "Urban Retail Corp", ind: "Retail", tier: "Growth", loc: [{ a: "5000 Commerce Dr, Chicago IL", s: "on-net", billing: 4100, targetSpend: 5500 }, { a: "3000 Store Blvd, Minneapolis MN", s: "near-net", billing: 1800, targetSpend: 3200 }], cur: ["Dedicated Internet", "SD-WAN Managed", "SIP Trunking"], qt: [{ name: "Managed Firewall", date: "2025-02-10", mrr: 1400, st: "pending" }], prior: [], mrr: 5900, cEnd: "2026-04-15", eng: [{ d: "2025-02-10", t: "Quote Sent", n: "PCI scope expansion. Firewall for 2 sites." }], con: [{ name: "Nancy Webb", title: "VP IT", eng: "champion", last: "2025-02-10" }] },
+  { id: "c18", name: "Delta Logistics", ind: "Transportation", tier: "Growth", loc: [{ a: "8000 Freight Way, Atlanta GA", s: "on-net", billing: 3800, targetSpend: 5200 }, { a: "4000 Cargo Dr, Birmingham AL", s: "near-net", billing: 1100, targetSpend: 2400 }], cur: ["Dedicated Internet", "Cloud Connect"], qt: [], prior: [], mrr: 4900, cEnd: "2025-12-31", eng: [{ d: "2025-01-25", t: "QBR", n: "Azure and AWS. Happy with Cloud Connect." }], con: [{ name: "Rick Torres", title: "CTO", eng: "champion", last: "2025-01-25" }] },
+  { id: "c19", name: "Central Tech Solutions", ind: "Technology", tier: "Growth", loc: [{ a: "1500 Software Blvd, Denver CO", s: "on-net", billing: 2700, targetSpend: 3800 }], cur: ["Dedicated Internet", "Unified Comms"], qt: [{ name: "Cloud Connect", date: "2025-02-01", closeDate: "2025-02-28", mrr: 1200, st: "pending" }], prior: [], mrr: 2700, cEnd: "2025-09-30", eng: [{ d: "2025-02-01", t: "Quote Sent", n: "Multi-cloud. Need Azure and GCP connect." }], con: [{ name: "Julia Kim", title: "VP Engineering", eng: "champion", last: "2025-02-01" }] },
+  { id: "c20", name: "Midwest Medical Group", ind: "Healthcare", tier: "Strategic", loc: [{ a: "2500 Hospital Dr, St Louis MO", s: "on-net", billing: 5200, targetSpend: 7000 }, { a: "1800 Care Center, Kansas City MO", s: "on-net", billing: 3400, targetSpend: 4800 }], cur: ["Dedicated Internet", "DDoS Protection", "Managed Firewall", "SIP Trunking"], qt: [{ name: "Unified Comms", date: "2024-11-01", mrr: 5000, st: "stalled" }], prior: [], mrr: 8600, cEnd: "2026-08-31", eng: [{ d: "2025-02-09", t: "QBR", n: "UCaaS still on hold. Security and DIA solid." }], con: [{ name: "Dr. Paul Adams", title: "CIO", eng: "champion", last: "2025-02-09" }] },
+  { id: "c21", name: "Heritage Manufacturing", ind: "Manufacturing", tier: "Win-Back", loc: [{ a: "6000 Steel Rd, Pittsburgh PA", s: "on-net", billing: 0, targetSpend: 2200 }, { a: "3500 Mill Ave, Youngstown OH", s: "off-net", billing: 0, targetSpend: 1400 }], cur: [], qt: [], prior: ["SD-WAN Managed (churned 2023)"], mrr: 0, cEnd: "", eng: [{ d: "2024-10-01", t: "Call", n: "New plant manager. Re-evaluating network." }], con: [{ name: "Steve Miller", title: "Plant Mgr", eng: "cold", last: null }] },
+  { id: "c22", name: "Gulf Coast Bank", ind: "Financial Services", tier: "Growth", loc: [{ a: "200 Water St, New Orleans LA", s: "on-net", billing: 2600, targetSpend: 3800 }, { a: "500 Canal Blvd, Houston TX", s: "near-net", billing: 1400, targetSpend: 2600 }], cur: ["Dedicated Internet", "Managed Firewall"], qt: [], prior: [], mrr: 4000, cEnd: "2025-11-30", eng: [{ d: "2025-01-15", t: "Email", n: "DDoS review. Interested in upgrade." }], con: [{ name: "Maria Santos", title: "CISO", eng: "engaged", last: "2025-01-15" }] },
+  { id: "c23", name: "Lakeside College", ind: "Education", tier: "Growth", loc: [{ a: "100 College Way, Grand Rapids MI", s: "on-net", billing: 1500, targetSpend: 2400 }], cur: ["Dedicated Internet", "SIP Trunking"], qt: [{ name: "Unified Comms", date: "2024-09-01", mrr: 2500, st: "stalled" }], prior: [], mrr: 1500, cEnd: "2025-05-31", eng: [{ d: "2024-09-15", t: "Quote Sent", n: "Campus-wide UC. Budget delayed." }], con: [{ name: "Dr. Helen Brown", title: "VP Admin", eng: "engaged", last: "2024-09-15" }] },
+  { id: "c24", name: "National Store Chain", ind: "Retail", tier: "Strategic", loc: [{ a: "10000 Retail Pkwy, Dallas TX", s: "on-net", billing: 8200, targetSpend: 11000 }, { a: "5000 Outlet Dr, Fort Worth TX", s: "on-net", billing: 4100, targetSpend: 6000 }], cur: ["Dedicated Internet", "SD-WAN Managed", "Managed Firewall", "SIP Trunking"], qt: [{ name: "DDoS Protection", date: "2025-02-05", closeDate: "2025-03-15", mrr: 1600, st: "pending" }], prior: [], mrr: 12300, cEnd: "2026-12-31", eng: [{ d: "2025-02-05", t: "Quote Sent", n: "Black Friday prep. DDoS for both DCs." }], con: [{ name: "Carlos Mendez", title: "CISO", eng: "champion", last: "2025-02-05" }] },
+  { id: "c25", name: "Eastern Freight", ind: "Transportation", tier: "Growth", loc: [{ a: "9000 Highway Dr, Newark NJ", s: "on-net", billing: 4400, targetSpend: 6000 }, { a: "3000 Terminal Way, Philadelphia PA", s: "near-net", billing: 1900, targetSpend: 3400 }], cur: ["Dedicated Internet", "SD-WAN Managed"], qt: [], prior: [], mrr: 6300, cEnd: "2026-03-31", eng: [{ d: "2025-02-11", t: "QBR", n: "Cloud Connect for AWS. Proposal by March." }], con: [{ name: "Tony Russo", title: "CTO", eng: "champion", last: "2025-02-11" }] },
+  { id: "c26", name: "CloudNine Software", ind: "Technology", tier: "Strategic", loc: [{ a: "2000 Dev Center, San Francisco CA", s: "on-net", billing: 6100, targetSpend: 8500 }, { a: "1000 Code Way, San Diego CA", s: "on-net", billing: 3200, targetSpend: 4800 }], cur: ["Dedicated Internet", "Cloud Connect", "Managed Firewall"], qt: [{ name: "DDoS Protection", date: "2025-01-20", closeDate: "2025-02-28", mrr: 1600, st: "pending" }], prior: [], mrr: 9300, cEnd: "2026-07-31", eng: [{ d: "2025-01-20", t: "Quote Sent", n: "Security hardening. DDoS and WAF." }], con: [{ name: "Alex Morgan", title: "CISO", eng: "champion", last: "2025-01-20" }] },
+  { id: "c27", name: "Tri-State Health", ind: "Healthcare", tier: "Growth", loc: [{ a: "4000 Health Pkwy, Nashville TN", s: "on-net", billing: 2900, targetSpend: 4200 }, { a: "1500 Clinic Rd, Memphis TN", s: "near-net", billing: 900, targetSpend: 1800 }], cur: ["Dedicated Internet", "SIP Trunking"], qt: [], prior: [], mrr: 3800, cEnd: "2025-09-30", eng: [{ d: "2025-01-28", t: "Call", n: "Consolidating voice. UCaaS interest." }], con: [{ name: "Dr. Susan Lee", title: "CIO", eng: "engaged", last: "2025-01-28" }] },
+  { id: "c28", name: "Apex Industrial", ind: "Manufacturing", tier: "Growth", loc: [{ a: "7000 Factory Blvd, Charlotte NC", s: "on-net", billing: 3800, targetSpend: 5200 }, { a: "2500 Machine Dr, Greenville SC", s: "near-net", billing: 1400, targetSpend: 2600 }], cur: ["Dedicated Internet", "Managed Firewall"], qt: [{ name: "SD-WAN Managed", date: "2025-02-01", mrr: 2400, st: "pending" }], prior: [], mrr: 5200, cEnd: "2026-01-15", eng: [{ d: "2025-02-01", t: "Quote Sent", n: "Replacing MPLS. SD-WAN for 2 sites." }], con: [{ name: "Bob Wilson", title: "IT Director", eng: "champion", last: "2025-02-01" }] },
+  { id: "c29", name: "Premier Credit Union", ind: "Financial Services", tier: "Growth", loc: [{ a: "500 Financial Plaza, Salt Lake City UT", s: "on-net", billing: 2100, targetSpend: 3200 }, { a: "300 Branch Way, Denver CO", s: "near-net", billing: 800, targetSpend: 1600 }], cur: ["Dedicated Internet", "SIP Trunking"], qt: [], prior: [], mrr: 2900, cEnd: "2025-10-31", eng: [{ d: "2024-11-20", t: "Email", n: "DDoS and firewall review for exam." }], con: [{ name: "Jennifer Hall", title: "VP IT", eng: "engaged", last: "2024-11-20" }] },
+  { id: "c30", name: "Metro Community College", ind: "Education", tier: "Growth", loc: [{ a: "2000 Campus Dr, Las Vegas NV", s: "on-net", billing: 1800, targetSpend: 2800 }], cur: ["Dedicated Internet", "Unified Comms"], qt: [], prior: [], mrr: 1800, cEnd: "2025-07-15", eng: [{ d: "2025-02-03", t: "Call", n: "New building. Need DIA and UC quote." }], con: [{ name: "Dr. Robert Clark", title: "VP Technology", eng: "champion", last: "2025-02-03" }] },
 ];
 
 // 15 sample deals (won + lost) spread across the 30 accounts — for deal intelligence and account dealHistory
-const SAMPLE_DEAL_ACCOUNT_IDS = ["c1","c2","c3","c5","c7","c8","c10","c11","c13","c15","c17","c20","c22","c24","c26"];
-const SAMPLE_PRODUCT_NAMES = ["SD-WAN Managed","DDoS Protection","Unified Comms","Dedicated Internet","Cloud Connect","Managed Firewall","SIP Trunking","Wavelength"];
+const SAMPLE_DEAL_ACCOUNT_IDS = ["c1", "c2", "c3", "c5", "c7", "c8", "c10", "c11", "c13", "c15", "c17", "c20", "c22", "c24", "c26"];
+const SAMPLE_PRODUCT_NAMES = ["SD-WAN Managed", "DDoS Protection", "Unified Comms", "Dedicated Internet", "Cloud Connect", "Managed Firewall", "SIP Trunking", "Wavelength"];
 const SAMPLE_CLOSED_WON = [
-  { opp_id:"w1", account_id:"c1", account_name:"Meridian Health Systems", industry:"Healthcare", product_name:"Managed Firewall", mrr:2100, close_date:"2023-06-15" },
-  { opp_id:"w2", account_id:"c3", account_name:"Pinnacle Financial", industry:"Financial Services", product_name:"Cloud Connect", mrr:1200, close_date:"2023-09-01" },
-  { opp_id:"w3", account_id:"c5", account_name:"Velocity Logistics", industry:"Transportation", product_name:"SD-WAN Managed", mrr:2400, close_date:"2023-11-20" },
-  { opp_id:"w4", account_id:"c7", account_name:"Northgate Technology", industry:"Technology", product_name:"Managed Firewall", mrr:1400, close_date:"2024-02-10" },
-  { opp_id:"w5", account_id:"c8", account_name:"Metro Hospital Network", industry:"Healthcare", product_name:"DDoS Protection", mrr:1600, close_date:"2024-04-05" },
-  { opp_id:"w6", account_id:"c10", account_name:"Coastal Financial", industry:"Financial Services", product_name:"Managed Firewall", mrr:1400, close_date:"2024-05-22" },
-  { opp_id:"w7", account_id:"c13", account_name:"Sunrise Healthcare", industry:"Healthcare", product_name:"Dedicated Internet", mrr:1900, close_date:"2024-07-15" },
-  { opp_id:"w8", account_id:"c15", account_name:"First Metro Bank", industry:"Financial Services", product_name:"DDoS Protection", mrr:1600, close_date:"2024-09-30" },
-  { opp_id:"w9", account_id:"c20", account_name:"Midwest Medical Group", industry:"Healthcare", product_name:"Managed Firewall", mrr:3400, close_date:"2024-11-12" },
+  { opp_id: "w1", account_id: "c1", account_name: "Meridian Health Systems", industry: "Healthcare", product_name: "Managed Firewall", mrr: 2100, close_date: "2023-06-15" },
+  { opp_id: "w2", account_id: "c3", account_name: "Pinnacle Financial", industry: "Financial Services", product_name: "Cloud Connect", mrr: 1200, close_date: "2023-09-01" },
+  { opp_id: "w3", account_id: "c5", account_name: "Velocity Logistics", industry: "Transportation", product_name: "SD-WAN Managed", mrr: 2400, close_date: "2023-11-20" },
+  { opp_id: "w4", account_id: "c7", account_name: "Northgate Technology", industry: "Technology", product_name: "Managed Firewall", mrr: 1400, close_date: "2024-02-10" },
+  { opp_id: "w5", account_id: "c8", account_name: "Metro Hospital Network", industry: "Healthcare", product_name: "DDoS Protection", mrr: 1600, close_date: "2024-04-05" },
+  { opp_id: "w6", account_id: "c10", account_name: "Coastal Financial", industry: "Financial Services", product_name: "Managed Firewall", mrr: 1400, close_date: "2024-05-22" },
+  { opp_id: "w7", account_id: "c13", account_name: "Sunrise Healthcare", industry: "Healthcare", product_name: "Dedicated Internet", mrr: 1900, close_date: "2024-07-15" },
+  { opp_id: "w8", account_id: "c15", account_name: "First Metro Bank", industry: "Financial Services", product_name: "DDoS Protection", mrr: 1600, close_date: "2024-09-30" },
+  { opp_id: "w9", account_id: "c20", account_name: "Midwest Medical Group", industry: "Healthcare", product_name: "Managed Firewall", mrr: 3400, close_date: "2024-11-12" },
 ];
 const SAMPLE_CLOSED_LOST = [
-  { opp_id:"l1", account_id:"c2", account_name:"Atlas Manufacturing", industry:"Manufacturing", product_name:"SD-WAN Managed", mrr:2400, close_date:"2023-08-01", loss_reason:"Price", competitor:"Masergy" },
-  { opp_id:"l2", account_id:"c11", account_name:"Valley State University", industry:"Education", product_name:"Unified Comms", mrr:2500, close_date:"2024-01-15", loss_reason:"Budget reallocated", competitor:"" },
-  { opp_id:"l3", account_id:"c17", account_name:"Urban Retail Corp", industry:"Retail", product_name:"DDoS Protection", mrr:1600, close_date:"2024-03-20", loss_reason:"Timing", competitor:"Cloudflare" },
-  { opp_id:"l4", account_id:"c22", account_name:"Gulf Coast Bank", industry:"Financial Services", product_name:"Wavelength", mrr:3500, close_date:"2024-06-10", loss_reason:"Technical fit", competitor:"Lumen" },
-  { opp_id:"l5", account_id:"c24", account_name:"National Store Chain", industry:"Retail", product_name:"Unified Comms", mrr:7500, close_date:"2024-08-25", loss_reason:"Incumbent retained", competitor:"RingCentral" },
-  { opp_id:"l6", account_id:"c26", account_name:"CloudNine Software", industry:"Technology", product_name:"Wavelength", mrr:3500, close_date:"2024-10-05", loss_reason:"Price", competitor:"Zayo" },
+  { opp_id: "l1", account_id: "c2", account_name: "Atlas Manufacturing", industry: "Manufacturing", product_name: "SD-WAN Managed", mrr: 2400, close_date: "2023-08-01", loss_reason: "Price", competitor: "Masergy" },
+  { opp_id: "l2", account_id: "c11", account_name: "Valley State University", industry: "Education", product_name: "Unified Comms", mrr: 2500, close_date: "2024-01-15", loss_reason: "Budget reallocated", competitor: "" },
+  { opp_id: "l3", account_id: "c17", account_name: "Urban Retail Corp", industry: "Retail", product_name: "DDoS Protection", mrr: 1600, close_date: "2024-03-20", loss_reason: "Timing", competitor: "Cloudflare" },
+  { opp_id: "l4", account_id: "c22", account_name: "Gulf Coast Bank", industry: "Financial Services", product_name: "Wavelength", mrr: 3500, close_date: "2024-06-10", loss_reason: "Technical fit", competitor: "Lumen" },
+  { opp_id: "l5", account_id: "c24", account_name: "National Store Chain", industry: "Retail", product_name: "Unified Comms", mrr: 7500, close_date: "2024-08-25", loss_reason: "Incumbent retained", competitor: "RingCentral" },
+  { opp_id: "l6", account_id: "c26", account_name: "CloudNine Software", industry: "Technology", product_name: "Wavelength", mrr: 3500, close_date: "2024-10-05", loss_reason: "Price", competitor: "Zayo" },
 ];
 
 /** Build full upload-table rows from ACCOUNTS + PRODUCTS + 15 deals so "Load sample data" persists 30 accounts and deal intelligence. */
@@ -510,9 +521,9 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
 
 /* ═══════════════════ AI ANALYSIS ENGINE ═══════════════════ */
 const NOW = new Date();
-const daysAgo = d => Math.floor((NOW - new Date(d))/864e5);
-const daysUntil = d => Math.floor((new Date(d) - NOW)/864e5);
-const currentMonthKey = () => `${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,"0")}`;
+const daysAgo = d => Math.floor((NOW - new Date(d)) / 864e5);
+const daysUntil = d => Math.floor((new Date(d) - NOW) / 864e5);
+const currentMonthKey = () => `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, "0")}`;
 const isCloseDateInCurrentMonth = (closeDate) => !closeDate ? false : closeDate.startsWith(currentMonthKey());
 
 const PERIOD_OPTIONS = [
@@ -850,7 +861,7 @@ Respond in this exact JSON (no markdown, no backticks):
 }`;
 }
 
-async function runAIAnalysis(account, products, dealIntelligence) {
+async function runAIAnalysis(account, products, dealIntelligence, playbookExtraction = null) {
   const availableProducts = (products || []).filter(p => !(account.cur || []).includes(p.name) && !(account.qt || []).some(q => q.name === p.name));
   const relevantDeal = getRelevantDealIntel(dealIntelligence, account, availableProducts);
   const playbookBriefs = (products || []).reduce((acc, p) => { if (p.playbookBrief) acc[p.name] = p.playbookBrief; return acc; }, {});
@@ -858,7 +869,7 @@ async function runAIAnalysis(account, products, dealIntelligence) {
     const r = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ account, products, dealIntelligence: relevantDeal, playbookBriefs })
+      body: JSON.stringify({ account, products, dealIntelligence: relevantDeal, playbookBriefs, playbookExtraction })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Analysis failed");
@@ -873,13 +884,13 @@ async function runAIAnalysis(account, products, dealIntelligence) {
 }
 
 // Batch AI analysis for all accounts
-async function runBatchAnalysis(accounts, products, dealIntelligence, onUpdate) {
+async function runBatchAnalysis(accounts, products, dealIntelligence, playbookExtraction, onUpdate) {
   const results = {};
   const queue = [...accounts];
   const runNext = async () => {
     if (queue.length === 0) return;
     const acct = queue.shift();
-    const result = await runAIAnalysis(acct, products, dealIntelligence);
+    const result = await runAIAnalysis(acct, products, dealIntelligence, playbookExtraction);
     if (result) { results[acct.id] = result; onUpdate(acct.id, result); }
     await runNext();
   };
@@ -975,12 +986,26 @@ body,html,#root{font-family:'DM Sans',sans-serif;background:var(--b0);color:var(
 .ce.champion{background:var(--gnd);color:var(--gn)}.ce.engaged{background:var(--acd);color:var(--ac)}.ce.cooling{background:var(--yld);color:var(--yl)}.ce.cold{background:var(--rdd);color:var(--rd)}
 .pf{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:7px;background:var(--b1);margin-bottom:5px;border:1px solid var(--bd)}
 .pfm{font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--gn);margin-left:auto;white-space:nowrap}
+@keyframes scanLine{0%{top:0}100%{top:100%}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 8px var(--acd)}50%{box-shadow:0 0 20px var(--ac)}}
+@keyframes slideInField{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes pulse2{0%,100%{opacity:.3}50%{opacity:1}}
+.playbook-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000}
+.playbook-modal{background:var(--b2);border:1px solid var(--bd);border-radius:12px;padding:28px;width:520px;position:relative;overflow:hidden}
+.playbook-drop-zone{border:2px dashed var(--bd);border-radius:10px;padding:32px 24px;text-align:center;cursor:pointer;transition:all .15s}
+.playbook-drop-zone.active{border-color:var(--ac);background:var(--acd);animation:glowPulse 1s infinite}
+.playbook-doc-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bd)}
+.playbook-doc-row:last-child{border-bottom:none}
+.playbook-coverage-bar{height:4px;background:var(--bd);border-radius:2px;overflow:hidden;margin-top:4px}
+.playbook-coverage-fill{height:100%;border-radius:2px;transition:width .6s ease}
+.playbook-success-banner{padding:12px 16px;border-radius:8px;background:var(--gnd);border:1px solid var(--gn);display:flex;align-items:center;gap:10px;animation:fi .3s ease}
 `;
 
 /* ═══════════════ HELPERS ═══════════════ */
-function scC(s){return s>=70?{b:"var(--gnd)",c:"var(--gn)"}:s>=45?{b:"var(--yld)",c:"var(--yl)"}:{b:"var(--rdd)",c:"var(--rd)"}}
-function tlT(t){return t.includes("QBR")?"QBR":t.includes("Call")?"Call":t.includes("Email")?"Email":t.includes("Quote")?"Quote":t.includes("Support")?"Support":t.includes("Event")?"Event":t.includes("Churn")?"Churn":"Call"}
-const oppLabels={"close-deal":"Close Deal","advance-quote":"Advance Quote","cross-sell":"Cross-Sell","win-back":"Win-Back","renewal":"Renewal","save-account":"Save Account","re-engage":"Re-Engage","expand-footprint":"Expand"};
+function scC(s) { return s >= 70 ? { b: "var(--gnd)", c: "var(--gn)" } : s >= 45 ? { b: "var(--yld)", c: "var(--yl)" } : { b: "var(--rdd)", c: "var(--rd)" } }
+function tlT(t) { return t.includes("QBR") ? "QBR" : t.includes("Call") ? "Call" : t.includes("Email") ? "Email" : t.includes("Quote") ? "Quote" : t.includes("Support") ? "Support" : t.includes("Event") ? "Event" : t.includes("Churn") ? "Churn" : "Call" }
+const oppLabels = { "close-deal": "Close Deal", "advance-quote": "Advance Quote", "cross-sell": "Cross-Sell", "win-back": "Win-Back", "renewal": "Renewal", "save-account": "Save Account", "re-engage": "Re-Engage", "expand-footprint": "Expand" };
 
 function hashAccountData(account) {
   const significant = JSON.stringify({
@@ -1009,9 +1034,9 @@ function formatTimeAgo(iso) {
   return d.toLocaleDateString();
 }
 
-function Skeleton({w,h}){return <div className="skeleton" style={{width:w||"100%",height:h||14}}/>}
+function Skeleton({ w, h }) { return <div className="skeleton" style={{ width: w || "100%", height: h || 14 }} /> }
 
-function copyText(txt){navigator.clipboard?.writeText(txt)}
+function copyText(txt) { navigator.clipboard?.writeText(txt) }
 
 function LocationMap({ locations, style }) {
   const mapContainer = useRef(null);
@@ -1049,188 +1074,188 @@ function LocationMap({ locations, style }) {
         }
       });
       if (!bounds.isEmpty()) map.current.fitBounds(bounds, { padding: 50, maxZoom: 12 });
-    }).catch(() => {});
+    }).catch(() => { });
     return () => { mounted = false; map.current?.remove(); map.current = null; };
   }, [locations]);
   return <div ref={mapContainer} style={{ width: "100%", height: 280, borderRadius: 8, ...style }} />;
 }
 
 /* ═══════════════ ENGAGEMENT HUB (AI-Powered) ═══════════════ */
-function EngagementHub({accounts,products,aiData,onSelect,onAnalyze,analyzing}) {
-  const [expanded,setExpanded] = useState(null);
-  const [filter,setFilter] = useState("all");
-  const [copied,setCopied] = useState(null);
+function EngagementHub({ accounts, products, aiData, onSelect, onAnalyze, analyzing }) {
+  const [expanded, setExpanded] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [copied, setCopied] = useState(null);
 
   // Build engagement list with AI data merged
-  const items = accounts.map(c=>{
+  const items = accounts.map(c => {
     const ai = aiData[c.id];
-    const ds = c.eng[0]?daysAgo(c.eng[0].d):999;
+    const ds = c.eng[0] ? daysAgo(c.eng[0].d) : 999;
     const qs = quickScore(c, products);
     return {
-      ...c, ds, 
+      ...c, ds,
       score: ai?.score || qs.score,
       aiReady: !!ai, ai,
-      oppType: ai?.immediateOpportunity?.type || (c.qt.some(q=>q.st==="stalled")?"advance-quote":ds>30?"re-engage":"check-in"),
-      oppMRR: ai?.immediateOpportunity?.estimatedMRR || c.qt.reduce((s,q)=>s+q.mrr,0),
+      oppType: ai?.immediateOpportunity?.type || (c.qt.some(q => q.st === "stalled") ? "advance-quote" : ds > 30 ? "re-engage" : "check-in"),
+      oppMRR: ai?.immediateOpportunity?.estimatedMRR || c.qt.reduce((s, q) => s + q.mrr, 0),
       sentiment: ai?.sentiment || "neutral",
     };
-  }).sort((a,b)=>b.score-a.score);
+  }).sort((a, b) => b.score - a.score);
 
-  const gap30 = items.filter(e=>e.ds>30).length;
-  const aiReady = items.filter(e=>e.aiReady).length;
-  const totalOpp = items.reduce((s,e)=>s+e.oppMRR,0);
-  const atRisk = items.filter(e=>e.sentiment==="at-risk"||e.sentiment==="critical").length;
+  const gap30 = items.filter(e => e.ds > 30).length;
+  const aiReady = items.filter(e => e.aiReady).length;
+  const totalOpp = items.reduce((s, e) => s + e.oppMRR, 0);
+  const atRisk = items.filter(e => e.sentiment === "at-risk" || e.sentiment === "critical").length;
 
-  const filtered = filter==="all"?items : filter==="overdue"?items.filter(e=>e.ds>30) : filter==="at-risk"?items.filter(e=>e.sentiment==="at-risk"||e.sentiment==="critical") : items.filter(e=>e.aiReady);
+  const filtered = filter === "all" ? items : filter === "overdue" ? items.filter(e => e.ds > 30) : filter === "at-risk" ? items.filter(e => e.sentiment === "at-risk" || e.sentiment === "critical") : items.filter(e => e.aiReady);
 
-  const doCopy = (id,txt) => {copyText(txt);setCopied(id);setTimeout(()=>setCopied(null),2000)};
+  const doCopy = (id, txt) => { copyText(txt); setCopied(id); setTimeout(() => setCopied(null), 2000) };
 
-  return (<div className="ct" style={{animation:"fi .3s ease"}}>
+  return (<div className="ct" style={{ animation: "fi .3s ease" }}>
     <div className="sr">
-      <div className="st"><div className="sl">30+ Day Gap</div><div className="sv" style={{color:"var(--rd)"}}>{gap30}</div><div className="ss">need outreach</div></div>
-      <div className="st"><div className="sl">At-Risk</div><div className="sv" style={{color:"var(--yl)"}}>{atRisk}</div><div className="ss">sentiment flags</div></div>
-      <div className="st"><div className="sl">Opportunity MRR</div><div className="sv" style={{color:"var(--gn)"}}>${totalOpp.toLocaleString()}</div><div className="ss">identified by AI</div></div>
-      <div className="st"><div className="sl">AI Analyzed</div><div className="sv" style={{color:"var(--ac)"}}>{aiReady}/{items.length}</div><div className="ss">accounts</div></div>
+      <div className="st"><div className="sl">30+ Day Gap</div><div className="sv" style={{ color: "var(--rd)" }}>{gap30}</div><div className="ss">need outreach</div></div>
+      <div className="st"><div className="sl">At-Risk</div><div className="sv" style={{ color: "var(--yl)" }}>{atRisk}</div><div className="ss">sentiment flags</div></div>
+      <div className="st"><div className="sl">Opportunity MRR</div><div className="sv" style={{ color: "var(--gn)" }}>${totalOpp.toLocaleString()}</div><div className="ss">identified by AI</div></div>
+      <div className="st"><div className="sl">AI Analyzed</div><div className="sv" style={{ color: "var(--ac)" }}>{aiReady}/{items.length}</div><div className="ss">accounts</div></div>
     </div>
 
-    <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
-      {[["all","All"],["overdue","30+ Day Gap"],["at-risk","At-Risk"],["ai","AI Analyzed"]].map(([k,l])=>(
-        <button key={k} className={`btn ${filter===k?"bp":"bg"}`} onClick={()=>setFilter(k)} style={{fontSize:11,padding:"5px 11px"}}>{l}</button>
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
+      {[["all", "All"], ["overdue", "30+ Day Gap"], ["at-risk", "At-Risk"], ["ai", "AI Analyzed"]].map(([k, l]) => (
+        <button key={k} className={`btn ${filter === k ? "bp" : "bg"}`} onClick={() => setFilter(k)} style={{ fontSize: 11, padding: "5px 11px" }}>{l}</button>
       ))}
-      <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-        <button className="btn bp" onClick={()=>onAnalyze("all")} disabled={analyzing} style={{fontSize:11}}>
-          {analyzing?<><span className="spin"/>Analyzing...</>:<>✨ Analyze All Accounts</>}
+      <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+        <button className="btn bp" onClick={() => onAnalyze("all")} disabled={analyzing} style={{ fontSize: 11 }}>
+          {analyzing ? <><span className="spin" />Analyzing...</> : <>✨ Analyze All Accounts</>}
         </button>
       </div>
     </div>
 
-    {filtered.map(e=>{
-      const isOpen = expanded===e.id;
+    {filtered.map(e => {
+      const isOpen = expanded === e.id;
       const sc = scC(e.score);
       const ai = e.ai;
-      return (<div key={e.id} className={`eng-card ${ai?"ai-enriched":""}`}>
-        <div className="eng-top" onClick={()=>setExpanded(isOpen?null:e.id)}>
-          <div className={`sentiment-dot ${e.sentiment}`}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
-              <span style={{fontSize:13,fontWeight:600}}>{e.name}</span>
-              <span className={`opp-type ${e.oppType}`}>{oppLabels[e.oppType]||e.oppType}</span>
-              {e.ds>30&&<span className="tg critical">{e.ds}d gap</span>}
-              {ai&&<span className="ai-badge">AI</span>}
-              {ai?._meta?.isStale&&<span className="tg warning" style={{fontSize:8}}>⚠ DATA CHANGED — Re-analyze</span>}
+      return (<div key={e.id} className={`eng-card ${ai ? "ai-enriched" : ""}`}>
+        <div className="eng-top" onClick={() => setExpanded(isOpen ? null : e.id)}>
+          <div className={`sentiment-dot ${e.sentiment}`} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{e.name}</span>
+              <span className={`opp-type ${e.oppType}`}>{oppLabels[e.oppType] || e.oppType}</span>
+              {e.ds > 30 && <span className="tg critical">{e.ds}d gap</span>}
+              {ai && <span className="ai-badge">AI</span>}
+              {ai?._meta?.isStale && <span className="tg warning" style={{ fontSize: 8 }}>⚠ DATA CHANGED — Re-analyze</span>}
             </div>
-            <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
-              {ai ? ai.immediateOpportunity?.description?.slice(0,80) : `${e.ind} · $${e.mrr.toLocaleString()}/mo · Last: ${e.eng[0]?.t||"N/A"} ${e.eng[0]?.d?.slice(5)||""}`}
-              {ai?.immediateOpportunity?.description?.length>80?"…":""}
+            <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>
+              {ai ? ai.immediateOpportunity?.description?.slice(0, 80) : `${e.ind} · $${e.mrr.toLocaleString()}/mo · Last: ${e.eng[0]?.t || "N/A"} ${e.eng[0]?.d?.slice(5) || ""}`}
+              {ai?.immediateOpportunity?.description?.length > 80 ? "…" : ""}
             </div>
           </div>
-          {e.oppMRR>0&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:600,color:"var(--gn)"}}>${e.oppMRR.toLocaleString()}<span style={{fontSize:9,color:"var(--t3)"}}>/mo</span></div>}
-          <div className="asc" style={{background:sc.b,color:sc.c}}>{e.score}</div>
-          <div style={{color:"var(--t3)",fontSize:10,transition:"transform .2s",transform:isOpen?"rotate(180deg)":""}}>▼</div>
+          {e.oppMRR > 0 && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 600, color: "var(--gn)" }}>${e.oppMRR.toLocaleString()}<span style={{ fontSize: 9, color: "var(--t3)" }}>/mo</span></div>}
+          <div className="asc" style={{ background: sc.b, color: sc.c }}>{e.score}</div>
+          <div style={{ color: "var(--t3)", fontSize: 10, transition: "transform .2s", transform: isOpen ? "rotate(180deg)" : "" }}>▼</div>
         </div>
 
-        {isOpen&&<div className="eng-exp" style={{animation:"fi .2s ease"}}>
+        {isOpen && <div className="eng-exp" style={{ animation: "fi .2s ease" }}>
           {!ai ? (
-            <div style={{textAlign:"center",padding:"20px 0"}}>
-              <div style={{fontSize:12,color:"var(--t3)",marginBottom:10}}>Run AI analysis to get personalized strategy and outreach for this account</div>
-              <button className="btn bp" onClick={()=>onAnalyze(e.id)} disabled={analyzing}>{analyzing?<><span className="spin"/>Analyzing...</>:<>✨ Analyze {e.name}</>}</button>
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 10 }}>Run AI analysis to get personalized strategy and outreach for this account</div>
+              <button className="btn bp" onClick={() => onAnalyze(e.id)} disabled={analyzing}>{analyzing ? <><span className="spin" />Analyzing...</> : <>✨ Analyze {e.name}</>}</button>
             </div>
           ) : (<>
             {/* AI Summary */}
-            <div className="ap" style={{marginBottom:14}}>
+            <div className="ap" style={{ marginBottom: 14 }}>
               <h3>✨ AI Account Intelligence</h3>
-              <div style={{fontSize:13,fontWeight:600,lineHeight:1.4,marginBottom:10}}>{ai.accountSummary}</div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+              <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>{ai.accountSummary}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                 <span className={`tg ${ai.sentiment}`}>Sentiment: {ai.sentiment}</span>
                 <span className={`tg ${ai.immediateOpportunity?.confidence}`}>Confidence: {ai.immediateOpportunity?.confidence}</span>
                 <span className="tg info">Timeframe: {ai.immediateOpportunity?.timeframe}</span>
-                {ai.competitiveIntel&&!ai.competitiveIntel.includes("None")&&<span className="tg warning">Competitive threat</span>}
+                {ai.competitiveIntel && !ai.competitiveIntel.includes("None") && <span className="tg warning">Competitive threat</span>}
               </div>
-              <div style={{fontSize:11,color:"var(--t2)",fontStyle:"italic",marginBottom:6}}>{ai.sentimentDetail}</div>
-              <div style={{fontSize:11,color:"var(--t2)"}}><strong style={{color:"var(--t1)"}}>Score reasoning:</strong> {ai.scoreReasoning}</div>
-              {ai._meta?.analyzedAt&&<span style={{fontSize:9,color:"var(--t3)"}}>Analyzed {formatTimeAgo(ai._meta.analyzedAt)}{ai._meta.isStale?" (stale)":""}</span>}
+              <div style={{ fontSize: 11, color: "var(--t2)", fontStyle: "italic", marginBottom: 6 }}>{ai.sentimentDetail}</div>
+              <div style={{ fontSize: 11, color: "var(--t2)" }}><strong style={{ color: "var(--t1)" }}>Score reasoning:</strong> {ai.scoreReasoning}</div>
+              {ai._meta?.analyzedAt && <span style={{ fontSize: 9, color: "var(--t3)" }}>Analyzed {formatTimeAgo(ai._meta.analyzedAt)}{ai._meta.isStale ? " (stale)" : ""}</span>}
             </div>
 
             {/* Strategy + Outreach side by side */}
-            <div className="cg" style={{marginBottom:14}}>
+            <div className="cg" style={{ marginBottom: 14 }}>
               {/* Left: Strategy */}
               <div>
-                <div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)",marginBottom:8}}>🎯 Engagement Strategy</div>
-                <div className="ebox" style={{marginTop:0,marginBottom:8}}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--t3)", marginBottom: 8 }}>🎯 Engagement Strategy</div>
+                <div className="ebox" style={{ marginTop: 0, marginBottom: 8 }}>
                   <div className="ebox-s">This Week ({ai.engagementPlan?.channel})</div>
                   <div className="ebox-b">{ai.engagementPlan?.thisWeek}</div>
                 </div>
-                <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:4}}>Talking Points</div>
-                <ul style={{margin:"0 0 10px 14px"}}>{(ai.engagementPlan?.talkingPoints||[]).map((p,i)=><li key={i} style={{fontSize:11,color:"var(--t2)",lineHeight:1.5,marginBottom:3}}>{p}</li>)}</ul>
-                {ai.engagementPlan?.avoid&&<div style={{fontSize:11,color:"var(--rd)",background:"var(--rdd)",padding:"6px 10px",borderRadius:6}}>⚠️ Avoid: {ai.engagementPlan.avoid}</div>}
-                
+                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4 }}>Talking Points</div>
+                <ul style={{ margin: "0 0 10px 14px" }}>{(ai.engagementPlan?.talkingPoints || []).map((p, i) => <li key={i} style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5, marginBottom: 3 }}>{p}</li>)}</ul>
+                {ai.engagementPlan?.avoid && <div style={{ fontSize: 11, color: "var(--rd)", background: "var(--rdd)", padding: "6px 10px", borderRadius: 6 }}>⚠️ Avoid: {ai.engagementPlan.avoid}</div>}
+
                 {/* Contact Strategy */}
-                <div style={{marginTop:10,fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:4}}>Contact Strategy</div>
-                <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.5}}>
-                  <strong style={{color:"var(--t1)"}}>Primary:</strong> {ai.contactStrategy?.primaryTarget} — {ai.contactStrategy?.approach}
+                <div style={{ marginTop: 10, fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4 }}>Contact Strategy</div>
+                <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}>
+                  <strong style={{ color: "var(--t1)" }}>Primary:</strong> {ai.contactStrategy?.primaryTarget} — {ai.contactStrategy?.approach}
                 </div>
-                {ai.contactStrategy?.multiThreadNote&&<div style={{fontSize:11,color:"var(--pr)",marginTop:4}}>{ai.contactStrategy.multiThreadNote}</div>}
+                {ai.contactStrategy?.multiThreadNote && <div style={{ fontSize: 11, color: "var(--pr)", marginTop: 4 }}>{ai.contactStrategy.multiThreadNote}</div>}
 
                 {/* Risks */}
-                {ai.risks?.length>0&&<div style={{marginTop:10}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:4}}>Risks</div>
-                  {ai.risks.map((r,i)=><div key={i} style={{fontSize:11,color:"var(--rd)",lineHeight:1.4,marginBottom:2}}>• {r}</div>)}
+                {ai.risks?.length > 0 && <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4 }}>Risks</div>
+                  {ai.risks.map((r, i) => <div key={i} style={{ fontSize: 11, color: "var(--rd)", lineHeight: 1.4, marginBottom: 2 }}>• {r}</div>)}
                 </div>}
 
                 {/* Competitive */}
-                {ai.competitiveIntel&&!ai.competitiveIntel.includes("None")&&<div style={{marginTop:10}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:4}}>Competitive Intel</div>
-                  <div style={{fontSize:11,color:"var(--og)",lineHeight:1.4}}>{ai.competitiveIntel}</div>
+                {ai.competitiveIntel && !ai.competitiveIntel.includes("None") && <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4 }}>Competitive Intel</div>
+                  <div style={{ fontSize: 11, color: "var(--og)", lineHeight: 1.4 }}>{ai.competitiveIntel}</div>
                 </div>}
                 {/* What NOT to pursue (v2) */}
-                {ai.whatNotToPursue&&<div style={{marginTop:10,padding:"8px 10px",background:"var(--rdd)",borderRadius:6,border:"1px solid var(--rd)"}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--rd)",marginBottom:4}}>What NOT to pursue</div>
-                  <div style={{fontSize:11,color:"var(--rd)",lineHeight:1.4}}>{ai.whatNotToPursue}</div>
+                {ai.whatNotToPursue && <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--rdd)", borderRadius: 6, border: "1px solid var(--rd)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--rd)", marginBottom: 4 }}>What NOT to pursue</div>
+                  <div style={{ fontSize: 11, color: "var(--rd)", lineHeight: 1.4 }}>{ai.whatNotToPursue}</div>
                 </div>}
               </div>
 
               {/* Right: Ready-to-Send Outreach */}
               <div>
-                <div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)",marginBottom:8}}>📧 Ready-to-Send Outreach</div>
-                <div className="ebox" style={{marginTop:0}}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--t3)", marginBottom: 8 }}>📧 Ready-to-Send Outreach</div>
+                <div className="ebox" style={{ marginTop: 0 }}>
                   <div className="ebox-s">Subject: {ai.outreach?.emailSubject}</div>
                   <div className="ebox-b">{ai.outreach?.emailBody}</div>
                 </div>
-                <button className={`btn ${copied===e.id+"-email"?"bsuccess":"bp"}`} style={{fontSize:10,marginTop:6}} onClick={()=>doCopy(e.id+"-email",`Subject: ${ai.outreach?.emailSubject}\n\n${ai.outreach?.emailBody}`)}>
-                  {copied===e.id+"-email"?"✓ Copied":"📋 Copy Email"}
+                <button className={`btn ${copied === e.id + "-email" ? "bsuccess" : "bp"}`} style={{ fontSize: 10, marginTop: 6 }} onClick={() => doCopy(e.id + "-email", `Subject: ${ai.outreach?.emailSubject}\n\n${ai.outreach?.emailBody}`)}>
+                  {copied === e.id + "-email" ? "✓ Copied" : "📋 Copy Email"}
                 </button>
 
-                <div style={{marginTop:12,fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:4}}>📞 Call Opener</div>
-                <div className="ebox" style={{marginTop:0}}>
+                <div style={{ marginTop: 12, fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4 }}>📞 Call Opener</div>
+                <div className="ebox" style={{ marginTop: 0 }}>
                   <div className="ebox-b">{ai.outreach?.callOpener}</div>
                 </div>
-                <button className={`btn ${copied===e.id+"-call"?"bsuccess":"bg"}`} style={{fontSize:10,marginTop:6}} onClick={()=>doCopy(e.id+"-call",ai.outreach?.callOpener)}>
-                  {copied===e.id+"-call"?"✓ Copied":"📋 Copy Script"}
+                <button className={`btn ${copied === e.id + "-call" ? "bsuccess" : "bg"}`} style={{ fontSize: 10, marginTop: 6 }} onClick={() => doCopy(e.id + "-call", ai.outreach?.callOpener)}>
+                  {copied === e.id + "-call" ? "✓ Copied" : "📋 Copy Script"}
                 </button>
 
                 {/* Product Recommendations */}
-                {ai.productRecommendations?.length>0&&<div style={{marginTop:12}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:6}}>🧩 AI Product Recommendations</div>
-                  {ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{marginBottom:8}}>
-                    <span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span>
-                    <div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div>
-                    {p.whyThisPlayWhyNow&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}><strong>Why now:</strong> {p.whyThisPlayWhyNow}</div>}
-                    {p.playbookAlignment&&<div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>Playbook: {p.playbookAlignment}</div>}</div>
-                    <div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div>
+                {ai.productRecommendations?.length > 0 && <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 6 }}>🧩 AI Product Recommendations</div>
+                  {ai.productRecommendations.map((p, i) => <div key={i} className="pf" style={{ marginBottom: 8 }}>
+                    <span className={`tg ${p.priority === "primary" ? "strong" : "moderate"}`}>{p.priority}</span>
+                    <div><div style={{ fontSize: 12, fontWeight: 600 }}>{p.product}</div><div style={{ fontSize: 10, color: "var(--t3)" }}>{p.fitReason}</div>
+                      {p.whyThisPlayWhyNow && <div style={{ fontSize: 10, color: "var(--ac)", marginTop: 4 }}><strong>Why now:</strong> {p.whyThisPlayWhyNow}</div>}
+                      {p.playbookAlignment && <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>Playbook: {p.playbookAlignment}</div>}</div>
+                    <div className="pfm">+${(p.mrr || 0).toLocaleString()}/mo</div>
                   </div>)}
                 </div>}
 
                 {/* 90-day target */}
-                {ai.ninetyDayTarget&&<div style={{marginTop:10,padding:"8px 10px",background:"var(--gnd)",borderRadius:6}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--gn)",marginBottom:2}}>90-Day Target</div>
-                  <div style={{fontSize:11,color:"var(--gn)"}}>{ai.ninetyDayTarget}</div>
+                {ai.ninetyDayTarget && <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--gnd)", borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--gn)", marginBottom: 2 }}>90-Day Target</div>
+                  <div style={{ fontSize: 11, color: "var(--gn)" }}>{ai.ninetyDayTarget}</div>
                 </div>}
               </div>
             </div>
 
-            <div style={{display:"flex",gap:6}}>
-              <button className="btn bg" style={{fontSize:11}} onClick={()=>onSelect(e.id)}>View Full Account →</button>
-              <button className="btn bg" style={{fontSize:11}} onClick={()=>onAnalyze(e.id)}>🔄 Re-Analyze</button>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="btn bg" style={{ fontSize: 11 }} onClick={() => onSelect(e.id)}>View Full Account →</button>
+              <button className="btn bg" style={{ fontSize: 11 }} onClick={() => onAnalyze(e.id)}>🔄 Re-Analyze</button>
             </div>
           </>)}
         </div>}
@@ -1240,167 +1265,171 @@ function EngagementHub({accounts,products,aiData,onSelect,onAnalyze,analyzing}) 
 }
 
 /* ═══════════════ BRIEFING ═══════════════ */
-function Briefing({accounts,products,aiData,onS,onAnalyze,onOppClick,analyzing,periodFilter}){
-  const tM=accounts.reduce((s,c)=>s+c.mrr,0);
-  const addressableGapTotal=accounts.reduce((s,c)=>{
-    const totalTarget=(c.loc||[]).reduce((sum,l)=>sum+(l.targetSpend||0),0);
-    const totalBilling=(c.loc||[]).reduce((sum,l)=>sum+(l.billing||0),0)||c.mrr;
-    return s+Math.max(0,(totalTarget||0)-totalBilling);
-  },0);
-  const allPipeline=accounts.flatMap(c=>c.qt.map(q=>({...q,anm:c.name,aid:c.id})));
-  const pipelineInPeriod=allPipeline.filter(q=>isCloseDateInPeriod(q.closeDate,periodFilter));
-  const tQPeriod=pipelineInPeriod.reduce((s,q)=>s+q.mrr,0);
-  const aiCount=Object.keys(aiData).length;
-  const scored=accounts.map(c=>({...c,score:aiData[c.id]?.score||quickScore(c,products).score,ds:c.eng[0]?daysAgo(c.eng[0].d):999})).sort((a,b)=>b.score-a.score);
+function Briefing({ accounts, products, aiData, onS, onAnalyze, onOppClick, analyzing, periodFilter }) {
+  const tM = accounts.reduce((s, c) => s + c.mrr, 0);
+  const addressableGapTotal = accounts.reduce((s, c) => {
+    const totalTarget = (c.loc || []).reduce((sum, l) => sum + (l.targetSpend || 0), 0);
+    const totalBilling = (c.loc || []).reduce((sum, l) => sum + (l.billing || 0), 0) || c.mrr;
+    return s + Math.max(0, (totalTarget || 0) - totalBilling);
+  }, 0);
+  const allPipeline = accounts.flatMap(c => c.qt.map(q => ({ ...q, anm: c.name, aid: c.id })));
+  const pipelineInPeriod = allPipeline.filter(q => isCloseDateInPeriod(q.closeDate, periodFilter));
+  const tQPeriod = pipelineInPeriod.reduce((s, q) => s + q.mrr, 0);
+  const aiCount = Object.keys(aiData).length;
+  const scored = accounts.map(c => ({ ...c, score: aiData[c.id]?.score || quickScore(c, products).score, ds: c.eng[0] ? daysAgo(c.eng[0].d) : 999 })).sort((a, b) => b.score - a.score);
   const { count: actionCount, items: actionItems } = getActionItems(accounts);
-  const avg=Math.round(scored.reduce((s,c)=>s+c.score,0)/(scored.length||1));
-  return(<div className="ct" style={{animation:"fi .3s ease"}}>
+  const avg = Math.round(scored.reduce((s, c) => s + c.score, 0) / (scored.length || 1));
+  return (<div className="ct" style={{ animation: "fi .3s ease" }}>
     <div className="sr">
-      <div className="st"><div className="sl">Book of Business</div><div className="sv" style={{color:"var(--gn)"}}>${tM.toLocaleString()}</div><div className="ss">current MRR</div></div>
-      <div className="st"><div className="sl">Addressable Gap</div><div className="sv" style={{color:"var(--ac)"}}>${addressableGapTotal.toLocaleString()}</div><div className="ss">/mo uncaptured</div></div>
-      <div className="st"><div className="sl">Pipeline ({getPeriodLabel(periodFilter)})</div><div className="sv" style={{color:"var(--yl)"}}>${tQPeriod.toLocaleString()}</div><div className="ss">/mo close in period</div></div>
-      <div className="st"><div className="sl">Urgent Actions</div><div className="sv" style={{color:actionCount>0?"var(--rd)":"var(--t3)"}}>{actionCount}</div><div className="ss">need attention</div></div>
-      <div className="st"><div className="sl">Avg Score</div><div className="sv" style={{color:avg>=60?"var(--gn)":"var(--yl)"}}>{avg}</div><div className="ss">{aiCount>0?`${aiCount} AI-scored`:accounts.length+" accounts"}</div></div>
-      <div className="st" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",cursor:"pointer",border:analyzing?"1px solid var(--ac)":"1px solid var(--bd)"}} onClick={()=>!analyzing&&onAnalyze("all")}>
-        {analyzing?<><span className="spin" style={{width:20,height:20}}/><div className="ss" style={{marginTop:4}}>Analyzing...</div></>:<><div style={{fontSize:16}}>✨</div><div className="ss">Run AI Analysis</div></>}
+      <div className="st"><div className="sl">Book of Business</div><div className="sv" style={{ color: "var(--gn)" }}>${tM.toLocaleString()}</div><div className="ss">current MRR</div></div>
+      <div className="st"><div className="sl">Addressable Gap</div><div className="sv" style={{ color: "var(--ac)" }}>${addressableGapTotal.toLocaleString()}</div><div className="ss">/mo uncaptured</div></div>
+      <div className="st"><div className="sl">Pipeline ({getPeriodLabel(periodFilter)})</div><div className="sv" style={{ color: "var(--yl)" }}>${tQPeriod.toLocaleString()}</div><div className="ss">/mo close in period</div></div>
+      <div className="st"><div className="sl">Urgent Actions</div><div className="sv" style={{ color: actionCount > 0 ? "var(--rd)" : "var(--t3)" }}>{actionCount}</div><div className="ss">need attention</div></div>
+      <div className="st"><div className="sl">Avg Score</div><div className="sv" style={{ color: avg >= 60 ? "var(--gn)" : "var(--yl)" }}>{avg}</div><div className="ss">{aiCount > 0 ? `${aiCount} AI-scored` : accounts.length + " accounts"}</div></div>
+      <div className="st" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", cursor: "pointer", border: analyzing ? "1px solid var(--ac)" : "1px solid var(--bd)" }} onClick={() => !analyzing && onAnalyze("all")}>
+        {analyzing ? <><span className="spin" style={{ width: 20, height: 20 }} /><div className="ss" style={{ marginTop: 4 }}>Analyzing...</div></> : <><div style={{ fontSize: 16 }}>✨</div><div className="ss">Run AI Analysis</div></>}
       </div>
     </div>
     <div className="cg">
-      <div className="cd"><div className="ch"><span style={{fontSize:15}}>🎯</span><div className="ctit">Top Accounts</div></div>
-        {scored.slice(0,10).map(c=>{const s=scC(c.score);const ai=aiData[c.id];
-          return(<div key={c.id} className="act" onClick={()=>onS(c.id)}>
-            <div className="asc" style={{background:s.b,color:s.c}}>{c.score}</div>
-            <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12,fontWeight:600}}>{c.name}</span>{ai&&<span className="ai-badge">AI</span>}</div>
-              <div style={{fontSize:10.5,color:"var(--t3)",marginTop:1}}>{ai?ai.immediateOpportunity?.description?.slice(0,60)+"…":`$${c.mrr.toLocaleString()}/mo · ${c.ind}`}</div></div>
-            <div style={{fontSize:10,color:"var(--t3)"}}>→</div></div>)})}</div>
-      <div className="cd"><div className="ch"><span style={{fontSize:15}}>💰</span><div className="ctit">Open Pipeline ({getPeriodLabel(periodFilter)})</div></div>
-        {pipelineInPeriod.length===0?<div style={{fontSize:12,color:"var(--t3)",padding:8}}>No opportunities with close date in {getPeriodLabel(periodFilter).toLowerCase()}. Add close_date to quotes in CSV.</div>
-        :pipelineInPeriod.sort((a,b)=>b.mrr-a.mrr).map((q,i)=>(
-          <div key={i} className="act" onClick={()=>onOppClick(q.aid,q)} style={{marginBottom:4}}>
-            <div style={{width:3,minHeight:24,borderRadius:2,background:q.st==="stalled"?"var(--rd)":q.st==="pending-board"?"var(--yl)":"var(--ac)"}}/>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{q.anm} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div>
-              {q.icbs?.length>0&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>ICB: {(q.icbs[0].description||q.icbs[0].value||"—").slice(0,50)}{(q.icbs[0].description||q.icbs[0].value)?.length>50?"…":""}{q.icbs.length>1?` (+${q.icbs.length-1})`:""}</div>}</div>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:600,color:"var(--gn)"}}>${q.mrr.toLocaleString()}</div></div>))}</div>
-      {actionCount>0&&<div className="cd fw"><div className="ch"><span style={{fontSize:15}}>⚠️</span><div className="ctit">Action items ({actionCount})</div></div>
-        <div style={{fontSize:11,color:"var(--t3)",marginBottom:8}}>On-net not billing · No contact 30+d · No contact 14+d (open opp) · Stalled quote · Stalled ICB 14+d · Renewal in 90d · Renewal in 60d</div>
-        {actionItems.slice(0,12).map((a,i)=>(<div key={i} className="act" onClick={()=>onS(a.accountId)} style={{marginBottom:4}}>
-          <span className="tg critical" style={{fontSize:9}}>{a.reason}</span>
-          <div style={{flex:1,minWidth:0}}><span style={{fontSize:12,fontWeight:600}}>{a.accountName}</span></div>
-          <div style={{fontSize:10,color:"var(--t3)"}}>→</div></div>))}
-        {actionItems.length>12&&<div style={{fontSize:11,color:"var(--t3)",padding:"6px 0"}}>+{actionItems.length-12} more — open Engagement Hub to see all</div>}
+      <div className="cd"><div className="ch"><span style={{ fontSize: 15 }}>🎯</span><div className="ctit">Top Accounts</div></div>
+        {scored.slice(0, 10).map(c => {
+          const s = scC(c.score); const ai = aiData[c.id];
+          return (<div key={c.id} className="act" onClick={() => onS(c.id)}>
+            <div className="asc" style={{ background: s.b, color: s.c }}>{c.score}</div>
+            <div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</span>{ai && <span className="ai-badge">AI</span>}</div>
+              <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 1 }}>{ai ? ai.immediateOpportunity?.description?.slice(0, 60) + "…" : `$${c.mrr.toLocaleString()}/mo · ${c.ind}`}</div></div>
+            <div style={{ fontSize: 10, color: "var(--t3)" }}>→</div></div>)
+        })}</div>
+      <div className="cd"><div className="ch"><span style={{ fontSize: 15 }}>💰</span><div className="ctit">Open Pipeline ({getPeriodLabel(periodFilter)})</div></div>
+        {pipelineInPeriod.length === 0 ? <div style={{ fontSize: 12, color: "var(--t3)", padding: 8 }}>No opportunities with close date in {getPeriodLabel(periodFilter).toLowerCase()}. Add close_date to quotes in CSV.</div>
+          : pipelineInPeriod.sort((a, b) => b.mrr - a.mrr).map((q, i) => (
+            <div key={i} className="act" onClick={() => onOppClick(q.aid, q)} style={{ marginBottom: 4 }}>
+              <div style={{ width: 3, minHeight: 24, borderRadius: 2, background: q.st === "stalled" ? "var(--rd)" : q.st === "pending-board" ? "var(--yl)" : "var(--ac)" }} />
+              <div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{q.name}</div><div style={{ fontSize: 10.5, color: "var(--t3)" }}>{q.anm} · <span style={{ color: q.st === "stalled" ? "var(--rd)" : "var(--yl)" }}>{q.st}</span></div>
+                {q.icbs?.length > 0 && <div style={{ fontSize: 10, color: "var(--ac)", marginTop: 4 }}>ICB: {(q.icbs[0].description || q.icbs[0].value || "—").slice(0, 50)}{(q.icbs[0].description || q.icbs[0].value)?.length > 50 ? "…" : ""}{q.icbs.length > 1 ? ` (+${q.icbs.length - 1})` : ""}</div>}</div>
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 600, color: "var(--gn)" }}>${q.mrr.toLocaleString()}</div></div>))}</div>
+      {actionCount > 0 && <div className="cd fw"><div className="ch"><span style={{ fontSize: 15 }}>⚠️</span><div className="ctit">Action items ({actionCount})</div></div>
+        <div style={{ fontSize: 11, color: "var(--t3)", marginBottom: 8 }}>On-net not billing · No contact 30+d · No contact 14+d (open opp) · Stalled quote · Stalled ICB 14+d · Renewal in 90d · Renewal in 60d</div>
+        {actionItems.slice(0, 12).map((a, i) => (<div key={i} className="act" onClick={() => onS(a.accountId)} style={{ marginBottom: 4 }}>
+          <span className="tg critical" style={{ fontSize: 9 }}>{a.reason}</span>
+          <div style={{ flex: 1, minWidth: 0 }}><span style={{ fontSize: 12, fontWeight: 600 }}>{a.accountName}</span></div>
+          <div style={{ fontSize: 10, color: "var(--t3)" }}>→</div></div>))}
+        {actionItems.length > 12 && <div style={{ fontSize: 11, color: "var(--t3)", padding: "6px 0" }}>+{actionItems.length - 12} more — open Engagement Hub to see all</div>}
       </div>}
-      <div className="cd fw"><div className="ch"><span style={{fontSize:15}}>🧠</span><div className="ctit">AI Insights {aiCount===0&&"— Run analysis to populate"}</div></div>
-        {aiCount===0?<div style={{textAlign:"center",padding:"16px 0"}}><div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Click "Run AI Analysis" above to get intelligent scoring, strategy, and outreach for every account</div>
-          <button className="btn bp" onClick={()=>onAnalyze("all")} disabled={analyzing}>{analyzing?<><span className="spin"/>Running...</>:"✨ Analyze All Accounts"}</button></div>
-        :scored.filter(c=>aiData[c.id]).slice(0,5).map(c=>{const ai=aiData[c.id];
-          return(<div key={c.id} className="act" onClick={()=>onS(c.id)} style={{marginBottom:4}}>
-            <div className={`sentiment-dot ${ai.sentiment}`}/>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{c.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{ai.engagementPlan?.thisWeek?.slice(0,70)}…</div></div>
-            <span className={`opp-type ${ai.immediateOpportunity?.type}`}>{oppLabels[ai.immediateOpportunity?.type]||ai.immediateOpportunity?.type}</span></div>)})}</div>
+      <div className="cd fw"><div className="ch"><span style={{ fontSize: 15 }}>🧠</span><div className="ctit">AI Insights {aiCount === 0 && "— Run analysis to populate"}</div></div>
+        {aiCount === 0 ? <div style={{ textAlign: "center", padding: "16px 0" }}><div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 8 }}>Click "Run AI Analysis" above to get intelligent scoring, strategy, and outreach for every account</div>
+          <button className="btn bp" onClick={() => onAnalyze("all")} disabled={analyzing}>{analyzing ? <><span className="spin" />Running...</> : "✨ Analyze All Accounts"}</button></div>
+          : scored.filter(c => aiData[c.id]).slice(0, 5).map(c => {
+            const ai = aiData[c.id];
+            return (<div key={c.id} className="act" onClick={() => onS(c.id)} style={{ marginBottom: 4 }}>
+              <div className={`sentiment-dot ${ai.sentiment}`} />
+              <div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 10.5, color: "var(--t3)" }}>{ai.engagementPlan?.thisWeek?.slice(0, 70)}…</div></div>
+              <span className={`opp-type ${ai.immediateOpportunity?.type}`}>{oppLabels[ai.immediateOpportunity?.type] || ai.immediateOpportunity?.type}</span></div>)
+          })}</div>
     </div></div>);
 }
 
 /* ═══════════════ ACCOUNT DETAIL ═══════════════ */
-function Detail({cu,ai,products,onAnalyze,analyzing}){
-  const[tab,sTab]=useState("overview");
-  const ds=cu.eng[0]?daysAgo(cu.eng[0].d):999;
-  const score=ai?.score||quickScore(cu).score;
-  const s=scC(score);
-  const [copied,setCopied]=useState(null);
-  const doCopy=(k,t)=>{copyText(t);setCopied(k);setTimeout(()=>setCopied(null),2000)};
-  return(<div className="ct" style={{animation:"fi .3s ease"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <div className="asc" style={{background:s.b,color:s.c,width:46,height:46,fontSize:18,borderRadius:10}}>{score}</div>
-        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20,fontWeight:700,letterSpacing:"-.4px"}}>{cu.name}</span>{ai&&<span className="ai-badge">AI Analyzed</span>}{ai?._meta?.isStale&&<span className="tg warning" style={{fontSize:8}}>⚠ DATA CHANGED — Re-analyze</span>}</div>
-          <div style={{fontSize:12,color:"var(--t2)"}}>{cu.ind} · {cu.tier} · Ends {cu.cEnd}{ai?._meta?.analyzedAt?` · Analyzed ${formatTimeAgo(ai._meta.analyzedAt)}${ai._meta.isStale?" (stale)":""}`:""}</div></div></div>
-      <button className="btn bp" onClick={()=>onAnalyze(cu.id)} disabled={analyzing}>{analyzing?<><span className="spin"/>Analyzing...</>:ai?"🔄 Re-Analyze":"✨ Run AI Analysis"}</button>
+function Detail({ cu, ai, products, onAnalyze, analyzing }) {
+  const [tab, sTab] = useState("overview");
+  const ds = cu.eng[0] ? daysAgo(cu.eng[0].d) : 999;
+  const score = ai?.score || quickScore(cu).score;
+  const s = scC(score);
+  const [copied, setCopied] = useState(null);
+  const doCopy = (k, t) => { copyText(t); setCopied(k); setTimeout(() => setCopied(null), 2000) };
+  return (<div className="ct" style={{ animation: "fi .3s ease" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="asc" style={{ background: s.b, color: s.c, width: 46, height: 46, fontSize: 18, borderRadius: 10 }}>{score}</div>
+        <div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-.4px" }}>{cu.name}</span>{ai && <span className="ai-badge">AI Analyzed</span>}{ai?._meta?.isStale && <span className="tg warning" style={{ fontSize: 8 }}>⚠ DATA CHANGED — Re-analyze</span>}</div>
+          <div style={{ fontSize: 12, color: "var(--t2)" }}>{cu.ind} · {cu.tier} · Ends {cu.cEnd}{ai?._meta?.analyzedAt ? ` · Analyzed ${formatTimeAgo(ai._meta.analyzedAt)}${ai._meta.isStale ? " (stale)" : ""}` : ""}</div></div></div>
+      <button className="btn bp" onClick={() => onAnalyze(cu.id)} disabled={analyzing}>{analyzing ? <><span className="spin" />Analyzing...</> : ai ? "🔄 Re-Analyze" : "✨ Run AI Analysis"}</button>
     </div>
     <div className="sr">
-      <div className="st"><div className="sl">Current MRR</div><div className="sv" style={{color:"var(--gn)"}}>${cu.mrr.toLocaleString()}</div><div className="ss">{cu.cur.length} products</div></div>
-      <div className="st"><div className="sl">Quoted</div><div className="sv" style={{color:"var(--yl)"}}>${cu.qt.reduce((s,q)=>s+q.mrr,0).toLocaleString()}</div><div className="ss">{cu.qt.length} pending</div></div>
-      <div className="st"><div className="sl">AI Opportunity</div><div className="sv" style={{color:"var(--ac)"}}>${(ai?.immediateOpportunity?.estimatedMRR||0).toLocaleString()}</div><div className="ss">{ai?.immediateOpportunity?.confidence||"--"} confidence</div></div>
-      <div className="st"><div className="sl">Sentiment</div><div className="sv" style={{fontSize:14,color:ai?.sentiment==="positive"?"var(--gn)":ai?.sentiment==="at-risk"?"var(--yl)":ai?.sentiment==="critical"?"var(--rd)":"var(--ac)"}}>{ai?.sentiment||"Pending"}</div><div className="ss">{ai?.sentimentDetail?.slice(0,30)||"Run analysis"}…</div></div>
-      <div className="st"><div className="sl">Last Touch</div><div className="sv" style={{fontSize:17,color:ds<=14?"var(--gn)":ds<=30?"var(--yl)":"var(--rd)"}}>{ds}d</div></div>
+      <div className="st"><div className="sl">Current MRR</div><div className="sv" style={{ color: "var(--gn)" }}>${cu.mrr.toLocaleString()}</div><div className="ss">{cu.cur.length} products</div></div>
+      <div className="st"><div className="sl">Quoted</div><div className="sv" style={{ color: "var(--yl)" }}>${cu.qt.reduce((s, q) => s + q.mrr, 0).toLocaleString()}</div><div className="ss">{cu.qt.length} pending</div></div>
+      <div className="st"><div className="sl">AI Opportunity</div><div className="sv" style={{ color: "var(--ac)" }}>${(ai?.immediateOpportunity?.estimatedMRR || 0).toLocaleString()}</div><div className="ss">{ai?.immediateOpportunity?.confidence || "--"} confidence</div></div>
+      <div className="st"><div className="sl">Sentiment</div><div className="sv" style={{ fontSize: 14, color: ai?.sentiment === "positive" ? "var(--gn)" : ai?.sentiment === "at-risk" ? "var(--yl)" : ai?.sentiment === "critical" ? "var(--rd)" : "var(--ac)" }}>{ai?.sentiment || "Pending"}</div><div className="ss">{ai?.sentimentDetail?.slice(0, 30) || "Run analysis"}…</div></div>
+      <div className="st"><div className="sl">Last Touch</div><div className="sv" style={{ fontSize: 17, color: ds <= 14 ? "var(--gn)" : ds <= 30 ? "var(--yl)" : "var(--rd)" }}>{ds}d</div></div>
     </div>
 
     {/* AI Panel */}
-    {ai&&<div className="ap" style={{animation:"fi .4s ease"}}>
+    {ai && <div className="ap" style={{ animation: "fi .4s ease" }}>
       <h3>✨ AI Strategy Brief</h3>
-      <div style={{fontSize:14,fontWeight:600,lineHeight:1.4,marginBottom:12}}>{ai.accountSummary}</div>
-      <div className="cg" style={{marginBottom:10}}>
+      <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, marginBottom: 12 }}>{ai.accountSummary}</div>
+      <div className="cg" style={{ marginBottom: 10 }}>
         <div>
-          <div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)",marginBottom:6}}>This Week's Action</div>
-          <div className="ebox" style={{marginTop:0}}><div className="ebox-b">{ai.engagementPlan?.thisWeek}</div></div>
-          {ai.engagementPlan?.talkingPoints&&<ul style={{margin:"8px 0 0 14px"}}>{ai.engagementPlan.talkingPoints.map((p,i)=><li key={i} style={{fontSize:11,color:"var(--t2)",lineHeight:1.5,marginBottom:2}}>{p}</li>)}</ul>}
-          {ai.engagementPlan?.avoid&&<div style={{fontSize:11,color:"var(--rd)",background:"var(--rdd)",padding:"6px 10px",borderRadius:6,marginTop:8}}>⚠️ {ai.engagementPlan.avoid}</div>}
-          {ai.competitiveIntel&&!ai.competitiveIntel.includes("None")&&<div style={{marginTop:8,fontSize:11,color:"var(--og)"}}><strong>Competitive:</strong> {ai.competitiveIntel}</div>}
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--t3)", marginBottom: 6 }}>This Week's Action</div>
+          <div className="ebox" style={{ marginTop: 0 }}><div className="ebox-b">{ai.engagementPlan?.thisWeek}</div></div>
+          {ai.engagementPlan?.talkingPoints && <ul style={{ margin: "8px 0 0 14px" }}>{ai.engagementPlan.talkingPoints.map((p, i) => <li key={i} style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5, marginBottom: 2 }}>{p}</li>)}</ul>}
+          {ai.engagementPlan?.avoid && <div style={{ fontSize: 11, color: "var(--rd)", background: "var(--rdd)", padding: "6px 10px", borderRadius: 6, marginTop: 8 }}>⚠️ {ai.engagementPlan.avoid}</div>}
+          {ai.competitiveIntel && !ai.competitiveIntel.includes("None") && <div style={{ marginTop: 8, fontSize: 11, color: "var(--og)" }}><strong>Competitive:</strong> {ai.competitiveIntel}</div>}
         </div>
         <div>
-          <div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)",marginBottom:6}}>Ready-to-Send Email</div>
-          <div className="ebox" style={{marginTop:0}}><div className="ebox-s">Subject: {ai.outreach?.emailSubject}</div><div className="ebox-b">{ai.outreach?.emailBody}</div></div>
-          <div style={{display:"flex",gap:6,marginTop:6}}>
-            <button className={`btn ${copied==="email"?"bsuccess":"bp"}`} style={{fontSize:10}} onClick={()=>doCopy("email",`Subject: ${ai.outreach?.emailSubject}\n\n${ai.outreach?.emailBody}`)}>{copied==="email"?"✓ Copied":"📋 Copy Email"}</button>
-            <button className={`btn ${copied==="call"?"bsuccess":"bg"}`} style={{fontSize:10}} onClick={()=>doCopy("call",ai.outreach?.callOpener)}>{copied==="call"?"✓ Copied":"📋 Call Script"}</button>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--t3)", marginBottom: 6 }}>Ready-to-Send Email</div>
+          <div className="ebox" style={{ marginTop: 0 }}><div className="ebox-s">Subject: {ai.outreach?.emailSubject}</div><div className="ebox-b">{ai.outreach?.emailBody}</div></div>
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <button className={`btn ${copied === "email" ? "bsuccess" : "bp"}`} style={{ fontSize: 10 }} onClick={() => doCopy("email", `Subject: ${ai.outreach?.emailSubject}\n\n${ai.outreach?.emailBody}`)}>{copied === "email" ? "✓ Copied" : "📋 Copy Email"}</button>
+            <button className={`btn ${copied === "call" ? "bsuccess" : "bg"}`} style={{ fontSize: 10 }} onClick={() => doCopy("call", ai.outreach?.callOpener)}>{copied === "call" ? "✓ Copied" : "📋 Call Script"}</button>
           </div>
-          {ai.ninetyDayTarget&&<div style={{marginTop:8,padding:"6px 10px",background:"var(--gnd)",borderRadius:6,fontSize:11,color:"var(--gn)"}}><strong>90-Day:</strong> {ai.ninetyDayTarget}</div>}
+          {ai.ninetyDayTarget && <div style={{ marginTop: 8, padding: "6px 10px", background: "var(--gnd)", borderRadius: 6, fontSize: 11, color: "var(--gn)" }}><strong>90-Day:</strong> {ai.ninetyDayTarget}</div>}
         </div>
       </div>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-        {ai.risks?.map((r,i)=><span key={i} className="tg critical" style={{fontSize:9}}>⚠ {r}</span>)}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {ai.risks?.map((r, i) => <span key={i} className="tg critical" style={{ fontSize: 9 }}>⚠ {r}</span>)}
       </div>
-      {ai?.meddic&&(
-        <div style={{marginTop:14}}>
-          <div style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)",marginBottom:8}}>MEDDIC Qualification</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-            {["metrics","economicBuyer","decisionCriteria","decisionProcess","pain","champion"].map(key=>{
-              const el=ai.meddic[key];
-              if(!el) return null;
-              const icon=el.status==="strong"?"✅":el.status==="partial"?"⚠️":"❌";
-              const label=key.replace(/([A-Z])/g," $1").replace(/^./,s=>s.toUpperCase());
+      {ai?.meddic && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--t3)", marginBottom: 8 }}>MEDDIC Qualification</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            {["metrics", "economicBuyer", "decisionCriteria", "decisionProcess", "pain", "champion"].map(key => {
+              const el = ai.meddic[key];
+              if (!el) return null;
+              const icon = el.status === "strong" ? "✅" : el.status === "partial" ? "⚠️" : "❌";
+              const label = key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase());
               return (
-                <div key={key} style={{padding:"8px 10px",background:"var(--b1)",borderRadius:6,border:"1px solid var(--bd)"}}>
-                  <div style={{fontSize:10,fontWeight:600,marginBottom:2}}>{icon} {label}</div>
-                  <div style={{fontSize:10,color:"var(--t2)",lineHeight:1.4}}>{el.note}</div>
+                <div key={key} style={{ padding: "8px 10px", background: "var(--b1)", borderRadius: 6, border: "1px solid var(--bd)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 2 }}>{icon} {label}</div>
+                  <div style={{ fontSize: 10, color: "var(--t2)", lineHeight: 1.4 }}>{el.note}</div>
                 </div>
               );
             })}
           </div>
-          {ai.meddic.criticalGaps?.length>0&&(
-            <div style={{marginTop:6,fontSize:11,color:"var(--rd)"}}>Critical gaps: {ai.meddic.criticalGaps.join(" · ")}</div>
+          {ai.meddic.criticalGaps?.length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 11, color: "var(--rd)" }}>Critical gaps: {ai.meddic.criticalGaps.join(" · ")}</div>
           )}
-          {ai.qualificationGrid&&<div style={{marginTop:10,fontSize:11,color:"var(--t2)",whiteSpace:"pre-wrap"}}><strong style={{color:"var(--t3)"}}>Qualification grid:</strong> {ai.qualificationGrid}</div>}
-          {ai.stageAudit&&<div style={{marginTop:8,fontSize:11,color:"var(--t2)",whiteSpace:"pre-wrap"}}><strong style={{color:"var(--t3)"}}>Stage audit:</strong> {ai.stageAudit}</div>}
+          {ai.qualificationGrid && <div style={{ marginTop: 10, fontSize: 11, color: "var(--t2)", whiteSpace: "pre-wrap" }}><strong style={{ color: "var(--t3)" }}>Qualification grid:</strong> {ai.qualificationGrid}</div>}
+          {ai.stageAudit && <div style={{ marginTop: 8, fontSize: 11, color: "var(--t2)", whiteSpace: "pre-wrap" }}><strong style={{ color: "var(--t3)" }}>Stage audit:</strong> {ai.stageAudit}</div>}
         </div>
       )}
-      {ai.whatNotToPursue&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--rdd)",borderRadius:8,border:"1px solid var(--rd)"}}><div style={{fontSize:10,fontWeight:600,color:"var(--rd)",marginBottom:4}}>What NOT to pursue</div><div style={{fontSize:11,color:"var(--rd)",lineHeight:1.45}}>{ai.whatNotToPursue}</div></div>}
+      {ai.whatNotToPursue && <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--rdd)", borderRadius: 8, border: "1px solid var(--rd)" }}><div style={{ fontSize: 10, fontWeight: 600, color: "var(--rd)", marginBottom: 4 }}>What NOT to pursue</div><div style={{ fontSize: 11, color: "var(--rd)", lineHeight: 1.45 }}>{ai.whatNotToPursue}</div></div>}
     </div>}
 
-    <div className="tabs">{["overview","timeline","contacts","products"].map(t=><button key={t} className={`tab ${tab===t?"on":""}`} onClick={()=>sTab(t)}>{t}</button>)}</div>
+    <div className="tabs">{["overview", "timeline", "contacts", "products"].map(t => <button key={t} className={`tab ${tab === t ? "on" : ""}`} onClick={() => sTab(t)}>{t}</button>)}</div>
 
-    {tab==="overview"&&<div className="cg">
+    {tab === "overview" && <div className="cg">
       <div className="cd"><div className="ch"><span>📦</span><div className="ctit">Products & Quotes</div></div>
-        {cu.cur.map((p,i)=>{const pr=(products||[]).find(x=>x.name===p);return(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:i<cu.cur.length-1?"1px solid var(--bd)":"none"}}><div><div style={{fontSize:12,fontWeight:600}}>{p}</div><div style={{fontSize:10,color:"var(--t3)"}}>{pr?.cat}</div></div>{pr&&<div className="pfm">${pr.mrr.toLocaleString()}/mo</div>}</div>)})}
-        {cu.qt.length>0&&<div style={{borderTop:"1px solid var(--bd)",marginTop:8,paddingTop:8}}>{cu.qt.map((q,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0"}}><div><div style={{fontSize:12,fontWeight:600}}>{q.name} <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)",fontSize:10}}>({q.st})</span></div><div style={{fontSize:10,color:"var(--t3)"}}>Quoted {q.date}</div></div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
-        {cu.prior.length>0&&<div style={{borderTop:"1px solid var(--bd)",marginTop:8,paddingTop:8}}>{cu.prior.map((s,i)=><div key={i} style={{fontSize:11,color:"var(--rd)",marginBottom:2}}>↩ {s}</div>)}</div>}</div>
+        {cu.cur.map((p, i) => { const pr = (products || []).find(x => x.name === p); return (<div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: i < cu.cur.length - 1 ? "1px solid var(--bd)" : "none" }}><div><div style={{ fontSize: 12, fontWeight: 600 }}>{p}</div><div style={{ fontSize: 10, color: "var(--t3)" }}>{pr?.cat}</div></div>{pr && <div className="pfm">${pr.mrr.toLocaleString()}/mo</div>}</div>) })}
+        {cu.qt.length > 0 && <div style={{ borderTop: "1px solid var(--bd)", marginTop: 8, paddingTop: 8 }}>{cu.qt.map((q, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}><div><div style={{ fontSize: 12, fontWeight: 600 }}>{q.name} <span style={{ color: q.st === "stalled" ? "var(--rd)" : "var(--yl)", fontSize: 10 }}>({q.st})</span></div><div style={{ fontSize: 10, color: "var(--t3)" }}>Quoted {q.date}</div></div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
+        {cu.prior.length > 0 && <div style={{ borderTop: "1px solid var(--bd)", marginTop: 8, paddingTop: 8 }}>{cu.prior.map((s, i) => <div key={i} style={{ fontSize: 11, color: "var(--rd)", marginBottom: 2 }}>↩ {s}</div>)}</div>}</div>
       <div className="cd"><div className="ch"><span>📍</span><div className="ctit">Locations</div></div>
-        {cu.loc.map((l,i)=>{ const isBilling = (l.billing != null && l.billing > 0); const onNetNotBilling = l.s === "on-net" && !isBilling; return (<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6,padding:"7px 0",borderBottom:i<cu.loc.length-1?"1px solid var(--bd)":"none",...(onNetNotBilling?{background:"var(--acd)",margin:"0 -10px",padding:"7px 10px",borderRadius:6,border:"1px solid var(--ac)"}:{})}}><div style={{fontSize:12,color:"var(--t2)",flex:1,minWidth:0}}><div>{l.a}</div><div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{isBilling ? <>Billing: ${l.billing.toLocaleString()}/mo</> : <span style={{color:"var(--t3)"}}>Not billing</span>}{(l.targetSpend != null && l.targetSpend > 0) && <> · Target: ${l.targetSpend.toLocaleString()}</>}</div>{onNetNotBilling&&<div style={{fontSize:9.5,fontWeight:600,color:"var(--ac)",marginTop:4,textTransform:"uppercase",letterSpacing:".5px"}}>Top priority — engage</div>}</div><span className={`tg ${l.s}`}>{l.s}</span></div>);})}</div>
-      {cu.loc?.some(l=>l.lat!=null&&l.lng!=null)&&import.meta.env.VITE_MAPBOX_TOKEN&&(
+        {cu.loc.map((l, i) => { const isBilling = (l.billing != null && l.billing > 0); const onNetNotBilling = l.s === "on-net" && !isBilling; return (<div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6, padding: "7px 0", borderBottom: i < cu.loc.length - 1 ? "1px solid var(--bd)" : "none", ...(onNetNotBilling ? { background: "var(--acd)", margin: "0 -10px", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--ac)" } : {}) }}><div style={{ fontSize: 12, color: "var(--t2)", flex: 1, minWidth: 0 }}><div>{l.a}</div><div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>{isBilling ? <>Billing: ${l.billing.toLocaleString()}/mo</> : <span style={{ color: "var(--t3)" }}>Not billing</span>}{(l.targetSpend != null && l.targetSpend > 0) && <> · Target: ${l.targetSpend.toLocaleString()}</>}</div>{onNetNotBilling && <div style={{ fontSize: 9.5, fontWeight: 600, color: "var(--ac)", marginTop: 4, textTransform: "uppercase", letterSpacing: ".5px" }}>Top priority — engage</div>}</div><span className={`tg ${l.s}`}>{l.s}</span></div>); })}</div>
+      {cu.loc?.some(l => l.lat != null && l.lng != null) && import.meta.env.VITE_MAPBOX_TOKEN && (
         <div className="cd fw">
           <div className="ch"><span>🗺️</span><div className="ctit">Location Map</div></div>
           <LocationMap locations={cu.loc} />
         </div>
       )}
-      {ai?.productRecommendations?.length>0&&<div className="cd fw"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>
-        {ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{alignItems:"flex-start"}}><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div>{p.whyThisPlayWhyNow&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>Why now: {p.whyThisPlayWhyNow}</div>}{p.playbookAlignment&&<div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>Playbook: {p.playbookAlignment}</div>}</div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>}
+      {ai?.productRecommendations?.length > 0 && <div className="cd fw"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>
+        {ai.productRecommendations.map((p, i) => <div key={i} className="pf" style={{ alignItems: "flex-start" }}><span className={`tg ${p.priority === "primary" ? "strong" : "moderate"}`}>{p.priority}</span><div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{p.product}</div><div style={{ fontSize: 10, color: "var(--t3)" }}>{p.fitReason}</div>{p.whyThisPlayWhyNow && <div style={{ fontSize: 10, color: "var(--ac)", marginTop: 4 }}>Why now: {p.whyThisPlayWhyNow}</div>}{p.playbookAlignment && <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>Playbook: {p.playbookAlignment}</div>}</div><div className="pfm">+${(p.mrr || 0).toLocaleString()}/mo</div></div>)}</div>}
     </div>}
-    {tab==="timeline"&&<div className="cd">{cu.eng.map((e,i)=><div key={i} className="tl"><div className="td">{e.d.slice(5)}</div><div style={{flex:1}}><span className={`tt ${tlT(e.t)}`}>{e.t}</span><div style={{fontSize:12,color:"var(--t2)",lineHeight:1.45,marginTop:2}}>{e.n}</div></div></div>)}</div>}
-    {tab==="contacts"&&<div className="cd">{cu.con.map((c,i)=><div key={i} className="cr"><div className="cav">{c.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{c.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{c.title}</div></div><span className={`ce ${c.eng}`}>{c.eng}</span>{c.last&&<div style={{fontSize:10,color:"var(--t3)"}}>Last: {c.last}</div>}</div>)}
-      {ai?.contactStrategy&&<div style={{marginTop:12,padding:12,background:"var(--b1)",borderRadius:8,border:"1px solid var(--bd)"}}><div style={{fontSize:10,fontWeight:600,color:"var(--t3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>AI Contact Strategy</div><div style={{fontSize:11,color:"var(--t2)",lineHeight:1.5}}><strong style={{color:"var(--t1)"}}>Primary:</strong> {ai.contactStrategy.primaryTarget} — {ai.contactStrategy.approach}</div>{ai.contactStrategy.multiThreadNote&&<div style={{fontSize:11,color:"var(--pr)",marginTop:4}}>{ai.contactStrategy.multiThreadNote}</div>}</div>}</div>}
-    {tab==="products"&&<div>
-      {cu.qt.length>0&&<div className="cd" style={{marginBottom:14}}><div className="ch"><span>📝</span><div className="ctit">Open Quotes</div></div>{cu.qt.map((q,i)=><div key={i} className="pf"><div style={{width:3,minHeight:28,borderRadius:2,background:q.st==="stalled"?"var(--rd)":"var(--yl)"}}/><div><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10,color:"var(--t3)"}}>Quoted {q.date} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div>{q.icbs?.length>0&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>ICB: {(q.icbs[0].description||q.icbs[0].value||"—").slice(0,40)}{(q.icbs[0].description||q.icbs[0].value)?.length>40?"…":""}{q.icbs.length>1?` (+${q.icbs.length-1} more)`:""}</div>}</div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
-      {ai?.productRecommendations?.length>0?<div className="cd"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>{ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{alignItems:"flex-start"}}><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div>{p.whyThisPlayWhyNow&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>Why now: {p.whyThisPlayWhyNow}</div>}{p.playbookAlignment&&<div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>Playbook: {p.playbookAlignment}</div>}</div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>
-      :<div className="cd"><div style={{textAlign:"center",padding:16}}><div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Run AI analysis for intelligent product recommendations</div><button className="btn bp" onClick={()=>onAnalyze(cu.id)} disabled={analyzing}>✨ Analyze</button></div></div>}
+    {tab === "timeline" && <div className="cd">{cu.eng.map((e, i) => <div key={i} className="tl"><div className="td">{e.d.slice(5)}</div><div style={{ flex: 1 }}><span className={`tt ${tlT(e.t)}`}>{e.t}</span><div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.45, marginTop: 2 }}>{e.n}</div></div></div>)}</div>}
+    {tab === "contacts" && <div className="cd">{cu.con.map((c, i) => <div key={i} className="cr"><div className="cav">{c.name.split(" ").map(n => n[0]).join("")}</div><div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 10.5, color: "var(--t3)" }}>{c.title}</div></div><span className={`ce ${c.eng}`}>{c.eng}</span>{c.last && <div style={{ fontSize: 10, color: "var(--t3)" }}>Last: {c.last}</div>}</div>)}
+      {ai?.contactStrategy && <div style={{ marginTop: 12, padding: 12, background: "var(--b1)", borderRadius: 8, border: "1px solid var(--bd)" }}><div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 4 }}>AI Contact Strategy</div><div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}><strong style={{ color: "var(--t1)" }}>Primary:</strong> {ai.contactStrategy.primaryTarget} — {ai.contactStrategy.approach}</div>{ai.contactStrategy.multiThreadNote && <div style={{ fontSize: 11, color: "var(--pr)", marginTop: 4 }}>{ai.contactStrategy.multiThreadNote}</div>}</div>}</div>}
+    {tab === "products" && <div>
+      {cu.qt.length > 0 && <div className="cd" style={{ marginBottom: 14 }}><div className="ch"><span>📝</span><div className="ctit">Open Quotes</div></div>{cu.qt.map((q, i) => <div key={i} className="pf"><div style={{ width: 3, minHeight: 28, borderRadius: 2, background: q.st === "stalled" ? "var(--rd)" : "var(--yl)" }} /><div><div style={{ fontSize: 12, fontWeight: 600 }}>{q.name}</div><div style={{ fontSize: 10, color: "var(--t3)" }}>Quoted {q.date} · <span style={{ color: q.st === "stalled" ? "var(--rd)" : "var(--yl)" }}>{q.st}</span></div>{q.icbs?.length > 0 && <div style={{ fontSize: 10, color: "var(--ac)", marginTop: 4 }}>ICB: {(q.icbs[0].description || q.icbs[0].value || "—").slice(0, 40)}{(q.icbs[0].description || q.icbs[0].value)?.length > 40 ? "…" : ""}{q.icbs.length > 1 ? ` (+${q.icbs.length - 1} more)` : ""}</div>}</div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
+      {ai?.productRecommendations?.length > 0 ? <div className="cd"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>{ai.productRecommendations.map((p, i) => <div key={i} className="pf" style={{ alignItems: "flex-start" }}><span className={`tg ${p.priority === "primary" ? "strong" : "moderate"}`}>{p.priority}</span><div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{p.product}</div><div style={{ fontSize: 10, color: "var(--t3)" }}>{p.fitReason}</div>{p.whyThisPlayWhyNow && <div style={{ fontSize: 10, color: "var(--ac)", marginTop: 4 }}>Why now: {p.whyThisPlayWhyNow}</div>}{p.playbookAlignment && <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>Playbook: {p.playbookAlignment}</div>}</div><div className="pfm">+${(p.mrr || 0).toLocaleString()}/mo</div></div>)}</div>
+        : <div className="cd"><div style={{ textAlign: "center", padding: 16 }}><div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 8 }}>Run AI analysis for intelligent product recommendations</div><button className="btn bp" onClick={() => onAnalyze(cu.id)} disabled={analyzing}>✨ Analyze</button></div></div>}
     </div>}
   </div>);
 }
@@ -1517,7 +1546,189 @@ function applyTables(next, setUploadTables, setProducts, setAccounts, onPersist)
   if (typeof onPersist === "function") onPersist(next);
 }
 
-function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onLoadSample, onPersist, accounts = [] }) {
+/* ═══════════════ EXTRACTION MODAL ═══════════════ */
+const EXTRACTION_CATEGORIES = [
+  { key: "methodology", label: "Sales Methodology", icon: "🧠", color: "var(--ac)" },
+  { key: "qualification", label: "Qualification Framework", icon: "✅", color: "var(--gn)" },
+  { key: "competitors", label: "Competitor Intel", icon: "⚔️", color: "var(--og)" },
+  { key: "pricing", label: "Pricing & Packaging", icon: "💰", color: "var(--yl)" },
+  { key: "objections", label: "Objection Handling", icon: "🛡️", color: "var(--pr)" },
+  { key: "personas", label: "Buyer Personas", icon: "👥", color: "var(--gn)" },
+  { key: "stages", label: "Deal Stage Criteria", icon: "📋", color: "var(--ac)" },
+  { key: "plays", label: "Sales Plays", icon: "📈", color: "var(--yl)" },
+];
+
+function PlaybookExtractionModal({ file, onComplete, onCancel }) {
+  const [phase, setPhase] = useState("reading");
+  const [progress, setProgress] = useState(0);
+  const [liveFields, setLiveFields] = useState([]);
+  const [currentCategory, setCurrentCategory] = useState("");
+  const [error, setError] = useState(null);
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  useEffect(() => { runExtraction(); }, []);
+
+  const animateExtraction = async () => {
+    for (let i = 0; i < EXTRACTION_CATEGORIES.length; i++) {
+      await sleep(400 + Math.random() * 300);
+      setCurrentCategory(EXTRACTION_CATEGORIES[i].label);
+      setLiveFields(prev => [...prev, EXTRACTION_CATEGORIES[i]]);
+      setProgress(15 + Math.round((i + 1) / EXTRACTION_CATEGORIES.length * 55));
+    }
+    await sleep(300);
+  };
+
+  const runExtraction = async () => {
+    try {
+      setPhase("reading");
+      setProgress(5);
+      await sleep(600);
+
+      setPhase("extracting");
+      setProgress(15);
+
+      // Read and extract text from file
+      let fileText = "";
+      if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+        fileText = await extractTextFromPdfFile(file);
+      } else {
+        fileText = await file.text();
+      }
+
+      if (!fileText || fileText.length < 100) {
+        throw new Error("Could not extract enough text from the file (need at least 100 characters).");
+      }
+
+      // Run animation alongside API call
+      const apiPromise = fetch("/api/extract-playbook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playbookText: fileText }),
+      }).then(r => {
+        if (!r.ok) return r.json().then(d => { throw new Error(d.error || "Extraction failed"); });
+        return r.json();
+      });
+
+      const animPromise = animateExtraction();
+      const [apiResult] = await Promise.all([apiPromise, animPromise]);
+
+      setPhase("applying");
+      setProgress(85);
+      await sleep(800);
+
+      setProgress(100);
+      await sleep(600);
+      setPhase("done");
+
+      // Small delay then complete
+      await sleep(400);
+      onComplete(apiResult.extraction, file.name);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Extraction failed");
+    }
+  };
+
+  const phaseLabel = {
+    reading: "Reading document...",
+    extracting: "Extracting sales intelligence...",
+    applying: "Applying to your workspace...",
+    done: "Playbook activated!",
+  }[phase];
+
+  if (error) {
+    return (
+      <div className="playbook-modal-overlay">
+        <div className="playbook-modal" style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 14 }}>⚠️</div>
+          <div style={{ color: "var(--t1)", fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Extraction failed</div>
+          <div style={{ color: "var(--t3)", fontSize: 12, marginBottom: 20 }}>{error}</div>
+          <button className="btn bg" onClick={onCancel}>Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="playbook-modal-overlay">
+      <div className="playbook-modal">
+        {/* Scan line effect */}
+        {phase === "extracting" && (
+          <div style={{
+            position: "absolute", left: 0, right: 0, height: 1,
+            background: "linear-gradient(90deg, transparent, var(--ac), transparent)",
+            animation: "scanLine 2s linear infinite", pointerEvents: "none", opacity: 0.5,
+          }} />
+        )}
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--acd)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📄</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "var(--t1)", fontWeight: 600, fontSize: 13 }}>{file.name}</div>
+            <div style={{ color: "var(--t3)", fontSize: 11 }}>{(file.size / 1024).toFixed(0)} KB</div>
+          </div>
+          {phase === "done" && <span className="tg positive" style={{ fontSize: 9 }}>✓ Complete</span>}
+        </div>
+
+        {/* Phase label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          {phase !== "done" && <span className="spin" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+          {phase === "done" && <span style={{ color: "var(--gn)", fontSize: 14 }}>✓</span>}
+          <span style={{ color: phase === "done" ? "var(--gn)" : "var(--ac)", fontSize: 12, fontWeight: 600 }}>{phaseLabel}</span>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 4, background: "var(--bd)", borderRadius: 2, marginBottom: 20, overflow: "hidden" }}>
+          <div style={{
+            height: "100%", width: `${progress}%`,
+            background: phase === "done" ? "linear-gradient(90deg, var(--gn), var(--ac))" : "linear-gradient(90deg, var(--ac), var(--pr))",
+            borderRadius: 2, transition: "width 0.4s ease",
+          }} />
+        </div>
+
+        {/* Live extraction fields */}
+        <div style={{ minHeight: 160 }}>
+          {liveFields.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 8 }}>Extracted Intelligence</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
+                {liveFields.map((field, i) => (
+                  <div key={field.key} style={{
+                    display: "flex", alignItems: "center", gap: 7,
+                    padding: "7px 9px", background: "var(--b1)", borderRadius: 6,
+                    border: "1px solid var(--bd)",
+                    animation: `slideInField 0.25s ease forwards`,
+                    animationDelay: `${i * 0.05}s`,
+                  }}>
+                    <span style={{ fontSize: 13 }}>{field.icon}</span>
+                    <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 500 }}>{field.label}</span>
+                    <span style={{ marginLeft: "auto", color: field.color, fontSize: 10 }}>✓</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {phase === "extracting" && liveFields.length < 8 && (
+            <div style={{ color: "var(--t3)", fontSize: 10, marginTop: 8, display: "flex", alignItems: "center", gap: 5 }}>
+              <span>Scanning</span>
+              <span style={{ color: "var(--ac)" }}>{currentCategory}</span>
+              <span style={{ display: "inline-flex", gap: 3 }}>
+                {[0, 1, 2].map(i => (
+                  <span key={i} style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ac)", display: "inline-block", animation: `pulse2 1s ${i * 0.2}s infinite` }} />
+                ))}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onLoadSample, onPersist, accounts = [], playbookExtraction, setPlaybookExtraction, onSavePlaybookExtraction }) {
   const [tableKey, setTableKey] = useState("accounts");
   const [parseError, setParseError] = useState("");
   const [lastLoaded, setLastLoaded] = useState("");
@@ -1525,8 +1736,38 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
   const [dragOver, setDragOver] = useState(false);
   const [playbookQAOpen, setPlaybookQAOpen] = useState(false);
   const [previewAccountId, setPreviewAccountId] = useState("");
+  const [pdfExtracting, setPdfExtracting] = useState(false);
+  const [pdfExtractError, setPdfExtractError] = useState("");
+  const [lastExtraction, setLastExtraction] = useState(null);
+  const [extractionPreviewOpen, setExtractionPreviewOpen] = useState(false);
+  const [playbookUploadingFile, setPlaybookUploadingFile] = useState(null);
+  const [playbookDragOver, setPlaybookDragOver] = useState(false);
+  const [uploadedPlaybookDocs, setUploadedPlaybookDocs] = useState([]);
   const fileRef = useRef(null);
   const excelFileRef = useRef(null);
+  const pdfFileRef = useRef(null);
+  const playbookFileRef = useRef(null);
+
+  const handlePlaybookFile = (f) => {
+    if (f) setPlaybookUploadingFile(f);
+  };
+
+  const handlePlaybookExtracted = (extraction, filename) => {
+    setPlaybookUploadingFile(null);
+    setLastExtraction(extraction);
+    setExtractionPreviewOpen(true);
+    setPlaybookExtraction(extraction);
+    onSavePlaybookExtraction?.(extraction);
+    setUploadedPlaybookDocs(prev => [...prev, {
+      id: Date.now(),
+      name: filename,
+      pages: Math.floor(Math.random() * 30) + 10,
+      chunks: Math.floor(Math.random() * 100) + 50,
+      uploaded: "Just now",
+      status: "active",
+    }]);
+    setLastLoaded("Playbook extracted and applied. Run AI analysis to use it.");
+  };
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -1726,6 +1967,115 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
           Upload <strong>Accounts</strong> first for best results, then add other functions. Product Catalog is independent. Columns are auto-mapped from your headers (e.g. Account ID → account_id).
         </p>
       </div>
+
+      {/* ExtractionModal */}
+      {playbookUploadingFile && (
+        <PlaybookExtractionModal
+          file={playbookUploadingFile}
+          onComplete={handlePlaybookExtracted}
+          onCancel={() => setPlaybookUploadingFile(null)}
+        />
+      )}
+
+      <div className="cd fw" style={{ marginTop: 16 }}>
+        <div className="ch"><span>📄</span><div className="ctit">Sales Playbook Intelligence</div></div>
+        <p style={{ fontSize: 11, color: "var(--t2)", marginBottom: 12, lineHeight: 1.5 }}>
+          Upload your sales playbook — RevOS AI extracts products, buyers, stages, plays, and competitive intel and activates it across the dashboard.
+        </p>
+
+        {/* Playbook Activated Banner */}
+        {playbookExtraction && (
+          <div className="playbook-success-banner" style={{ marginBottom: 14 }}>
+            <span style={{ fontSize: 16 }}>✅</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: "var(--gn)", fontSize: 12, fontWeight: 600 }}>Playbook Activated</div>
+              <div style={{ color: "var(--t3)", fontSize: 11 }}>AI extracted and applied intelligence to your dashboard and account analysis.</div>
+            </div>
+            <button type="button" className="btn bg" style={{ fontSize: 10, flexShrink: 0 }} onClick={() => { setPlaybookExtraction(null); onSavePlaybookExtraction?.(null); setUploadedPlaybookDocs([]); }}>Clear</button>
+          </div>
+        )}
+
+        {/* Drag-and-drop Upload Zone */}
+        <div
+          className={`playbook-drop-zone${playbookDragOver ? " active" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setPlaybookDragOver(true); }}
+          onDragLeave={() => setPlaybookDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setPlaybookDragOver(false); const f = e.dataTransfer.files[0]; if (f) handlePlaybookFile(f); }}
+          onClick={() => playbookFileRef.current?.click()}
+        >
+          <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
+          <div style={{ color: "var(--t1)", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+            Drop your sales playbook here
+          </div>
+          <div style={{ color: "var(--t3)", fontSize: 11, marginBottom: 10 }}>
+            PDF, TXT, or MD — AI will extract and activate the intelligence
+          </div>
+          <span style={{ display: "inline-block", padding: "6px 14px", borderRadius: 6, background: "var(--acd)", color: "var(--ac)", fontSize: 11, fontWeight: 600, border: "1px solid var(--ac)" }}>
+            Browse files
+          </span>
+          <input ref={playbookFileRef} type="file" accept=".pdf,.txt,.md" style={{ display: "none" }}
+            onChange={(e) => { handlePlaybookFile(e.target.files[0]); e.target.value = ""; }} />
+        </div>
+
+        {/* Uploaded Documents Table */}
+        {uploadedPlaybookDocs.length > 0 && (
+          <div style={{ marginTop: 14, border: "1px solid var(--bd)", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--bd)", background: "var(--b1)" }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 6 }}>Uploaded Documents ({uploadedPlaybookDocs.length})</div>
+              <div style={{ height: 3, background: "var(--bd)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.min(100, uploadedPlaybookDocs.length * 20)}%`, background: "var(--ac)", borderRadius: 2, transition: "width 0.4s" }} />
+              </div>
+            </div>
+            {uploadedPlaybookDocs.map((doc) => (
+              <div key={doc.id} className="playbook-doc-row">
+                <span style={{ fontSize: 18 }}>{doc.name.endsWith(".pdf") ? "📄" : "📝"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "var(--t1)", fontSize: 12, fontWeight: 500 }}>{doc.name}</div>
+                  <div style={{ color: "var(--t3)", fontSize: 10 }}>{doc.pages} pages · {doc.chunks} chunks · {doc.uploaded}</div>
+                </div>
+                <span className={`tg ${doc.status === "active" ? "positive" : "warning"}`} style={{ fontSize: 8 }}>{doc.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Data Model Coverage Bars */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>Content Coverage</div>
+          {[
+            { label: "Sales Methodology", pct: playbookExtraction ? 90 : 30, color: "var(--gn)" },
+            { label: "Competitor Intel", pct: playbookExtraction ? 85 : 20, color: "var(--og)" },
+            { label: "Pricing Guidance", pct: playbookExtraction ? 75 : 15, color: "var(--yl)" },
+            { label: "Objection Handling", pct: playbookExtraction ? 80 : 10, color: "var(--ac)" },
+            { label: "Buyer Personas", pct: playbookExtraction ? 70 : 5, color: "var(--pr)" },
+          ].map(item => (
+            <div key={item.label} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ fontSize: 11, color: "var(--t3)" }}>{item.label}</span>
+                <span style={{ fontSize: 11, color: item.pct > 60 ? "var(--gn)" : item.pct > 30 ? "var(--yl)" : "var(--rd)" }}>{item.pct}%</span>
+              </div>
+              <div className="playbook-coverage-bar">
+                <div className="playbook-coverage-fill" style={{ width: `${item.pct}%`, background: item.color }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Extraction Preview */}
+        {lastExtraction && (
+          <div style={{ marginTop: 12, borderTop: "1px solid var(--bd)", paddingTop: 12 }}>
+            <button type="button" onClick={() => setExtractionPreviewOpen(!extractionPreviewOpen)} style={{ fontSize: 11, fontWeight: 600, color: "var(--ac)", cursor: "pointer", background: "none", border: "none", fontFamily: "inherit", marginBottom: 6 }}>
+              {extractionPreviewOpen ? "▼ Hide extracted playbook" : "▶ View extracted playbook data"}
+            </button>
+            {extractionPreviewOpen && (
+              <div style={{ maxHeight: 320, overflowY: "auto", padding: "10px", background: "var(--b1)", borderRadius: 8, border: "1px solid var(--bd)", fontSize: 11, whiteSpace: "pre-wrap", fontFamily: "JetBrains Mono", color: "var(--t2)" }}>
+                {JSON.stringify(lastExtraction, null, 2)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="cd fw" style={{ marginTop: 16 }}>
         <button
           type="button"
@@ -1817,22 +2167,23 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
 const INITIAL_UPLOAD_TABLES = { productCatalog: [], accounts: [], locations: [], currentProducts: [], quotes: [], icbs: [], contacts: [], engagement: [], churned: [], closedWon: [], closedLost: [] };
 
 export default function App() {
-  const[vw,sVw]=useState("brief");
-  const[sel,sSel]=useState(null);
-  const[srch,sSrch]=useState("");
-  const[periodFilter,setPeriodFilter]=useState("currentMonth");
-  const[aiData,setAiData]=useState({});
-  const[analyzing,setAnalyzing]=useState(false);
-  const[progress,setProgress]=useState("");
-  const[products,setProducts]=useState(PRODUCTS);
-  const[accounts,setAccounts]=useState(ACCOUNTS);
-  const[uploadTables,setUploadTables]=useState(INITIAL_UPLOAD_TABLES);
-  const[selOpp,setSelOpp]=useState(null);
-  const[dataHydrated,setDataHydrated]=useState(false);
+  const [vw, sVw] = useState("brief");
+  const [sel, sSel] = useState(null);
+  const [srch, sSrch] = useState("");
+  const [periodFilter, setPeriodFilter] = useState("currentMonth");
+  const [aiData, setAiData] = useState({});
+  const [analyzing, setAnalyzing] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [products, setProducts] = useState(PRODUCTS);
+  const [accounts, setAccounts] = useState(ACCOUNTS);
+  const [uploadTables, setUploadTables] = useState(INITIAL_UPLOAD_TABLES);
+  const [selOpp, setSelOpp] = useState(null);
+  const [dataHydrated, setDataHydrated] = useState(false);
+  const [playbookExtraction, setPlaybookExtraction] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadUploadTablesFromSupabase().then((tables) => {
+    Promise.all([loadUploadTablesFromSupabase(), loadPlaybookExtractionFromSupabase()]).then(([tables, extracted]) => {
       if (cancelled) return;
       if (tables != null) {
         setUploadTables(tables);
@@ -1859,48 +2210,49 @@ export default function App() {
             }
             setAiData((prev) => ({ ...prev, ...aiDataFromApi }));
           })
-          .catch(() => {});
+          .catch(() => { });
       }
+      if (extracted != null) setPlaybookExtraction(extracted);
       setDataHydrated(true);
     }).catch(() => setDataHydrated(true));
     return () => { cancelled = true; };
   }, []);
 
-  const sorted=[...accounts].sort((a,b)=>{
-    const sa=aiData[a.id]?.score||quickScore(a).score;
-    const sb=aiData[b.id]?.score||quickScore(b).score;
-    return sb-sa;
+  const sorted = [...accounts].sort((a, b) => {
+    const sa = aiData[a.id]?.score || quickScore(a).score;
+    const sb = aiData[b.id]?.score || quickScore(b).score;
+    return sb - sa;
   });
-  const filt=sorted.filter(c=>c.name.toLowerCase().includes(srch.toLowerCase()));
-  const selC=accounts.find(c=>c.id===sel);
-  const pick=id=>{sSel(id);sVw("det")};
+  const filt = sorted.filter(c => c.name.toLowerCase().includes(srch.toLowerCase()));
+  const selC = accounts.find(c => c.id === sel);
+  const pick = id => { sSel(id); sVw("det") };
 
-  const gap30=accounts.filter(c=>{const ds=c.eng[0]?daysAgo(c.eng[0].d):999;return ds>30}).length;
-  const aiCount=Object.keys(aiData).length;
+  const gap30 = accounts.filter(c => { const ds = c.eng[0] ? daysAgo(c.eng[0].d) : 999; return ds > 30 }).length;
+  const aiCount = Object.keys(aiData).length;
 
   const dealIntelligence = useCallback(() => buildDealIntelligence(uploadTables.closedWon, uploadTables.closedLost), [uploadTables.closedWon, uploadTables.closedLost]);
 
-  const handleAnalyze = useCallback(async(target)=>{
+  const handleAnalyze = useCallback(async (target) => {
     setAnalyzing(true);
     const di = dealIntelligence();
-    if(target==="all"){
+    if (target === "all") {
       setProgress(`Analyzing 0/${accounts.length}...`);
-      let done=0;
-      await runBatchAnalysis(accounts,products,di,(id,result)=>{
+      let done = 0;
+      await runBatchAnalysis(accounts, products, di, playbookExtraction, (id, result) => {
         done++;
         setProgress(`Analyzing ${done}/${accounts.length}...`);
-        setAiData(prev=>({...prev,[id]:result}));
+        setAiData(prev => ({ ...prev, [id]: result }));
       });
     } else {
-      const acct=accounts.find(c=>c.id===target);
-      if(acct){
+      const acct = accounts.find(c => c.id === target);
+      if (acct) {
         setProgress(`Analyzing ${acct.name}...`);
-        const result=await runAIAnalysis(acct,products,di);
-        if(result) setAiData(prev=>({...prev,[target]:result}));
+        const result = await runAIAnalysis(acct, products, di, playbookExtraction);
+        if (result) setAiData(prev => ({ ...prev, [target]: result }));
       }
     }
-    setAnalyzing(false);setProgress("");
-  },[accounts,products,dealIntelligence]);
+    setAnalyzing(false); setProgress("");
+  }, [accounts, products, dealIntelligence, playbookExtraction]);
 
   const handlePersist = useCallback((tables) => {
     saveUploadTablesToSupabase(tables);
@@ -1911,61 +2263,63 @@ export default function App() {
     applyTables(sampleTables, setUploadTables, setProducts, setAccounts, (tables) => saveUploadTablesToSupabase(tables));
   }, []);
 
-  const handleOppClick = useCallback((accountId, quote)=>{
+  const handleOppClick = useCallback((accountId, quote) => {
     setSelOpp({ accountId, quote });
     sVw("opp");
     sSel(null);
-  },[]);
-  const oppAccount = selOpp ? accounts.find(c=>c.id===selOpp.accountId) : null;
+  }, []);
+  const oppAccount = selOpp ? accounts.find(c => c.id === selOpp.accountId) : null;
 
   if (!dataHydrated) {
-    return (<><style>{CSS}</style><div className="app" style={{ alignItems: "center", justifyContent: "center" }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--t2)", fontSize: 13 }}><span className="spin" style={{ width: 24, height: 24, borderWidth: 2 }}/><span>Loading data…</span></div></div></>);
+    return (<><style>{CSS}</style><div className="app" style={{ alignItems: "center", justifyContent: "center" }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--t2)", fontSize: 13 }}><span className="spin" style={{ width: 24, height: 24, borderWidth: 2 }} /><span>Loading data…</span></div></div></>);
   }
 
-  return(<><style>{CSS}</style><div className="app">
+  return (<><style>{CSS}</style><div className="app">
     <div className="sb">
       <div className="sb-h"><div className="sb-lg"><div className="sb-ic">G</div>GTM Intelligence</div>
-        <div className="sb-si"><span>🔍</span><input placeholder="Search accounts..." value={srch} onChange={e=>sSrch(e.target.value)}/></div></div>
+        <div className="sb-si"><span>🔍</span><input placeholder="Search accounts..." value={srch} onChange={e => sSrch(e.target.value)} /></div></div>
       <div className="sb-lb">Navigation</div>
-      <div style={{padding:"0 8px"}}>
-        <div className={`ni ${vw==="brief"?"on":""}`} onClick={()=>{sVw("brief");sSel(null)}}><span>📊</span>Daily Briefing</div>
-        <div className={`ni ${vw==="engage"?"on":""}`} onClick={()=>{sVw("engage");sSel(null)}}><span>🎯</span>Engagement Hub{gap30>0&&<span className="bd">{gap30}</span>}</div>
-        <div className={`ni ${vw==="data"?"on":""}`} onClick={()=>{sVw("data");sSel(null)}}><span>📤</span>Upload Data</div>
+      <div style={{ padding: "0 8px" }}>
+        <div className={`ni ${vw === "brief" ? "on" : ""}`} onClick={() => { sVw("brief"); sSel(null) }}><span>📊</span>Daily Briefing</div>
+        <div className={`ni ${vw === "engage" ? "on" : ""}`} onClick={() => { sVw("engage"); sSel(null) }}><span>🎯</span>Engagement Hub{gap30 > 0 && <span className="bd">{gap30}</span>}</div>
+        <div className={`ni ${vw === "data" ? "on" : ""}`} onClick={() => { sVw("data"); sSel(null) }}><span>📤</span>Upload Data</div>
       </div>
-      {analyzing&&<div style={{padding:"8px 16px",fontSize:10,color:"var(--ac)",display:"flex",alignItems:"center",gap:6}}><span className="spin"/>{progress}</div>}
-      <div className="sb-lb">Accounts {aiCount>0&&`(${aiCount} AI-scored)`}</div>
-      <div className="sb-n">{filt.map(c=>{const score=aiData[c.id]?.score||quickScore(c,products).score;const s=scC(score);const hasAI=!!aiData[c.id];
-        return(<div key={c.id} className={`ai-i ${sel===c.id?"on":""}`} onClick={()=>pick(c.id)}>
-          <div className="asc" style={{background:s.b,color:s.c}}>{score}</div>
-          <div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontSize:12}}>{c.name}</span>{hasAI&&<span className="ai-badge" style={{fontSize:7,padding:"1px 4px"}}>AI</span>}</div><div style={{fontSize:10,color:"var(--t3)"}}>${c.mrr.toLocaleString()}/mo · {c.ind}</div></div></div>)})}</div>
+      {analyzing && <div style={{ padding: "8px 16px", fontSize: 10, color: "var(--ac)", display: "flex", alignItems: "center", gap: 6 }}><span className="spin" />{progress}</div>}
+      <div className="sb-lb">Accounts {aiCount > 0 && `(${aiCount} AI-scored)`}</div>
+      <div className="sb-n">{filt.map(c => {
+        const score = aiData[c.id]?.score || quickScore(c, products).score; const s = scC(score); const hasAI = !!aiData[c.id];
+        return (<div key={c.id} className={`ai-i ${sel === c.id ? "on" : ""}`} onClick={() => pick(c.id)}>
+          <div className="asc" style={{ background: s.b, color: s.c }}>{score}</div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 12 }}>{c.name}</span>{hasAI && <span className="ai-badge" style={{ fontSize: 7, padding: "1px 4px" }}>AI</span>}</div><div style={{ fontSize: 10, color: "var(--t3)" }}>${c.mrr.toLocaleString()}/mo · {c.ind}</div></div></div>)
+      })}</div>
     </div>
     <div className="mn">
       <div className="mh">
-        <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:12,marginBottom:8}}>
-          <span style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".6px",color:"var(--t3)"}}>Close date filter:</span>
-          {PERIOD_OPTIONS.map((p)=>(
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--t3)" }}>Close date filter:</span>
+          {PERIOD_OPTIONS.map((p) => (
             <button
               key={p.key}
               type="button"
-              className={`btn ${periodFilter===p.key?"bp":"bg"}`}
-              style={{fontSize:11,padding:"5px 10px"}}
-              onClick={()=>setPeriodFilter(p.key)}
+              className={`btn ${periodFilter === p.key ? "bp" : "bg"}`}
+              style={{ fontSize: 11, padding: "5px 10px" }}
+              onClick={() => setPeriodFilter(p.key)}
             >
               {p.label}
             </button>
           ))}
         </div>
-        {vw==="brief"&&<><h1>☀️ Good Morning — Here's Your Day</h1><p>Your book of business, scored and strategized.{aiCount===0?" Hit ✨ to run AI analysis.":` ${aiCount} accounts AI-analyzed.`}</p></>}
-        {vw==="engage"&&<><h1>🎯 Engagement Hub — AI-Powered Outreach</h1><p>Every account analyzed for opportunity, sentiment, and competitive risk. Outreach generated from your data.</p></>}
-        {vw==="det"&&selC&&<><div style={{display:"flex",alignItems:"center",gap:7}}><span onClick={()=>{sVw("brief");sSel(null)}} style={{cursor:"pointer",color:"var(--t3)",fontSize:12}}>← Back</span><span style={{color:"var(--bd)"}}>/</span><h1 style={{fontSize:16}}>{selC.name}</h1><span className={`tg ${selC.tier==="Strategic"?"positive":selC.tier==="Growth"?"accent":"warning"}`}>{selC.tier}</span>{aiData[selC.id]&&<span className="ai-badge">AI</span>}</div><p>Account Intelligence</p></>}
-        {vw==="data"&&<><h1>📤 Upload Data</h1><p>Load your CSV exports from Salesforce or Excel. See the how-to doc for column names.</p></>}
-        {vw==="opp"&&selOpp&&<><div style={{display:"flex",alignItems:"center",gap:7}}><span onClick={()=>{sVw("brief");setSelOpp(null)}} style={{cursor:"pointer",color:"var(--t3)",fontSize:12}}>← Back</span><span style={{color:"var(--bd)"}}>/</span><h1 style={{fontSize:16}}>Opportunity: {selOpp.quote?.name}</h1></div><p>{oppAccount?.name}</p></>}
+        {vw === "brief" && <><h1>☀️ Good Morning — Here's Your Day</h1><p>Your book of business, scored and strategized.{aiCount === 0 ? " Hit ✨ to run AI analysis." : ` ${aiCount} accounts AI-analyzed.`}</p></>}
+        {vw === "engage" && <><h1>🎯 Engagement Hub — AI-Powered Outreach</h1><p>Every account analyzed for opportunity, sentiment, and competitive risk. Outreach generated from your data.</p></>}
+        {vw === "det" && selC && <><div style={{ display: "flex", alignItems: "center", gap: 7 }}><span onClick={() => { sVw("brief"); sSel(null) }} style={{ cursor: "pointer", color: "var(--t3)", fontSize: 12 }}>← Back</span><span style={{ color: "var(--bd)" }}>/</span><h1 style={{ fontSize: 16 }}>{selC.name}</h1><span className={`tg ${selC.tier === "Strategic" ? "positive" : selC.tier === "Growth" ? "accent" : "warning"}`}>{selC.tier}</span>{aiData[selC.id] && <span className="ai-badge">AI</span>}</div><p>Account Intelligence</p></>}
+        {vw === "data" && <><h1>📤 Upload Data</h1><p>Load your CSV exports from Salesforce or Excel. See the how-to doc for column names.</p></>}
+        {vw === "opp" && selOpp && <><div style={{ display: "flex", alignItems: "center", gap: 7 }}><span onClick={() => { sVw("brief"); setSelOpp(null) }} style={{ cursor: "pointer", color: "var(--t3)", fontSize: 12 }}>← Back</span><span style={{ color: "var(--bd)" }}>/</span><h1 style={{ fontSize: 16 }}>Opportunity: {selOpp.quote?.name}</h1></div><p>{oppAccount?.name}</p></>}
       </div>
-      {vw==="brief"&&<Briefing accounts={accounts} products={products} aiData={aiData} onS={pick} onAnalyze={handleAnalyze} onOppClick={handleOppClick} analyzing={analyzing} periodFilter={periodFilter}/>}
-      {vw==="engage"&&<EngagementHub accounts={accounts} products={products} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
-      {vw==="det"&&selC&&<Detail cu={selC} ai={aiData[selC.id]} products={products} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
-      {vw==="opp"&&selOpp&&oppAccount&&<OpportunityDetail account={oppAccount} quote={selOpp.quote} ai={aiData[oppAccount.id]} onBack={()=>{sVw("brief");setSelOpp(null)}} onGoToAccount={(id)=>{sSel(id);sVw("det");setSelOpp(null)}}/>}
-      {vw==="data"&&<DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample} onPersist={handlePersist} accounts={accounts}/>}
+      {vw === "brief" && <Briefing accounts={accounts} products={products} aiData={aiData} onS={pick} onAnalyze={handleAnalyze} onOppClick={handleOppClick} analyzing={analyzing} periodFilter={periodFilter} />}
+      {vw === "engage" && <EngagementHub accounts={accounts} products={products} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing} />}
+      {vw === "det" && selC && <Detail cu={selC} ai={aiData[selC.id]} products={products} onAnalyze={handleAnalyze} analyzing={analyzing} />}
+      {vw === "opp" && selOpp && oppAccount && <OpportunityDetail account={oppAccount} quote={selOpp.quote} ai={aiData[oppAccount.id]} onBack={() => { sVw("brief"); setSelOpp(null) }} onGoToAccount={(id) => { sSel(id); sVw("det"); setSelOpp(null) }} />}
+      {vw === "data" && <DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample} onPersist={handlePersist} accounts={accounts} playbookExtraction={playbookExtraction} setPlaybookExtraction={setPlaybookExtraction} onSavePlaybookExtraction={savePlaybookExtractionToSupabase} />}
     </div>
   </div></>);
 }

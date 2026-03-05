@@ -8,8 +8,8 @@ import { hashAccountData } from "./_lib/hashAccount.js";
 import { supabaseAdmin, AI_RESULTS_TABLE } from "./_lib/supabase.js";
 
 // Dynamic import so batch only loads Anthropic when needed
-async function runOne(account, products, dealIntelligence, playbookBriefs, anthropic) {
-  const prompt = buildAnalysisPrompt(account, products || [], dealIntelligence || null, playbookBriefs || {});
+async function runOne(account, products, dealIntelligence, playbookBriefs, playbookExtraction, anthropic) {
+  const prompt = buildAnalysisPrompt(account, products || [], dealIntelligence || null, playbookBriefs || {}, playbookExtraction || null);
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 2500,
@@ -55,7 +55,7 @@ function getRelevantDealIntel(dealIntelligence, account, availableProducts) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { accounts, products, dealIntelligence } = req.body || {};
+  const { accounts, products, dealIntelligence, playbookExtraction } = req.body || {};
   if (!Array.isArray(accounts) || accounts.length === 0) {
     return res.status(400).json({ error: "Missing or empty accounts array" });
   }
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
     );
     const relevantDeal = getRelevantDealIntel(dealIntelligence, account, availableProducts);
     try {
-      const out = await runOne(account, products, relevantDeal, playbookBriefs, anthropic);
+      const out = await runOne(account, products, relevantDeal, playbookBriefs, playbookExtraction, anthropic);
       results[account.id] = out;
     } catch (err) {
       console.error("Batch analyze failed for", account.id, err);

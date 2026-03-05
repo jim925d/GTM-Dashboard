@@ -95,3 +95,40 @@ export async function saveUploadTablesToSupabase(tables) {
     console.warn("Supabase save error:", e);
   }
 }
+
+const PLAYBOOK_EXTRACTION_KEY = "playbook_extraction";
+
+/** @returns {Promise<object | null>} Load saved playbook extraction from Supabase, or null */
+export async function loadPlaybookExtractionFromSupabase() {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select("data")
+      .eq("table_key", PLAYBOOK_EXTRACTION_KEY)
+      .maybeSingle();
+    if (error || !data?.data) return null;
+    const arr = Array.isArray(data.data) ? data.data : [data.data];
+    return arr.length > 0 && arr[0] != null ? arr[0] : null;
+  } catch (e) {
+    console.warn("Supabase load playbook extraction error:", e);
+    return null;
+  }
+}
+
+/** @param {object | null} extraction Save playbook extraction to Supabase; pass null to clear */
+export async function savePlaybookExtractionToSupabase(extraction) {
+  if (!supabase) return;
+  try {
+    await supabase.from(TABLE_NAME).upsert(
+      {
+        table_key: PLAYBOOK_EXTRACTION_KEY,
+        data: extraction ? [extraction] : [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "table_key" }
+    );
+  } catch (e) {
+    console.warn("Supabase save playbook extraction error:", e);
+  }
+}
