@@ -20,9 +20,20 @@ So `Account ID` becomes `account_id`. Use either style in your CSV/Excel; the fi
 | fit_signals / fitsignals | | For AI playbook |
 | value_props / valueprops | | |
 | use_cases / usecases | | |
-| playbook_brief / playbookbrief | | Compressed playbook text |
+| playbook_brief / playbookbrief | | Compressed playbook text (see Playbook Intelligence Model v2) |
+| ideal_customer_profile / icp | | Who should buy (industry, size, triggers); v2 |
+| buying_signals_explicit | | Customer-expressed triggers; v2 |
+| buying_signals_implicit | | Data-driven fit indicators; v2 |
+| buying_signals_negative | | When NOT to pursue; v2 |
+| cross_sell_relationships / cross_sell | | Pairs with / follows which products; v2 |
+| competitive_positioning / compete | | Where we win vs lose; v2 |
+| objection_handling / objections | | Top objections + responses; v2 |
+| value_props_by_persona / positioning | | CTO/CFO/IT Dir angles; v2 |
+| pricing_packaging | | How sold, bundles, pilot; v2 |
+| proof_points | | Case studies, metrics; v2 |
 
-**Example:** `product_name,category,mrr,description,fit_signals,value_props,use_cases`
+**Example:** `product_name,category,mrr,description,fit_signals,value_props,use_cases`  
+**v2 structured example:** Add columns above for Playbook Intelligence Model v2 (see **PLAYBOOK-INTELLIGENCE-MODEL-v2.md**). Compressed brief template: `ICP: …; SIGNALS: …; CROSS-SELL: …; COMPETE: …; OBJECTIONS: …; POSITIONING: …`
 
 ---
 
@@ -179,9 +190,24 @@ ICBs link to opportunities (quotes) by **opportunity_id**. Use the same ID in yo
 
 ---
 
+## Matching rows across files (link keys)
+
+Rows from different CSV/Excel files are **matched** when these columns share the same values:
+
+| Link | Columns | Use the same value in … so that rows join correctly |
+|------|---------|--------------------------------------------------------|
+| **Account** | `account_id` or `account_name` (customer/company name) | Accounts, Locations, Quotes, Current Products, Contacts, Engagement, Churned, Closed Won, Closed Lost. Same account ID or same customer name → one account with all related data. |
+| **Opportunity** | `opportunity_id` (or `quote_id` / `opp_id`) | Quotes and ICBs. Same opportunity ID in both files → ICBs attach to that quote. |
+
+- If a row has **account_id**, it links to the account with that ID.
+- If a row has **account_name** (or Company, Customer Name, etc.) but no account_id, it links to an account whose name matches (case-insensitive, after trimming). Upload **Accounts** first so name-based matching can resolve.
+- Use the same **opportunity_id** in your Quotes upload and your ICBs upload to link benefits to the right deal.
+
+---
+
 ## Tips
 
 - **Upload order:** Load **Accounts** first, then Locations, Current Products, Quotes (add **opportunity_id** if using ICBs), then **ICBs**, Contacts, Engagement, Churned. Product Catalog is independent. Closed Won/Lost can be last.
-- **Same ID everywhere:** Use the same `account_id` in every table that has it; use the same `opportunity_id` in Quotes and ICBs to link benefits to opportunities.
+- **Same ID everywhere:** Use the same `account_id` in every table that has it; use the same `opportunity_id` in Quotes and ICBs to link benefits to opportunities. You can also link by **customer/account name** when IDs differ or are missing.
 - **Dates:** Use YYYY-MM-DD (e.g. 2025-02-28) for date columns.
 - **Encoding:** Save CSVs as **UTF-8** (Excel: “CSV UTF-8” or export with UTF-8).

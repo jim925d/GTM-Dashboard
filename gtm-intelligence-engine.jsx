@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { loadUploadTablesFromSupabase, saveUploadTablesToSupabase } from "./supabase.js";
+import { mapRowsToCanonical, detectTableType as detectTableTypeFromSchema } from "./csv-column-map.js";
 import * as XLSX from "xlsx";
 
 /* ═══════════════════ DATA ═══════════════════ */
@@ -303,7 +304,7 @@ function parseExcelWorkbook(arrayBuffer) {
     const sheet = wb.Sheets[name];
     const rows = sheetToRows(sheet);
     if (rows.length === 0) return;
-    tables[tableKey] = rows;
+    tables[tableKey] = mapRowsToCanonical(rows, tableKey);
     summary.push({ sheetName: name, tableKey, rowCount: rows.length });
   });
   return { tables, summary };
@@ -333,22 +334,7 @@ function parseCSVWithMeta(text) {
 }
 
 function detectTableType(normalizedHeaders) {
-  const set = new Set(normalizedHeaders);
-  const has = (arr) => arr.some(k => set.has(k));
-  if (has(["product_name", "category"]) && (set.has("mrr") || set.has("description"))) return "productCatalog";
-  if (has(["account_id", "service_description"]) && normalizedHeaders.length <= 5) return "churned";
-  if (has(["account_id", "contact_name"]) && (set.has("title") || set.has("engagement_level"))) return "contacts";
-  if (has(["account_id", "date"]) && (set.has("type") || set.has("notes"))) return "engagement";
-  if (has(["account_id", "address"]) && (set.has("net_status") || set.has("netstatus") || set.has("s"))) return "locations";
-  if (has(["account_id", "product_name"])) {
-    if (set.has("quoted_mrr") || set.has("quotedmrr") || set.has("quote_date") || set.has("quotedate") || set.has("status")) return "quotes";
-    return "currentProducts";
-  }
-  if (has(["account_id", "account_name"]) && (set.has("industry") || set.has("ind") || set.has("tier") || set.has("mrr") || set.has("contract_end") || set.has("contractend"))) return "accounts";
-  if (has(["account_id", "account_name"]) && (set.has("product_name") || set.has("productname")) && (set.has("close_date") || set.has("closedate")) && (set.has("mrr") && !set.has("loss_reason") && !set.has("lossreason"))) return "closedWon";
-  if (has(["account_id", "account_name"]) && (set.has("product_name") || set.has("productname")) && (set.has("loss_reason") || set.has("lossreason") || set.has("competitor"))) return "closedLost";
-  if (set.has("opportunity_id") || set.has("opportunityid")) return "icbs";
-  return null;
+  return detectTableTypeFromSchema(normalizedHeaders);
 }
 
 function buildProductsFromRows(rows) {
@@ -362,8 +348,28 @@ function buildProductsFromRows(rows) {
     fit_signals: (r.fit_signals || r.fitsignals || "").trim() || "",
     value_props: (r.value_props || r.valueprops || "").trim() || "",
     use_cases: (r.use_cases || r.usecases || "").trim() || "",
-    playbookBrief: (r.playbook_brief || r.playbookbrief || "").trim() || ""
+    playbookBrief: (r.playbook_brief || r.playbookbrief || "").trim() || "",
+    ideal_customer_profile: (r.ideal_customer_profile || r.icp || "").trim() || "",
+    buying_signals_explicit: (r.buying_signals_explicit || "").trim() || "",
+    buying_signals_implicit: (r.buying_signals_implicit || "").trim() || "",
+    buying_signals_negative: (r.buying_signals_negative || "").trim() || "",
+    cross_sell_relationships: (r.cross_sell_relationships || r.crosssell || r.cross_sell || "").trim() || "",
+    competitive_positioning: (r.competitive_positioning || r.compete || "").trim() || "",
+    objection_handling: (r.objection_handling || r.objections || "").trim() || "",
+    value_props_by_persona: (r.value_props_by_persona || r.positioning || "").trim() || "",
+    pricing_packaging: (r.pricing_packaging || "").trim() || "",
+    proof_points: (r.proof_points || "").trim() || ""
   })).filter(p => p.name !== "Unknown");
+}
+
+function normalizeNameForMatch(s) {
+  return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+function resolveAccountId(r, nameToIdMap) {
+  const id = (r.account_id || r.accountid || r.account || "").trim();
+  if (id) return id;
+  const name = (r.account_name || r.accountname || r.company || r.company_name || r.customer || r.customer_name || "").trim();
+  return name ? (nameToIdMap.get(normalizeNameForMatch(name)) || "") : "";
 }
 
 function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRows, quotesRows, contactsRows, engagementRows, churnedRows, closedWonRows, closedLostRows, icbsRows) {
@@ -380,8 +386,13 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
       loc: [], cur: [], qt: [], prior: [], eng: [], con: []
     });
   });
+  const nameToIdMap = new Map();
+  accountMap.forEach((acc) => {
+    const key = normalizeNameForMatch(acc.name);
+    if (key) nameToIdMap.set(key, acc.id);
+  });
   (locationsRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || "").trim();
+    const aid = resolveAccountId(r, nameToIdMap);
     if (!aid) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
     const billing = Math.round(parseFloat(r.billing_amount || r.billingamount || r.billing || 0) || 0);
@@ -400,7 +411,7 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     });
   });
   (currentProductsRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || r.account || "").trim();
+    const aid = resolveAccountId(r, nameToIdMap);
     const name = (r.product_name || r.productname || r.product || "").trim();
     if (!aid || !name) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
@@ -408,7 +419,7 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     if (!acc.cur.includes(name)) acc.cur.push(name);
   });
   (quotesRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || r.account || "").trim();
+    const aid = resolveAccountId(r, nameToIdMap);
     const productName = (r.product_name || r.productname || r.product || "").trim();
     if (!aid || !productName) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
@@ -443,7 +454,7 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     });
   });
   (contactsRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || "").trim();
+    const aid = resolveAccountId(r, nameToIdMap);
     if (!aid) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
     accountMap.get(aid).con.push({
@@ -454,7 +465,7 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     });
   });
   (engagementRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || "").trim();
+    const aid = resolveAccountId(r, nameToIdMap);
     if (!aid) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
     accountMap.get(aid).eng.push({
@@ -464,7 +475,7 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     });
   });
   (churnedRows || []).forEach(r => {
-    const aid = (r.account_id || r.accountid || "").trim();
+    const aid = resolveAccountId(r, nameToIdMap);
     const desc = (r.service_description || r.servicedescription || "").trim();
     if (!aid || !desc) return;
     if (!accountMap.has(aid)) accountMap.set(aid, { id: aid, name: "Unknown", ind: "Other", tier: "Growth", mrr: 0, cEnd: "", loc: [], cur: [], qt: [], prior: [], eng: [], con: [] });
@@ -479,12 +490,12 @@ function buildAccountsFromTables(accountsRows, locationsRows, currentProductsRow
     accounts.forEach(account => {
       const aid = account.id;
       account.dealHistory = {
-        won: (closedWonRows || []).filter(d => (d.account_id || d.accountid) === aid).map(d => ({
+        won: (closedWonRows || []).filter(d => resolveAccountId(d, nameToIdMap) === aid).map(d => ({
           product: d.product_name || d.productname,
           mrr: parseFloat(d.mrr) || 0,
           closeDate: d.close_date || d.closedate
         })),
-        lost: (closedLostRows || []).filter(d => (d.account_id || d.accountid) === aid).map(d => ({
+        lost: (closedLostRows || []).filter(d => resolveAccountId(d, nameToIdMap) === aid).map(d => ({
           product: d.product_name || d.productname,
           mrr: parseFloat(d.mrr) || 0,
           closeDate: d.close_date || d.closedate,
@@ -697,6 +708,28 @@ function getRelevantDealIntel(dealIntelligence, account, availableProducts) {
   };
 }
 
+/** Build the exact product block line sent to the AI for one product (for QA audit). Includes v2 playbook fields when present. */
+function getProductBlockEntry(p, playbookBriefs) {
+  let entry = `${p.name} ($${p.mrr}/mo, ${p.cat}): ${p.desc || ""}`;
+  if (playbookBriefs?.[p.name]) entry += `\n  PLAYBOOK: ${playbookBriefs[p.name]}`;
+  else {
+    if (p.fit_signals) entry += `\n  Signals: ${p.fit_signals}`;
+    if (p.value_props) entry += `\n  Value: ${p.value_props}`;
+    if (p.use_cases) entry += `\n  Use cases: ${p.use_cases}`;
+  }
+  if (p.ideal_customer_profile) entry += `\n  ICP: ${p.ideal_customer_profile}`;
+  if (p.buying_signals_explicit) entry += `\n  Buying signals (explicit): ${p.buying_signals_explicit}`;
+  if (p.buying_signals_implicit) entry += `\n  Buying signals (implicit): ${p.buying_signals_implicit}`;
+  if (p.buying_signals_negative) entry += `\n  Negative signals: ${p.buying_signals_negative}`;
+  if (p.cross_sell_relationships) entry += `\n  Cross-sell: ${p.cross_sell_relationships}`;
+  if (p.competitive_positioning) entry += `\n  Compete: ${p.competitive_positioning}`;
+  if (p.objection_handling) entry += `\n  Objections: ${p.objection_handling}`;
+  if (p.value_props_by_persona) entry += `\n  Positioning by persona: ${p.value_props_by_persona}`;
+  if (p.pricing_packaging) entry += `\n  Pricing/packaging: ${p.pricing_packaging}`;
+  if (p.proof_points) entry += `\n  Proof points: ${p.proof_points}`;
+  return entry;
+}
+
 // Full AI analysis prompt — MEDDIC + deal intelligence + playbook briefs
 function buildAnalysisPrompt(account, products, dealIntelligence, playbookBriefs) {
   const ds = account.eng?.[0] ? daysAgo(account.eng[0].d) : 999;
@@ -709,12 +742,7 @@ function buildAnalysisPrompt(account, products, dealIntelligence, playbookBriefs
     return s;
   }).join("; ");
   const addressableGap = (account.loc || []).reduce((s, l) => s + (l.targetSpend || 0), 0) - account.mrr;
-  const prodBlock = availableProducts.map(p => {
-    let entry = `${p.name} ($${p.mrr}/mo, ${p.cat}): ${p.desc || ""}`;
-    if (playbookBriefs?.[p.name]) entry += `\n  PLAYBOOK: ${playbookBriefs[p.name]}`;
-    else { if (p.fit_signals) entry += `\n  Signals: ${p.fit_signals}`; if (p.value_props) entry += `\n  Value: ${p.value_props}`; if (p.use_cases) entry += `\n  Use cases: ${p.use_cases}`; }
-    return entry;
-  }).join("\n\n") || "All products owned or quoted.";
+  const prodBlock = availableProducts.map(p => getProductBlockEntry(p, playbookBriefs)).join("\n\n") || "All products owned or quoted.";
   const dealIntelBlock = dealIntelligence ? `
 ═══ DEAL INTELLIGENCE (from ${dealIntelligence.totalDeals || "historical"} closed deals) ═══
 Win Rates: ${JSON.stringify(dealIntelligence.relevantWinRates || {})}
@@ -724,19 +752,34 @@ Competitive Record: ${JSON.stringify(dealIntelligence.competitiveRecord || {})}
 Use these patterns to inform your recommendations. Cite specific win rates and benchmarks.
 ` : "";
 
-  return `You are an elite B2B sales intelligence analyst who uses MEDDIC to qualify opportunities and product playbook intelligence to match solutions to customer needs. Analyze this account with surgical precision.
+  return `You are an elite B2B sales intelligence analyst operating under the Playbook Intelligence Model v2. Your job is to analyze account and deal data against the playbook(s) provided and produce prioritized, evidence-based recommendations. Every recommendation must (1) cite specific evidence from the account data, (2) align with a defined play or process from the playbook, and (3) use honest confidence levels — flag gaps in data or qualification.
+
+═══ OPERATING PRINCIPLES (Playbook Intelligence Model v2) ═══
+- Evidence Over Intuition: Every claim must cite specific data (engagement note, metric, historical pattern).
+- Playbook Is Law: Recommendations must align with defined plays and methodology; if data suggests something the playbook doesn't cover, flag as "off-playbook opportunity."
+- Be Specific: Never generic (e.g. "consider cross-selling security"). Always cite: engagement, data point, playbook signal match, win rate.
+- Call Out What NOT To Do: If a play won't work (wrong ICP, competitor locked in, budget frozen), say so explicitly in whatNotToPursue.
+- Outreach Must Sound Human: Reference specific conversations, contact names, actual pain points — never generic templates.
 
 TODAY'S DATE: ${todayStr}
 DAYS SINCE LAST ENGAGEMENT: ${ds}
 
-═══ METHODOLOGY: MEDDIC ═══
-For every opportunity you identify, assess:
-- Metrics: How does the customer measure success? What KPIs matter?
-- Economic Buyer: Who has budget authority? Do we have access?
-- Decision Criteria: How will they evaluate? Technical? Price? Relationship?
-- Decision Process: What are the steps to a PO? Timeline?
-- Identify Pain: What business pain is compelling enough to drive action?
-- Champion: Who is selling internally for us? How strong?
+═══ ANALYSIS CHAIN (follow this reasoning order) ═══
+1. Situation Assessment: Scan engagement (90d), active signals, trigger events, current state (own/spend/gaps), negative signals.
+2. Playbook Signal Matching: For each product — match ICP and buying signals to account data. Classify HOT (explicit signals) / WARM (implicit) / COOL (ICP only) / NOT APPLICABLE (negative signals or ICP mismatch). Pull Know/Say/Show/Do from playbook for HOT and WARM.
+3. Deal Qualification & Stage Audit: Score MEDDIC (or playbook methodology); compare deal evidence to stage entry criteria; flag mismatches; check ICB documentation.
+4. Deal Intelligence: Apply win rates, cross-sell timing, loss patterns, deal sizing, sales cycle from historical data.
+5. Play Generation: For each recommended play — cite WHY THIS PLAY, WHY NOW with specific evidence; state playbook alignment; qualification status; stage recommendation; contact strategy; discovery questions; top objection + playbook response; risks; outreach draft.
+6. Synthesis: 90-day action plan; This Week's #1 action; what NOT to pursue; forecast recommendation.
+
+═══ QUALIFICATION: MEDDIC ═══
+For every opportunity, assess:
+- Metrics: Customer quantified impact? ICBs with dollar values?
+- Economic Buyer: Budget owner identified and engaged?
+- Decision Criteria: What they're evaluating on?
+- Decision Process: Approval steps, timeline, who signs?
+- Identify Pain: Documented, acknowledged problem driving purchase?
+- Champion: Internal advocate selling on our behalf? Can they access EB?
 Score each: Strong / Partial / Gap. Flag critical gaps.
 ${dealIntelBlock}
 ═══ ACCOUNT DATA ═══
@@ -764,14 +807,13 @@ ${(account.eng || []).map(e => `[${e.d}] ${e.t}: ${e.n}`).join("\n")}
 ${prodBlock}
 
 ═══ INSTRUCTIONS ═══
-Analyze holistically. Consider buying signals (explicit + implicit), customer sentiment, competitive threats, org dynamics, timing, product fit based on playbook criteria, and risks.
-For product recommendations, use the PLAYBOOK intelligence above — match specific buying signals and ICP criteria, not generic assumptions. If deal intelligence is available, cite relevant win rates and patterns.
+Follow the Analysis Chain above. For product recommendations, match specific playbook buying signals and ICP to account data; cite evidence (engagement note, data point, win rate). Include what NOT to pursue when data shows a play won't work.
 
 Respond in this exact JSON (no markdown, no backticks):
 {
   "score": 0-100,
-  "scoreReasoning": "2 sentences",
-  "accountSummary": "3 sentence executive summary",
+  "scoreReasoning": "2 sentences citing evidence and playbook alignment",
+  "accountSummary": "3-4 sentence executive summary: addressable opportunity, top play, biggest risk, this week's action",
   "sentiment": "positive|neutral|at-risk|critical",
   "sentimentDetail": "1 sentence",
   "addressableSpendAnalysis": "1-2 sentences on where the spend gap is and what drives it",
@@ -784,6 +826,8 @@ Respond in this exact JSON (no markdown, no backticks):
     "champion": { "status": "strong|partial|gap", "note": "1 sentence" },
     "criticalGaps": ["gap that needs immediate attention"]
   },
+  "qualificationGrid": "string or null — per-deal MEDDIC status (Confirmed/Identified/Unknown) with evidence",
+  "stageAudit": "string or null — per deal: marked stage vs assessed stage, entry criteria met/not met",
   "immediateOpportunity": {
     "type": "close-deal|advance-quote|cross-sell|win-back|renewal|save-account|re-engage|expand-footprint",
     "description": "1-2 sentences",
@@ -793,11 +837,12 @@ Respond in this exact JSON (no markdown, no backticks):
     "timeframe": "this-week|this-month|this-quarter|next-quarter"
   },
   "productRecommendations": [
-    { "product": "name", "mrr": number, "fitReason": "1-2 sentences citing specific playbook signals matched to account data", "priority": "primary|secondary|future", "winRate": "X% in [industry] (from deal intelligence)" or null, "crossSellTiming": "Usually added X months after [product]" or null, "discoveryQuestions": ["question adapted to this account"], "topObjection": "likely objection", "objectionResponse": "response from playbook adapted to context" }
+    { "product": "name", "mrr": number, "fitReason": "1-2 sentences citing specific playbook signals matched to account data", "priority": "primary|secondary|future", "winRate": "X% in [industry] (from deal intelligence)" or null, "crossSellTiming": "Usually added X months after [product]" or null, "discoveryQuestions": ["question adapted to this account"], "topObjection": "likely objection", "objectionResponse": "response from playbook adapted to context", "whyThisPlayWhyNow": "MUST cite specific evidence: engagement note, data point, trigger, playbook signal match", "playbookAlignment": "which play/playbook element this maps to" }
   ],
   "additionalOpportunities": [{ "type": "string", "description": "string", "estimatedMRR": number }],
   "competitiveIntel": "string",
   "risks": ["string"],
+  "whatNotToPursue": "If data shows plays that won't work (wrong ICP, competitor locked in, budget frozen, negative signals), state explicitly. Otherwise empty string.",
   "contactStrategy": { "primaryTarget": "name", "approach": "1-2 sentences", "secondaryTarget": "name or null", "multiThreadNote": "string or null" },
   "engagementPlan": { "thisWeek": "specific action", "channel": "email|call|meeting|linkedin", "talkingPoints": ["point 1", "point 2", "point 3"], "avoid": "what not to do" },
   "outreach": { "emailSubject": "personalized subject", "emailBody": "4-6 sentences referencing specific details", "callOpener": "exact first 15 seconds" },
@@ -1137,6 +1182,11 @@ function EngagementHub({accounts,products,aiData,onSelect,onAnalyze,analyzing}) 
                   <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:4}}>Competitive Intel</div>
                   <div style={{fontSize:11,color:"var(--og)",lineHeight:1.4}}>{ai.competitiveIntel}</div>
                 </div>}
+                {/* What NOT to pursue (v2) */}
+                {ai.whatNotToPursue&&<div style={{marginTop:10,padding:"8px 10px",background:"var(--rdd)",borderRadius:6,border:"1px solid var(--rd)"}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"var(--rd)",marginBottom:4}}>What NOT to pursue</div>
+                  <div style={{fontSize:11,color:"var(--rd)",lineHeight:1.4}}>{ai.whatNotToPursue}</div>
+                </div>}
               </div>
 
               {/* Right: Ready-to-Send Outreach */}
@@ -1161,9 +1211,11 @@ function EngagementHub({accounts,products,aiData,onSelect,onAnalyze,analyzing}) 
                 {/* Product Recommendations */}
                 {ai.productRecommendations?.length>0&&<div style={{marginTop:12}}>
                   <div style={{fontSize:10,fontWeight:600,color:"var(--t3)",marginBottom:6}}>🧩 AI Product Recommendations</div>
-                  {ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{marginBottom:4}}>
+                  {ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{marginBottom:8}}>
                     <span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span>
-                    <div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div></div>
+                    <div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div>
+                    {p.whyThisPlayWhyNow&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}><strong>Why now:</strong> {p.whyThisPlayWhyNow}</div>}
+                    {p.playbookAlignment&&<div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>Playbook: {p.playbookAlignment}</div>}</div>
                     <div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div>
                   </div>)}
                 </div>}
@@ -1317,8 +1369,11 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
           {ai.meddic.criticalGaps?.length>0&&(
             <div style={{marginTop:6,fontSize:11,color:"var(--rd)"}}>Critical gaps: {ai.meddic.criticalGaps.join(" · ")}</div>
           )}
+          {ai.qualificationGrid&&<div style={{marginTop:10,fontSize:11,color:"var(--t2)",whiteSpace:"pre-wrap"}}><strong style={{color:"var(--t3)"}}>Qualification grid:</strong> {ai.qualificationGrid}</div>}
+          {ai.stageAudit&&<div style={{marginTop:8,fontSize:11,color:"var(--t2)",whiteSpace:"pre-wrap"}}><strong style={{color:"var(--t3)"}}>Stage audit:</strong> {ai.stageAudit}</div>}
         </div>
       )}
+      {ai.whatNotToPursue&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--rdd)",borderRadius:8,border:"1px solid var(--rd)"}}><div style={{fontSize:10,fontWeight:600,color:"var(--rd)",marginBottom:4}}>What NOT to pursue</div><div style={{fontSize:11,color:"var(--rd)",lineHeight:1.45}}>{ai.whatNotToPursue}</div></div>}
     </div>}
 
     <div className="tabs">{["overview","timeline","contacts","products"].map(t=><button key={t} className={`tab ${tab===t?"on":""}`} onClick={()=>sTab(t)}>{t}</button>)}</div>
@@ -1337,14 +1392,14 @@ function Detail({cu,ai,products,onAnalyze,analyzing}){
         </div>
       )}
       {ai?.productRecommendations?.length>0&&<div className="cd fw"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>
-        {ai.productRecommendations.map((p,i)=><div key={i} className="pf"><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div></div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>}
+        {ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{alignItems:"flex-start"}}><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div>{p.whyThisPlayWhyNow&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>Why now: {p.whyThisPlayWhyNow}</div>}{p.playbookAlignment&&<div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>Playbook: {p.playbookAlignment}</div>}</div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>}
     </div>}
     {tab==="timeline"&&<div className="cd">{cu.eng.map((e,i)=><div key={i} className="tl"><div className="td">{e.d.slice(5)}</div><div style={{flex:1}}><span className={`tt ${tlT(e.t)}`}>{e.t}</span><div style={{fontSize:12,color:"var(--t2)",lineHeight:1.45,marginTop:2}}>{e.n}</div></div></div>)}</div>}
     {tab==="contacts"&&<div className="cd">{cu.con.map((c,i)=><div key={i} className="cr"><div className="cav">{c.name.split(" ").map(n=>n[0]).join("")}</div><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{c.name}</div><div style={{fontSize:10.5,color:"var(--t3)"}}>{c.title}</div></div><span className={`ce ${c.eng}`}>{c.eng}</span>{c.last&&<div style={{fontSize:10,color:"var(--t3)"}}>Last: {c.last}</div>}</div>)}
       {ai?.contactStrategy&&<div style={{marginTop:12,padding:12,background:"var(--b1)",borderRadius:8,border:"1px solid var(--bd)"}}><div style={{fontSize:10,fontWeight:600,color:"var(--t3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>AI Contact Strategy</div><div style={{fontSize:11,color:"var(--t2)",lineHeight:1.5}}><strong style={{color:"var(--t1)"}}>Primary:</strong> {ai.contactStrategy.primaryTarget} — {ai.contactStrategy.approach}</div>{ai.contactStrategy.multiThreadNote&&<div style={{fontSize:11,color:"var(--pr)",marginTop:4}}>{ai.contactStrategy.multiThreadNote}</div>}</div>}</div>}
     {tab==="products"&&<div>
       {cu.qt.length>0&&<div className="cd" style={{marginBottom:14}}><div className="ch"><span>📝</span><div className="ctit">Open Quotes</div></div>{cu.qt.map((q,i)=><div key={i} className="pf"><div style={{width:3,minHeight:28,borderRadius:2,background:q.st==="stalled"?"var(--rd)":"var(--yl)"}}/><div><div style={{fontSize:12,fontWeight:600}}>{q.name}</div><div style={{fontSize:10,color:"var(--t3)"}}>Quoted {q.date} · <span style={{color:q.st==="stalled"?"var(--rd)":"var(--yl)"}}>{q.st}</span></div>{q.icbs?.length>0&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>ICB: {(q.icbs[0].description||q.icbs[0].value||"—").slice(0,40)}{(q.icbs[0].description||q.icbs[0].value)?.length>40?"…":""}{q.icbs.length>1?` (+${q.icbs.length-1} more)`:""}</div>}</div><div className="pfm">${q.mrr.toLocaleString()}/mo</div></div>)}</div>}
-      {ai?.productRecommendations?.length>0?<div className="cd"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>{ai.productRecommendations.map((p,i)=><div key={i} className="pf"><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div></div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>
+      {ai?.productRecommendations?.length>0?<div className="cd"><div className="ch"><span>🧩</span><div className="ctit">AI Product Recommendations</div></div>{ai.productRecommendations.map((p,i)=><div key={i} className="pf" style={{alignItems:"flex-start"}}><span className={`tg ${p.priority==="primary"?"strong":"moderate"}`}>{p.priority}</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600}}>{p.product}</div><div style={{fontSize:10,color:"var(--t3)"}}>{p.fitReason}</div>{p.whyThisPlayWhyNow&&<div style={{fontSize:10,color:"var(--ac)",marginTop:4}}>Why now: {p.whyThisPlayWhyNow}</div>}{p.playbookAlignment&&<div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>Playbook: {p.playbookAlignment}</div>}</div><div className="pfm">+${(p.mrr||0).toLocaleString()}/mo</div></div>)}</div>
       :<div className="cd"><div style={{textAlign:"center",padding:16}}><div style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Run AI analysis for intelligent product recommendations</div><button className="btn bp" onClick={()=>onAnalyze(cu.id)} disabled={analyzing}>✨ Analyze</button></div></div>}
     </div>}
   </div>);
@@ -1462,12 +1517,14 @@ function applyTables(next, setUploadTables, setProducts, setAccounts, onPersist)
   if (typeof onPersist === "function") onPersist(next);
 }
 
-function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onLoadSample, onPersist }) {
+function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onLoadSample, onPersist, accounts = [] }) {
   const [tableKey, setTableKey] = useState("accounts");
   const [parseError, setParseError] = useState("");
   const [lastLoaded, setLastLoaded] = useState("");
   const [pendingFiles, setPendingFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
+  const [playbookQAOpen, setPlaybookQAOpen] = useState(false);
+  const [previewAccountId, setPreviewAccountId] = useState("");
   const fileRef = useRef(null);
   const excelFileRef = useRef(null);
 
@@ -1482,7 +1539,8 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
         const text = String(reader.result);
         const meta = parseCSVWithMeta(text);
         if (!meta || meta.rows.length === 0) throw new Error("No rows found. Check that the file has a header row and at least one data row.");
-        const next = { ...uploadTables, [tableKey]: meta.rows };
+        const canonicalRows = mapRowsToCanonical(meta.rows, tableKey);
+        const next = { ...uploadTables, [tableKey]: canonicalRows };
         applyTables(next, setUploadTables, setProducts, setAccounts, onPersist);
         setLastLoaded(`${TABLE_OPTIONS.find(t => t.key === tableKey)?.label}: ${meta.rows.length} rows → dashboard mapped`);
       } catch (err) {
@@ -1551,7 +1609,7 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
 
   const loadAllPending = () => {
     const next = { ...uploadTables };
-    pendingFiles.forEach(p => { next[p.assignedTable] = p.rows; });
+    pendingFiles.forEach(p => { next[p.assignedTable] = mapRowsToCanonical(p.rows, p.assignedTable); });
     applyTables(next, setUploadTables, setProducts, setAccounts, onPersist);
     setPendingFiles([]);
     setLastLoaded(`${pendingFiles.length} file(s) loaded and mapped to dashboard`);
@@ -1667,6 +1725,89 @@ function DataView({ uploadTables, setUploadTables, setProducts, setAccounts, onL
         <p style={{ fontSize: 11, color: "var(--t3)", marginTop: 12 }}>
           Upload <strong>Accounts</strong> first for best results, then add other functions. Product Catalog is independent. Columns are auto-mapped from your headers (e.g. Account ID → account_id).
         </p>
+      </div>
+      <div className="cd fw" style={{ marginTop: 16 }}>
+        <button
+          type="button"
+          onClick={() => setPlaybookQAOpen(!playbookQAOpen)}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 12px",
+            background: "var(--b2)",
+            border: "1px solid var(--bd)",
+            borderRadius: 8,
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--t1)",
+          }}
+        >
+          <span><span style={{ marginRight: 8 }}>🔍</span>Playbook QA audit</span>
+          <span style={{ fontSize: 11, color: "var(--t3)" }}>{playbookQAOpen ? "▼ Collapse" : "▶ Expand"}</span>
+        </button>
+        {playbookQAOpen && (() => {
+          const productsForQA = buildProductsFromRows(uploadTables.productCatalog || []);
+          const playbookBriefs = (productsForQA || []).reduce((acc, p) => { if (p.playbookBrief) acc[p.name] = p.playbookBrief; return acc; }, {});
+          const previewAccount = accounts.find((a) => a.id === previewAccountId);
+          const availableForPreview = previewAccount
+            ? (productsForQA || []).filter((p) => !(previewAccount.cur || []).includes(p.name) && !(previewAccount.qt || []).some((q) => q.name === p.name))
+            : productsForQA;
+          const fullBlockForPreview = availableForPreview.map((p) => getProductBlockEntry(p, playbookBriefs)).join("\n\n") || "All products owned or quoted for this account.";
+          return (
+            <div style={{ marginTop: 12, padding: "12px 0", borderTop: "1px solid var(--bd)" }}>
+              <p style={{ fontSize: 11, color: "var(--t2)", marginBottom: 12, lineHeight: 1.5 }}>
+                Verify how playbook data (playbook_brief, fit_signals, value_props, use_cases) is sent to the AI. Compare &quot;Uploaded&quot; vs &quot;Sent to AI&quot; to ensure nothing is missing or truncated.
+              </p>
+              {productsForQA.length === 0 ? (
+                <p style={{ fontSize: 12, color: "var(--t3)" }}>Upload a Product Catalog CSV to see playbook QA. Include columns: product_name, category, mrr, description; optional: fit_signals, value_props, use_cases, playbook_brief.</p>
+              ) : (
+                <>
+                  {productsForQA.map((p) => (
+                    <div key={p.id || p.name} style={{ marginBottom: 16, padding: "12px", background: "var(--b1)", borderRadius: 8, border: "1px solid var(--bd)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ac)", marginBottom: 8 }}>{p.name} — ${p.mrr}/mo, {p.cat}</div>
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4, textTransform: "uppercase" }}>Uploaded playbook data</div>
+                        <div style={{ fontSize: 11, color: "var(--t2)", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", background: "var(--b2)", padding: 8, borderRadius: 4 }}>
+                          {p.playbookBrief ? `PLAYBOOK (playbook_brief):\n${p.playbookBrief}` : [p.fit_signals && `Signals: ${p.fit_signals}`, p.value_props && `Value: ${p.value_props}`, p.use_cases && `Use cases: ${p.use_cases}`].filter(Boolean).join("\n") || "— None (add fit_signals, value_props, use_cases or playbook_brief in Product Catalog)"}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 4, textTransform: "uppercase" }}>Exact text sent to AI</div>
+                        <div style={{ fontSize: 11, color: "var(--t1)", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", background: "var(--b2)", padding: 8, borderRadius: 4 }}>
+                          {getProductBlockEntry(p, playbookBriefs)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {accounts.length > 0 && (
+                    <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--bd)" }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--t3)", marginBottom: 6, textTransform: "uppercase" }}>Preview: products block as the AI sees it for one account</div>
+                      <select
+                        value={previewAccountId}
+                        onChange={(e) => setPreviewAccountId(e.target.value)}
+                        style={{ padding: "6px 10px", marginBottom: 8, background: "var(--b2)", border: "1px solid var(--bd)", borderRadius: 6, color: "var(--t1)", fontFamily: "inherit", fontSize: 12, minWidth: 200 }}
+                      >
+                        <option value="">— Select account —</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                      {previewAccount && (
+                        <div style={{ fontSize: 11, color: "var(--t2)", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", background: "var(--b2)", padding: 10, borderRadius: 4, maxHeight: 280, overflowY: "auto" }}>
+                          ═══ AVAILABLE PRODUCTS (not owned/quoted) ═══{"\n"}
+                          {fullBlockForPreview}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -1824,7 +1965,7 @@ export default function App() {
       {vw==="engage"&&<EngagementHub accounts={accounts} products={products} aiData={aiData} onSelect={pick} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="det"&&selC&&<Detail cu={selC} ai={aiData[selC.id]} products={products} onAnalyze={handleAnalyze} analyzing={analyzing}/>}
       {vw==="opp"&&selOpp&&oppAccount&&<OpportunityDetail account={oppAccount} quote={selOpp.quote} ai={aiData[oppAccount.id]} onBack={()=>{sVw("brief");setSelOpp(null)}} onGoToAccount={(id)=>{sSel(id);sVw("det");setSelOpp(null)}}/>}
-      {vw==="data"&&<DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample} onPersist={handlePersist}/>}
+      {vw==="data"&&<DataView uploadTables={uploadTables} setUploadTables={setUploadTables} setProducts={setProducts} setAccounts={setAccounts} onLoadSample={handleLoadSample} onPersist={handlePersist} accounts={accounts}/>}
     </div>
   </div></>);
 }
