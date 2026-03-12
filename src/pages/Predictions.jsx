@@ -1,4 +1,4 @@
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW } from '../lib/constants'
+import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, stageProb } from '../lib/constants'
 import Badge from '../components/shared/Badge'
 import ProbBar from '../components/shared/ProbBar'
 import Stat from '../components/shared/Stat'
@@ -195,13 +195,11 @@ function buildLocalPredictions(a, cal = { winLR: 1 }) {
   const calAdj = cal.winLR || 1
 
   return a.active_deals.map(d => {
-    // Stage likelihood ratio (how much stage shifts odds)
-    let stageLR = 1.0
-    const stage = (d.stage || '').toLowerCase()
-    if (stage.includes('negotiate') || stage.includes('4')) stageLR = 3.0
-    else if (stage.includes('propose') || stage.includes('3')) stageLR = 1.8
-    else if (stage.includes('design') || stage.includes('2')) stageLR = 1.2
-    else if (stage.includes('discover') || stage.includes('1')) stageLR = 0.6
+    // Stage likelihood ratio derived from validated 2026 funnel model win probabilities
+    // Convert stage win probability to likelihood ratio relative to base rate (prior)
+    const stageWinProb = stageProb(d.stage)
+    let stageLR = (stageWinProb / (1 - stageWinProb)) / (prior / (1 - prior))
+    stageLR = Math.max(0.1, Math.min(stageLR, 20)) // clamp for numerical stability
 
     // Apply backtest calibration to stage LR
     stageLR *= calAdj
@@ -222,7 +220,7 @@ function buildLocalPredictions(a, cal = { winLR: 1 }) {
     const posterior = clamp(fromLogOdds(posteriorLO), 0.02, 0.98)
 
     const evidence = []
-    evidence.push(`Prior win rate: ${pc(prior)} → Stage (${d.stage}): ${stageLR > 1 ? '+' : ''}${((stageLR - 1) * 100).toFixed(0)}%`)
+    evidence.push(`Prior win rate: ${pc(prior)} → Stage (${d.stage}): ${pc(stageWinProb)} win prob, LR ${stageLR.toFixed(2)}x`)
     evidence.push(`Engagement signal: ${(eng.score * 100).toFixed(0)}/100 → LR ${engLR.toFixed(2)}x`)
     if (healthLR !== 1.0) evidence.push(`Account health: NRR ${pc(a.nrr)} → LR ${healthLR.toFixed(2)}x`)
     if (calAdj !== 1) evidence.push(`Backtest calibration: ×${calAdj.toFixed(2)} adjustment`)

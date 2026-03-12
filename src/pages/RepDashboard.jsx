@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Line,
 } from 'recharts'
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, STAGE_COLORS } from '../lib/constants'
+import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, STAGE_COLORS, STAGE_WIN_PROB, STAGE_ORDER, stageProb } from '../lib/constants'
 import Badge from '../components/shared/Badge'
 import Stat from '../components/shared/Stat'
 import ProbBar from '../components/shared/ProbBar'
@@ -11,8 +11,6 @@ import Tip from '../components/shared/Tip'
 import { chartTheme, $, $k, pc } from '../components/shared/ChartTheme'
 
 // --- Helpers ---
-
-const STAGE_PROB = { Discover: 0.10, 'Design': 0.25, 'Design Solution': 0.25, Propose: 0.50, Negotiate: 0.75 }
 
 function parseDate(s) {
   if (!s) return null
@@ -218,11 +216,10 @@ export default function RepDashboard({ accounts, rawData }) {
   const quarterlyQuota = parseFloat(repProfile?.[qQuotaKey]) || (annualQuota / 4)
   const expectedQTD = quarterlyQuota * qPacePct
 
-  // Pipeline metrics
+  // Pipeline metrics — weighted by stage win probability
   const totalPipelineMRR = allActiveDeals.reduce((s, d) => s + (d.mrr || 0), 0)
   const weightedPipeline = allActiveDeals.reduce((s, d) => {
-    const prob = STAGE_PROB[d.stage] || 0.10
-    return s + (d.mrr || 0) * prob * 12
+    return s + (d.mrr || 0) * stageProb(d.stage) * 12
   }, 0)
   const quotaRemaining = Math.max(0, quarterlyQuota - qtdBookings)
   const pipelineCoverage = quotaRemaining > 0 ? (totalPipelineMRR * 12) / quotaRemaining : 999
@@ -469,65 +466,147 @@ function MyPipelineTab({
     return dt && dt <= thirtyDaysOut && dt >= now
   })
 
-  // Pipeline by stage
+  // Pipeline by stage with raw + weighted values
   const stageData = useMemo(() => {
     const stages = {}
     for (const d of allActiveDeals) {
       const s = d.stage || 'Unknown'
-      if (!stages[s]) stages[s] = { stage: s, count: 0, mrr: 0 }
+      if (!stages[s]) stages[s] = { stage: s, count: 0, raw: 0, weighted: 0, prob: stageProb(s) }
       stages[s].count++
-      stages[s].mrr += d.mrr || 0
+      stages[s].raw += d.mrr || 0
+      stages[s].weighted += (d.mrr || 0) * stageProb(s)
     }
-    const order = ['Discover', 'Design', 'Design Solution', 'Propose', 'Negotiate']
+    const order = [...STAGE_ORDER]
     return order.filter(s => stages[s]).map(s => stages[s]).concat(
       Object.values(stages).filter(s => !order.includes(s.stage))
     )
   }, [allActiveDeals])
 
-  // Sorted deal list (Negotiate first)
+  const rawTotal = stageData.reduce((s, d) => s + d.raw, 0)
+  const weightedTotal = stageData.reduce((s, d) => s + d.weighted, 0)
+
+  // Sorted deal list (highest probability stages first)
   const sortedDeals = useMemo(() => {
-    const order = { Negotiate: 0, Propose: 1, 'Design Solution': 2, Design: 2, Discover: 3 }
-    return [...allActiveDeals].sort((a, b) => (order[a.stage] ?? 4) - (order[b.stage] ?? 4))
+    const order = { Accepted: -1, 'Verbal Agreement': 0, Negotiate: 1, Propose: 2, 'Design Solution': 3, Design: 3, Discover: 4 }
+    return [...allActiveDeals].sort((a, b) => (order[a.stage] ?? 5) - (order[b.stage] ?? 5))
   }, [allActiveDeals])
+
+  // MRR trajectory data: monthly cumulative from historical bookings
+  const trajectoryData = useMemo(() => {
+    const months = {}
+    // Build monthly net bookings from historical deals
+    for (const d of allHistorical) {
+      const dt = parseDate(d.close)
+      if (!dt) continue
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+      if (!months[key]) months[key] = { month: key, booked: 0, churn: 0 }
+      const mrr = d.mrr || 0
+      if (mrr >= 0) months[key].booked += mrr
+      else months[key].churn += Math.abs(mrr)
+    }
+    const sorted = Object.values(months).sort((a, b) => a.month.localeCompare(b.month))
+    let cumMRR = 0
+    const actual = sorted.map(m => {
+      cumMRR += m.booked - m.churn
+      return { month: m.month, actual: Math.round(cumMRR) }
+    })
+
+    // Forecast projection: extend 3 months from last actual using weighted pipeline
+    if (actual.length > 0) {
+      const lastActual = actual[actual.length - 1].actual
+      const monthlyWeighted = weightedTotal / 3 // spread weighted pipeline over ~3 months
+      const lastMonth = actual[actual.length - 1].month
+      const [y, m] = lastMonth.split('-').map(Number)
+      for (let i = 1; i <= 3; i++) {
+        const nm = m + i
+        const ny = y + Math.floor((nm - 1) / 12)
+        const mm = ((nm - 1) % 12) + 1
+        actual.push({
+          month: `${ny}-${String(mm).padStart(2, '0')}`,
+          forecast: Math.round(lastActual + monthlyWeighted * i),
+        })
+      }
+    }
+    return actual
+  }, [allHistorical, weightedTotal])
 
   return (
     <div>
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <Stat label="Pipeline MRR" value={`${$k(totalPipelineMRR)}/mo`} sub={`${allActiveDeals.length} deals`} color={T.purple} />
-        <Stat label="Weighted Pipeline" value={$k(weightedPipeline)} sub="stage-weighted ARR" color={T.teal} />
+        <Stat label="Prob-Adjusted Pipeline" value={$k(weightedPipeline)} sub="SUM(MRR x Stage Win %)" color={T.teal} />
         <Stat label="Quota Remaining" value={$k(quotaRemaining)} color={T.orange} />
         <Stat label="Closing in 30d" value={closingSoon.length} sub={`${$k(closingSoon.reduce((s, d) => s + (d.mrr || 0), 0))}/mo`} color={T.green} />
         <Stat label="Stalled" value={stalledDeals.length} color={stalledDeals.length > 0 ? T.red : T.green} />
       </div>
 
-      {/* Pipeline by Stage */}
+      {/* Pipeline by Stage — raw vs weighted */}
       <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-          Pipeline by Stage
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
+            <Tip label="Probability-adjusted pipeline: each deal's MRR x its stage win probability. Discover 30.57%, Design Solution 53.21%, Propose 66.23%, Negotiate 84.67%, Verbal Agreement 92.49%, Closed 100%.">
+              PIPELINE BY STAGE (PROBABILITY-WEIGHTED)
+            </Tip>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', fontFamily: FONT_MONO, fontSize: '10px' }}>
+            <span style={{ color: T.textMid }}>Raw: <span style={{ color: T.purple, fontWeight: 600 }}>{$k(rawTotal)}/mo</span></span>
+            <span style={{ color: T.textMid }}>Weighted: <span style={{ color: T.teal, fontWeight: 700 }}>{$k(weightedTotal)}/mo</span></span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', height: '80px' }}>
-          {stageData.map(s => {
-            const mx = Math.max(...stageData.map(x => x.mrr), 1)
-            const h = Math.max(6, (s.mrr / mx) * 70)
-            const color = STAGE_COLORS[s.stage] || T.textDim
-            return (
-              <div key={s.stage} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                <div style={{ fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color }}>{$k(s.mrr)}</div>
-                <div style={{ width: '100%', height: `${h}px`, borderRadius: '4px', background: `${color}40` }} />
-                <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textMid, textAlign: 'center' }}>
-                  {s.stage} ({s.count})
+
+        {stageData.map(s => {
+          const maxRaw = Math.max(...stageData.map(x => x.raw), 1)
+          const barPct = (s.raw / maxRaw) * 100
+          const color = STAGE_COLORS[s.stage] || T.textDim
+          return (
+            <div key={s.stage} style={{ marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontFamily: FONT_SANS, fontSize: '11px', fontWeight: 600, color }}>{s.stage}</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>({pc(s.prob)})</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>{s.count} deals</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.purple }}>{$k(s.raw)}/mo</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>→</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700, color: T.teal }}>{$k(s.weighted)}/mo</span>
                 </div>
               </div>
-            )
-          })}
-        </div>
+              <div style={{ position: 'relative', height: '6px', background: T.border, borderRadius: '3px' }}>
+                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px', width: `${barPct}%`, background: `${color}50`, transition: 'width 0.5s' }} />
+                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px', width: `${barPct * s.prob}%`, background: color, transition: 'width 0.5s' }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
+
+      {/* MRR Trajectory with Forecast Projection */}
+      {trajectoryData.length > 0 && (
+        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
+            <Tip label="Solid line shows actual cumulative MRR from historical bookings. Dashed line shows probability-adjusted forecast projection using weighted pipeline.">
+              MRR TRAJECTORY + FORECAST
+            </Tip>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <ComposedChart data={trajectoryData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
+              <XAxis dataKey="month" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={40} />
+              <Tooltip contentStyle={chartTheme.tooltip} formatter={(v, name) => [`$${Math.round(v).toLocaleString()}/mo`, name === 'actual' ? 'Actual MRR' : 'Forecast']} />
+              <Line type="monotone" dataKey="actual" stroke={T.cyan} strokeWidth={2} dot={false} name="actual" />
+              <Line type="monotone" dataKey="forecast" stroke={T.purple} strokeWidth={2} strokeDasharray="6 3" dot={false} name="forecast" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Deal List */}
       <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 1fr 1fr 0.8fr',
+          display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.7fr 0.7fr 1fr 0.9fr 0.7fr',
           gap: '4px', padding: '8px 12px', background: T.surface,
           borderBottom: `1px solid ${T.border}`,
           fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em',
@@ -535,6 +614,7 @@ function MyPipelineTab({
           <div>Account</div>
           <div>Product</div>
           <div style={{ textAlign: 'right' }}>MRR</div>
+          <div style={{ textAlign: 'right' }}>Weighted</div>
           <div>Stage</div>
           <div>Close</div>
           <div>Forecast</div>
@@ -543,9 +623,11 @@ function MyPipelineTab({
           {sortedDeals.map((d, i) => {
             const closeDate = parseDate(d.close)
             const isClosingSoon = closeDate && closeDate <= thirtyDaysOut && closeDate >= now
+            const prob = stageProb(d.stage)
+            const wMrr = (d.mrr || 0) * prob
             return (
               <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 1fr 1fr 0.8fr',
+                display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.7fr 0.7fr 1fr 0.9fr 0.7fr',
                 gap: '4px', padding: '8px 12px', fontSize: '11px',
                 borderBottom: `1px solid ${T.border}`,
                 background: i % 2 === 0 ? 'transparent' : `${T.surface}40`,
@@ -555,8 +637,11 @@ function MyPipelineTab({
                   {d.accountName}
                 </div>
                 <div style={{ color: T.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.product}</div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color: T.green }}>
+                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color: T.purple }}>
                   {$k(d.mrr)}
+                </div>
+                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color: T.teal }}>
+                  {$k(wMrr)}
                 </div>
                 <div>
                   <Badge color={STAGE_COLORS[d.stage] || T.textDim}>{d.stage}</Badge>
@@ -608,6 +693,23 @@ function KPITab({
   // Pipeline generated (deals created this quarter)
   const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
   const pipelineGen = allActiveDeals.reduce((s, d) => s + (d.mrr || 0) * 12, 0)
+
+  // Stage probability breakdown for reference card
+  const stagePipeBreakdown = useMemo(() => {
+    const stages = {}
+    for (const d of allActiveDeals) {
+      const s = d.stage || 'Unknown'
+      if (!stages[s]) stages[s] = { stage: s, count: 0, raw: 0, weighted: 0, prob: stageProb(s) }
+      stages[s].count++
+      stages[s].raw += (d.mrr || 0) * 12
+      stages[s].weighted += (d.mrr || 0) * stageProb(s) * 12
+    }
+    return STAGE_ORDER.filter(s => stages[s]).map(s => stages[s]).concat(
+      Object.values(stages).filter(s => !STAGE_ORDER.includes(s.stage))
+    )
+  }, [allActiveDeals])
+  const totalWeightedARR = stagePipeBreakdown.reduce((s, d) => s + d.weighted, 0)
+  const totalRawARR = stagePipeBreakdown.reduce((s, d) => s + d.raw, 0)
 
   // Quarterly bookings by type
   const bookingsByType = useMemo(() => {
@@ -662,6 +764,87 @@ function KPITab({
         <KPICard label="Avg Deal Size" value={$k(avgDealSize)} sub={`${closedWonDeals.length} deals`} pace={1} />
         <KPICard label="Pipeline Generated" value={$k(pipelineGen)} sub={`${allActiveDeals.length} open deals`} pace={1} />
         <KPICard label="Active Accounts" value={repAccounts.filter(a => (a.active_deals?.length || 0) > 0).length} sub={`of ${repAccounts.length} total`} pace={1} />
+      </div>
+
+      {/* Stage Win Probability Reference Card */}
+      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Left: Stage probability table */}
+          <div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
+              <Tip label="Stage win probabilities from validated 2026 funnel model historical win rates.">
+                STAGE WIN PROBABILITIES
+              </Tip>
+            </div>
+            {STAGE_ORDER.map(stage => {
+              const prob = stageProb(stage)
+              const color = STAGE_COLORS[stage] || T.textDim
+              const pipeData = stagePipeBreakdown.find(s => s.stage === stage)
+              return (
+                <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ width: '110px', fontFamily: FONT_SANS, fontSize: '10px', color, fontWeight: 600 }}>{stage}</div>
+                  <div style={{ flex: 1, position: 'relative', height: '8px', background: T.border, borderRadius: '4px' }}>
+                    <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '4px', width: `${prob * 100}%`, background: `${color}60`, transition: 'width 0.5s' }} />
+                  </div>
+                  <div style={{ width: '40px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color, textAlign: 'right' }}>
+                    {(prob * 100).toFixed(1)}%
+                  </div>
+                  {pipeData && (
+                    <div style={{ width: '80px', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, textAlign: 'right' }}>
+                      {$k(pipeData.raw)} → {$k(pipeData.weighted)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Right: Weighted total + formula + breakdown */}
+          <div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
+              WEIGHTED PIPELINE SUMMARY
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '28px', fontWeight: 700, color: T.teal, marginBottom: '4px' }}>
+              {$k(totalWeightedARR)}
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, marginBottom: '12px' }}>
+              Probability-Adjusted ARR
+            </div>
+            <div style={{
+              fontFamily: FONT_MONO, fontSize: '9px', color: T.textMid, padding: '8px',
+              background: T.surface, borderRadius: '6px', marginBottom: '12px',
+            }}>
+              SUM( Deal MRR × Stage Win % ) × 12
+            </div>
+
+            {/* Per-stage multiplication breakdown */}
+            {stagePipeBreakdown.map(s => {
+              const color = STAGE_COLORS[s.stage] || T.textDim
+              return (
+                <div key={s.stage} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '4px 0', borderBottom: `1px solid ${T.border}`,
+                  fontFamily: FONT_MONO, fontSize: '10px',
+                }}>
+                  <span style={{ color }}>{s.stage} ({s.count})</span>
+                  <span style={{ color: T.textMid }}>
+                    {$k(s.raw)} × {(s.prob * 100).toFixed(1)}% = <span style={{ color: T.teal, fontWeight: 600 }}>{$k(s.weighted)}</span>
+                  </span>
+                </div>
+              )
+            })}
+            {stagePipeBreakdown.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700 }}>
+                <span style={{ color: T.text }}>Total</span>
+                <span>
+                  <span style={{ color: T.purple }}>{$k(totalRawARR)}</span>
+                  <span style={{ color: T.textDim }}> → </span>
+                  <span style={{ color: T.teal }}>{$k(totalWeightedARR)}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>

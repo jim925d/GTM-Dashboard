@@ -53,6 +53,27 @@ export const STAGE_COLORS = {
   'Design Solution': T.purple,
   Propose: T.yellow,
   Negotiate: T.green,
+  'Verbal Agreement': T.teal,
+  Accepted: T.cyan,
+  Closed: T.cyan,
+}
+
+// Stage win probabilities from 2026 Funnel Model (validated historical win rates)
+export const STAGE_WIN_PROB = {
+  Accepted: 1.0,
+  Closed: 1.0,
+  'Verbal Agreement': 0.9249,
+  Negotiate: 0.8467,
+  Propose: 0.6623,
+  'Design Solution': 0.5321,
+  Discover: 0.3057,
+}
+
+// Stage progression order (lowest to highest probability)
+export const STAGE_ORDER = ['Discover', 'Design Solution', 'Propose', 'Negotiate', 'Verbal Agreement', 'Accepted']
+
+export function stageProb(stage) {
+  return STAGE_WIN_PROB[stage] || 0.1
 }
 
 export const STATUS_COLORS = {
