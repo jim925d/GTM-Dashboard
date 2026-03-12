@@ -148,15 +148,16 @@ export default function RepDashboard({ accounts, rawData }) {
   const [showFilter, setShowFilter] = useState('all')
   const [sortBy, setSortBy] = useState('risk')
 
-  // Derive available reps
+  // Derive seller list from Sales Owner field in customers.csv
   const allReps = useMemo(() => [...new Set(
-    accounts.flatMap(acc => [
-      acc.rep, acc.sales_owner,
-      ...(acc.active_deals || []).map(d => d.rep),
-    ]).filter(Boolean).map(r => r.trim())
-  )].sort(), [accounts])
+    accounts.map(acc => (acc.sales_owner || '').trim()).filter(Boolean)
+  )].sort((a, b) => {
+    const aLast = a.split(/\s+/).pop().toLowerCase()
+    const bLast = b.split(/\s+/).pop().toLowerCase()
+    return aLast.localeCompare(bLast)
+  }), [accounts])
 
-  // Auto-select first rep
+  // Auto-select first seller
   const rep = selectedRep || allReps[0] || ''
 
   // Rep profile from CSV (if loaded)
@@ -165,24 +166,27 @@ export default function RepDashboard({ accounts, rawData }) {
     return profiles.find(p => (p.rep_name || '').trim() === rep) || null
   }, [rawData, rep])
 
-  // Filter accounts to this rep
-  const repAccounts = useMemo(() => accounts.filter(acc => {
-    if ((acc.rep || '').trim() === rep) return true
-    if ((acc.sales_owner || '').trim() === rep) return true
-    return (acc.active_deals || []).some(d => (d.rep || '').trim() === rep)
-  }), [accounts, rep])
+  // Accounts where this seller is the Sales Owner
+  const repAccounts = useMemo(() =>
+    accounts.filter(acc => (acc.sales_owner || '').trim() === rep),
+  [accounts, rep])
 
-  // All deals across rep's accounts
+  // Active deals across ALL accounts where this seller is the opportunity owner (rep)
+  // or where the account belongs to this seller
   const allActiveDeals = useMemo(() =>
-    repAccounts.flatMap(acc =>
-      (acc.active_deals || []).filter(d => (d.rep || '').trim() === rep).map(d => ({ ...d, accountName: acc.name }))
-    ), [repAccounts, rep])
+    accounts.flatMap(acc =>
+      (acc.active_deals || [])
+        .filter(d => (d.rep || '').trim() === rep || (acc.sales_owner || '').trim() === rep)
+        .map(d => ({ ...d, accountName: acc.name }))
+    ), [accounts, rep])
 
-  // Historical deals (from funnel closed-won)
+  // Historical deals where this seller is the opportunity owner or account owner
   const allHistorical = useMemo(() =>
-    repAccounts.flatMap(acc =>
-      (acc.historical_deals || []).filter(d => (d.rep || '').trim() === rep).map(d => ({ ...d, accountName: acc.name }))
-    ), [repAccounts, rep])
+    accounts.flatMap(acc =>
+      (acc.historical_deals || [])
+        .filter(d => (d.rep || '').trim() === rep || (acc.sales_owner || '').trim() === rep)
+        .map(d => ({ ...d, accountName: acc.name }))
+    ), [accounts, rep])
 
   // Bookings calculations
   const now = new Date()
