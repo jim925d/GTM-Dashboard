@@ -1,6 +1,6 @@
 import { FONT_MONO, FONT_SANS, T, RADIUS } from '../../lib/constants'
 
-export default function Header({ accountCount, isDemo }) {
+export default function Header({ accountCount, isDemo, onLogoClick }) {
   return (
     <div
       style={{
@@ -13,7 +13,7 @@ export default function Header({ accountCount, isDemo }) {
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: onLogoClick ? 'pointer' : 'default' }} onClick={onLogoClick}>
         <div
           style={{
             width: '28px',

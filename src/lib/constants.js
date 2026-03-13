@@ -55,11 +55,17 @@ export const STAGE_COLORS = {
   Negotiate: T.green,
   'Verbal Agreement': T.teal,
   Accepted: T.cyan,
+  '5 - Accepted': T.cyan,
+  'Closed Won': T.cyan,
+  'Closed-Won': T.cyan,
   Closed: T.cyan,
+  'Closed Lost': T.red,
+  'Close Lost': T.red,
 }
 
 // Stage win probabilities from 2026 Funnel Model (validated historical win rates)
 export const STAGE_WIN_PROB = {
+  'Closed Won': 1.0,
   Accepted: 1.0,
   Closed: 1.0,
   'Verbal Agreement': 0.9249,
@@ -70,10 +76,19 @@ export const STAGE_WIN_PROB = {
 }
 
 // Stage progression order (lowest to highest probability)
-export const STAGE_ORDER = ['Discover', 'Design Solution', 'Propose', 'Negotiate', 'Verbal Agreement', 'Accepted']
+export const STAGE_ORDER = ['Discover', 'Design Solution', 'Propose', 'Negotiate', 'Verbal Agreement', 'Accepted', 'Closed Won']
 
 export function stageProb(stage) {
-  return STAGE_WIN_PROB[stage] || 0.1
+  if (STAGE_WIN_PROB[stage] !== undefined) return STAGE_WIN_PROB[stage]
+  // Normalize common variants
+  const l = (stage || '').toLowerCase().trim()
+  if (l.includes('accepted') || l === 'closed won' || l === 'closed-won' || l === '5 - accepted') return 1.0
+  if (l.includes('verbal')) return STAGE_WIN_PROB['Verbal Agreement']
+  if (l.includes('negotiat')) return STAGE_WIN_PROB['Negotiate']
+  if (l.includes('propos')) return STAGE_WIN_PROB['Propose']
+  if (l.includes('design')) return STAGE_WIN_PROB['Design Solution']
+  if (l.includes('discover')) return STAGE_WIN_PROB['Discover']
+  return 0.1
 }
 
 export const STATUS_COLORS = {

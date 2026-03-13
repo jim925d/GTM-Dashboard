@@ -32,6 +32,22 @@ function normalizeStage(s) {
   return s
 }
 
+function normalizeForecast(f) {
+  if (!f) return 'Not In Forecast'
+  const l = f.toLowerCase().trim()
+  if (l === 'closed' || l === 'closed won') return 'Closed'
+  if (l === 'commit') return 'Commit'
+  if (l === 'best case') return 'Best Case'
+  if (l === 'longshot') return 'Longshot'
+  return 'Not In Forecast'
+}
+
+function isBooking(d) {
+  if (normalizeForecast(d.forecast) !== 'Closed') return false
+  if (d.major_project) return false // exclude major project deals
+  return true
+}
+
 function daysSince(dateStr) {
   const d = parseDate(dateStr)
   if (!d) return 999
@@ -145,6 +161,9 @@ export default function RepDashboard({ accounts, rawData }) {
   const [selectedRep, setSelectedRep] = useState('')
   const [showFilter, setShowFilter] = useState('all')
   const [sortBy, setSortBy] = useState('risk')
+  const [userTarget, setUserTarget] = useState('')
+  const [periodMode, setPeriodMode] = useState('quarter') // 'month' or 'quarter'
+  const [accountSearch, setAccountSearch] = useState('')
 
   // Derive seller list from Sales Owner field in customers.csv
   const allReps = useMemo(() => [...new Set(
@@ -178,7 +197,16 @@ export default function RepDashboard({ accounts, rawData }) {
         .map(d => ({ ...d, accountName: acc.name }))
     ), [accounts, rep])
 
-  // Historical deals where this seller is the opportunity owner or account owner
+  // Funnel closed deals: from funnel.csv ONLY — used for bookings & forecast
+  // historical_deals (from historical.csv/JSON) is for modeling/predictions only
+  const funnelClosed = useMemo(() =>
+    accounts.flatMap(acc =>
+      (acc.funnel_closed || [])
+        .filter(d => (d.rep || '').trim() === rep || (acc.sales_owner || '').trim() === rep)
+        .map(d => ({ ...d, accountName: acc.name }))
+    ), [accounts, rep])
+
+  // Historical deals — for modeling/predictions only (NOT bookings)
   const allHistorical = useMemo(() =>
     accounts.flatMap(acc =>
       (acc.historical_deals || [])
@@ -190,47 +218,86 @@ export default function RepDashboard({ accounts, rawData }) {
   const now = new Date()
   const yearStart = new Date(now.getFullYear(), 0, 1)
   const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-  const qEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0)
-  const dayOfQ = Math.floor((now - qStart) / 86400000) + 1
-  const daysInQ = Math.floor((qEnd - qStart) / 86400000) + 1
-  const qPacePct = dayOfQ / daysInQ
+  const qEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 1) // 1st of next quarter
+  const mStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const mEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1) // 1st of next month
   const currentQ = Math.floor(now.getMonth() / 3) + 1
+  const currentMonthName = now.toLocaleString('default', { month: 'long' })
+
+  // Period-aware pace
+  const periodStart = periodMode === 'month' ? mStart : qStart
+  const periodEnd = periodMode === 'month' ? mEnd : qEnd
+  const dayOfPeriod = Math.floor((now - periodStart) / 86400000) + 1
+  const daysInPeriod = Math.floor((periodEnd - periodStart) / 86400000)
+  const periodPacePct = dayOfPeriod / daysInPeriod
+
+  // All funnel deals for bookings: active pipeline + funnel closed (NOT historical.csv)
+  const allFunnelDeals = useMemo(() => [...allActiveDeals, ...funnelClosed], [allActiveDeals, funnelClosed])
 
   const closedWonDeals = useMemo(() =>
-    allHistorical.filter(d => {
+    funnelClosed.filter(d => {
       const s = normalizeStage(d.stage)
       return s === 'closed won' && (d.mrr || 0) >= 0
-    }), [allHistorical])
+    }), [funnelClosed])
 
+  // Bookings: forecast=Closed, major_project blank, positive MRR. NOT annualized.
+  // Source: funnel.csv only (NOT historical.csv)
+  const yearEnd = new Date(now.getFullYear() + 1, 0, 1)
   const ytdBookings = useMemo(() =>
-    closedWonDeals.filter(d => { const dt = parseDate(d.close); return dt && dt >= yearStart })
-      .reduce((s, d) => s + (d.mrr || 0) * 12, 0), [closedWonDeals])
+    allFunnelDeals.filter(d => {
+      if ((d.mrr || 0) <= 0) return false
+      if (!isBooking(d)) return false
+      const dt = parseDate(d.close)
+      return dt && dt >= yearStart && dt < yearEnd
+    }).reduce((s, d) => s + (d.mrr || 0), 0), [allFunnelDeals])
 
   const qtdBookings = useMemo(() =>
-    closedWonDeals.filter(d => { const dt = parseDate(d.close); return dt && dt >= qStart })
-      .reduce((s, d) => s + (d.mrr || 0) * 12, 0), [closedWonDeals])
+    allFunnelDeals.filter(d => {
+      if ((d.mrr || 0) <= 0) return false
+      if (!isBooking(d)) return false
+      const dt = parseDate(d.close)
+      return dt && dt >= qStart && dt < qEnd
+    }).reduce((s, d) => s + (d.mrr || 0), 0), [allFunnelDeals])
 
-  // Quota
+  const mtdBookings = useMemo(() =>
+    allFunnelDeals.filter(d => {
+      if ((d.mrr || 0) <= 0) return false
+      if (!isBooking(d)) return false
+      const dt = parseDate(d.close)
+      return dt && dt >= mStart && dt < mEnd
+    }).reduce((s, d) => s + (d.mrr || 0), 0), [allFunnelDeals])
+
+  // Period bookings based on toggle
+  const periodBookings = periodMode === 'month' ? mtdBookings : qtdBookings
+
+  // User target overrides quota
+  const parsedTarget = parseFloat(String(userTarget).replace(/[^0-9.]/g, '')) || 0
   const annualQuota = parseFloat(repProfile?.annual_quota) || 0
   const qQuotaKey = `q${currentQ}_quota`
-  const quarterlyQuota = parseFloat(repProfile?.[qQuotaKey]) || (annualQuota / 4)
-  const expectedQTD = quarterlyQuota * qPacePct
+  const csvQuarterlyQuota = parseFloat(repProfile?.[qQuotaKey]) || (annualQuota / 4)
+  const quarterlyQuota = parsedTarget > 0 ? parsedTarget : csvQuarterlyQuota
+  const monthlyQuota = parsedTarget > 0 ? parsedTarget : (csvQuarterlyQuota / 3)
+  const periodQuota = periodMode === 'month' ? monthlyQuota : quarterlyQuota
+  const expectedPeriod = periodQuota * periodPacePct
 
-  // Pipeline metrics — weighted by stage win probability
-  const totalPipelineMRR = allActiveDeals.reduce((s, d) => s + (d.mrr || 0), 0)
-  const weightedPipeline = allActiveDeals.reduce((s, d) => {
-    return s + (d.mrr || 0) * stageProb(d.stage) * 12
+  // Pipeline metrics — weighted by stage win probability (MRR terms, not annualized)
+  // Exclude deals already counted as bookings (forecast=Closed) from pipeline weighting
+  const pipelineDeals = allActiveDeals.filter(d => !isBooking(d) && (d.mrr || 0) > 0)
+  const totalPipelineMRR = pipelineDeals.reduce((s, d) => s + (d.mrr || 0), 0)
+  const weightedPipeline = pipelineDeals.reduce((s, d) => {
+    return s + (d.mrr || 0) * stageProb(d.stage)
   }, 0)
-  const quotaRemaining = Math.max(0, quarterlyQuota - qtdBookings)
-  const pipelineCoverage = quotaRemaining > 0 ? (totalPipelineMRR * 12) / quotaRemaining : 999
+  const targetRemaining = Math.max(0, periodQuota - periodBookings)
+  // Pipeline coverage: weighted pipeline MRR vs remaining MRR target (same units)
+  const pipelineCoverage = targetRemaining > 0 ? weightedPipeline / targetRemaining : 999
 
   // Book of business ARR
   const bookARR = repAccounts.reduce((s, a) => s + (a.arr || 0), 0)
 
   return (
     <div>
-      {/* Rep Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+      {/* Rep Selector + Target + Period Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
         <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
           Seller
         </div>
@@ -251,6 +318,48 @@ export default function RepDashboard({ accounts, rawData }) {
             <Badge color={T.purple}>{repProfile.team || ''}</Badge>
           </div>
         )}
+
+        <div style={{ width: '1px', height: '20px', background: T.border }} />
+
+        {/* Target Input */}
+        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim }}>Target</div>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim }}>$</span>
+          <input
+            type="text"
+            value={userTarget}
+            onChange={e => setUserTarget(e.target.value)}
+            placeholder={periodMode === 'month' ? $k(monthlyQuota) : $k(quarterlyQuota)}
+            style={{
+              padding: '6px 10px 6px 18px', fontFamily: FONT_MONO, fontSize: '11px',
+              background: T.card, border: `1px solid ${userTarget ? T.cyan : T.border}`, borderRadius: RADIUS,
+              color: T.text, outline: 'none', width: '100px',
+            }}
+            onFocus={e => e.target.style.borderColor = T.cyan}
+            onBlur={e => { if (!userTarget) e.target.style.borderColor = T.border }}
+          />
+        </div>
+
+        <div style={{ width: '1px', height: '20px', background: T.border }} />
+
+        {/* Month / Quarter Toggle */}
+        <div style={{ display: 'flex', gap: '2px', background: T.surface, borderRadius: RADIUS, padding: '2px' }}>
+          <button onClick={() => setPeriodMode('month')} style={{
+            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+            background: periodMode === 'month' ? T.card : 'transparent',
+            color: periodMode === 'month' ? T.cyan : T.textDim,
+            boxShadow: periodMode === 'month' ? CARD_SHADOW : 'none',
+          }}>Month</button>
+          <button onClick={() => setPeriodMode('quarter')} style={{
+            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+            background: periodMode === 'quarter' ? T.card : 'transparent',
+            color: periodMode === 'quarter' ? T.cyan : T.textDim,
+            boxShadow: periodMode === 'quarter' ? CARD_SHADOW : 'none',
+          }}>Quarter</button>
+        </div>
+
         <div style={{ flex: 1 }} />
         <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>
           {repAccounts.length} accounts · {allActiveDeals.length} deals
@@ -270,28 +379,34 @@ export default function RepDashboard({ accounts, rawData }) {
       {/* TAB 1: MY ACCOUNTS */}
       {tab === 'accounts' && <MyAccountsTab
         repAccounts={repAccounts} rep={rep} repProfile={repProfile}
-        qtdBookings={qtdBookings} ytdBookings={ytdBookings} quarterlyQuota={quarterlyQuota}
-        annualQuota={annualQuota} expectedQTD={expectedQTD} pipelineCoverage={pipelineCoverage}
+        periodBookings={periodBookings} ytdBookings={ytdBookings} periodQuota={periodQuota}
+        annualQuota={annualQuota} expectedPeriod={expectedPeriod} pipelineCoverage={pipelineCoverage}
         bookARR={bookARR} showFilter={showFilter} setShowFilter={setShowFilter}
-        sortBy={sortBy} setSortBy={setSortBy}
+        sortBy={sortBy} setSortBy={setSortBy} periodMode={periodMode} currentQ={currentQ}
+        currentMonthName={currentMonthName}
+        accountSearch={accountSearch} setAccountSearch={setAccountSearch}
+        weightedPipeline={weightedPipeline} targetRemaining={targetRemaining}
       />}
 
       {/* TAB 2: MY PIPELINE */}
       {tab === 'pipeline' && <MyPipelineTab
         allActiveDeals={allActiveDeals} repAccounts={repAccounts} rep={rep}
         totalPipelineMRR={totalPipelineMRR} weightedPipeline={weightedPipeline}
-        quotaRemaining={quotaRemaining} closedWonDeals={closedWonDeals}
-        quarterlyQuota={quarterlyQuota} allHistorical={allHistorical}
+        targetRemaining={targetRemaining} closedWonDeals={closedWonDeals}
+        periodQuota={periodQuota} funnelClosed={funnelClosed}
+        periodMode={periodMode} currentQ={currentQ} currentMonthName={currentMonthName}
       />}
 
       {/* TAB 3: KPI SCORECARD */}
       {tab === 'kpi' && <KPITab
         repAccounts={repAccounts} rep={rep} repProfile={repProfile}
-        qtdBookings={qtdBookings} ytdBookings={ytdBookings}
-        quarterlyQuota={quarterlyQuota} annualQuota={annualQuota}
-        closedWonDeals={closedWonDeals} allHistorical={allHistorical}
-        allActiveDeals={allActiveDeals} expectedQTD={expectedQTD}
-        qPacePct={qPacePct} currentQ={currentQ}
+        periodBookings={periodBookings} ytdBookings={ytdBookings}
+        periodQuota={periodQuota} annualQuota={annualQuota}
+        closedWonDeals={closedWonDeals} funnelClosed={funnelClosed}
+        allActiveDeals={allActiveDeals} expectedPeriod={expectedPeriod}
+        periodPacePct={periodPacePct} currentQ={currentQ}
+        periodMode={periodMode} currentMonthName={currentMonthName}
+        qtdBookings={qtdBookings}
       />}
     </div>
   )
@@ -302,20 +417,22 @@ export default function RepDashboard({ accounts, rawData }) {
 // =======================================================================
 
 function MyAccountsTab({
-  repAccounts, rep, repProfile, qtdBookings, ytdBookings, quarterlyQuota,
-  annualQuota, expectedQTD, pipelineCoverage, bookARR, showFilter, setShowFilter,
-  sortBy, setSortBy,
+  repAccounts, rep, repProfile, periodBookings, ytdBookings, periodQuota,
+  annualQuota, expectedPeriod, pipelineCoverage, bookARR, showFilter, setShowFilter,
+  sortBy, setSortBy, periodMode, currentQ, currentMonthName,
+  accountSearch, setAccountSearch, weightedPipeline, targetRemaining,
 }) {
-  // Filter
+  // Filter + search
   const filtered = useMemo(() => {
     let list = repAccounts
+    if (accountSearch) list = list.filter(a => a.name.toLowerCase().includes(accountSearch.toLowerCase()))
     if (showFilter === 'engaged') list = list.filter(a => daysSince(a.engagement?.lastDate) <= 90)
     if (showFilter === 'unengaged') list = list.filter(a => daysSince(a.engagement?.lastDate) > 90)
     if (showFilter === 'deals') list = list.filter(a => (a.active_deals?.length || 0) > 0)
     if (showFilter === 'no_pipeline') list = list.filter(a => (a.active_deals?.length || 0) === 0)
     if (showFilter === 'risk') list = list.filter(a => (a.risk_score || 0) >= 30)
     return list
-  }, [repAccounts, showFilter])
+  }, [repAccounts, showFilter, accountSearch])
 
   // Sort
   const sorted = useMemo(() => {
@@ -343,22 +460,51 @@ function MyAccountsTab({
       {/* Top row: Ring + Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '16px', marginBottom: '16px' }}>
         <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }}>
-          <AttainmentRing value={qtdBookings} quota={quarterlyQuota} label={`Q${Math.floor(new Date().getMonth() / 3) + 1} Attainment`} />
+          <AttainmentRing value={periodBookings} quota={periodQuota} label={periodMode === 'month' ? `${currentMonthName} Attainment` : `Q${currentQ} Attainment`} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-          <Stat label="QTD Bookings" value={$k(qtdBookings)} sub={quarterlyQuota > 0 ? `of ${$k(quarterlyQuota)} quota` : 'no quota set'} color={paceColor(quarterlyQuota > 0 ? qtdBookings / expectedQTD : 1)} />
-          <Stat label="YTD Bookings" value={$k(ytdBookings)} sub={annualQuota > 0 ? `of ${$k(annualQuota)} annual` : ''} color={T.cyan} />
-          <Stat label="Pipeline Coverage" value={`${pipelineCoverage.toFixed(1)}x`} sub={`vs ${$k(Math.max(0, quarterlyQuota - qtdBookings))} gap`} color={pipelineCoverage >= 3 ? T.green : pipelineCoverage >= 1.5 ? T.yellow : T.red} />
-          <Stat label="Book of Business" value={$(bookARR)} sub={`${repAccounts.length} accounts`} color={T.teal} />
+          <Stat label={<Tip label={`SUM(deal MRR) where: Forecast Category = Closed, MRR > 0, Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ} ${now.getFullYear()}, Major Project = blank, Opp Owner = selected seller, Sales Channel = Premier. Source: funnel.csv`}>{periodMode === 'month' ? 'MTD' : 'QTD'} Bookings</Tip>} value={`${$k(periodBookings)}/mo`} sub={periodQuota > 0 ? `of ${$k(periodQuota)} target` : 'no target set'} color={paceColor(periodQuota > 0 ? periodBookings / expectedPeriod : 1)} />
+          <Stat label={<Tip label={`SUM(deal MRR) where: Forecast Category = Closed, MRR > 0, Close Date >= 1/1/${now.getFullYear()} and < 1/1/${now.getFullYear() + 1}, Major Project = blank, Opp Owner = selected seller, Sales Channel = Premier. Source: funnel.csv`}>YTD Bookings</Tip>} value={`${$k(ytdBookings)}/mo`} sub={annualQuota > 0 ? `of ${$k(annualQuota)} annual` : ''} color={T.cyan} />
+          <Stat label={<Tip label={`SUM(deal MRR × Stage Win Prob) ÷ (Target − Bookings). Excludes booked deals. = ${$k(weightedPipeline)} ÷ ${$k(targetRemaining)} = ${pipelineCoverage.toFixed(1)}x. Win probs: Discover 30.6%, Design 53.2%, Propose 66.2%, Negotiate 84.7%, Verbal 92.5%`}>Pipeline Coverage</Tip>} value={`${pipelineCoverage.toFixed(1)}x`} sub={`${$k(weightedPipeline)}/mo vs ${$k(targetRemaining)}/mo gap`} color={pipelineCoverage >= 3 ? T.green : pipelineCoverage >= 1.5 ? T.yellow : T.red} />
+          <Stat label={<Tip label="SUM(Total ARR) across all accounts where Sales Owner = selected seller. Source: customers.csv Total BRR field.">Book of Business</Tip>} value={$(bookARR)} sub={`${repAccounts.length} accounts`} color={T.teal} />
         </div>
       </div>
 
       {/* Pace bar */}
-      {quarterlyQuota > 0 && (
+      {periodQuota > 0 && (
         <div style={{ marginBottom: '16px' }}>
-          <PaceBar actual={qtdBookings} expected={expectedQTD} quota={quarterlyQuota} />
+          <PaceBar actual={periodBookings} expected={expectedPeriod} quota={periodQuota} />
         </div>
       )}
+
+      {/* Account Search */}
+      <div style={{ position: 'relative', marginBottom: '10px' }}>
+        <input
+          type="text"
+          value={accountSearch}
+          onChange={e => setAccountSearch(e.target.value)}
+          placeholder="Search accounts..."
+          style={{
+            width: '100%', padding: '8px 30px 8px 12px', fontFamily: FONT_MONO, fontSize: '11px',
+            background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS,
+            color: T.text, outline: 'none', boxSizing: 'border-box',
+          }}
+          onFocus={e => e.target.style.borderColor = T.cyan}
+          onBlur={e => e.target.style.borderColor = T.border}
+        />
+        {accountSearch && (
+          <button
+            onClick={() => setAccountSearch('')}
+            style={{
+              position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px',
+              fontFamily: FONT_MONO, fontSize: '14px', color: T.textDim, lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -408,22 +554,42 @@ function MyAccountsTab({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
               <MiniStat label="Pipeline" value={`${$k(acc.pipeline_mrr || 0)}/mo`} color={T.purple} />
-              <MiniStat label="Deals" value={acc.active_deals?.length || 0} color={T.cyan} />
+              <MiniStat label="Deals" value={(acc.active_deals?.length || 0) + (acc.funnel_closed?.length || 0)} color={T.cyan} />
               <MiniStat label="Win Rate" value={pc(acc.win_rate)} color={acc.win_rate > 0.6 ? T.green : T.yellow} />
               <MiniStat label="NRR" value={pc(acc.nrr)} color={acc.nrr >= 1 ? T.green : acc.nrr >= 0.9 ? T.yellow : T.red} />
               <MiniStat label="Last Eng" value={ds < 999 ? `${ds}d` : '---'} color={ds <= 30 ? T.green : ds <= 90 ? T.yellow : T.red} />
             </div>
-            {/* Stage distribution mini-bar */}
-            {acc.active_deals?.length > 0 && (
-              <div style={{ display: 'flex', gap: '2px', marginTop: '6px', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
-                {Object.entries(acc.pipeline_by_stage || {}).map(([stage, data]) => (
-                  <div key={stage} style={{
-                    flex: data.count, background: STAGE_COLORS[stage] || T.textDim,
-                    borderRadius: '2px',
-                  }} title={`${stage}: ${data.count} deals`} />
-                ))}
-              </div>
-            )}
+            {/* Deals per stage with MRR — active pipeline + funnel closed */}
+            {((acc.active_deals?.length || 0) + (acc.funnel_closed?.length || 0)) > 0 && (() => {
+              const allDeals = [...(acc.active_deals || []), ...(acc.funnel_closed || [])]
+              const stageMap = {}
+              for (const d of allDeals) {
+                const s = d.stage || 'Unknown'
+                if (!stageMap[s]) stageMap[s] = { count: 0, mrr: 0 }
+                stageMap[s].count++
+                stageMap[s].mrr += d.mrr || 0
+              }
+              const orderedStages = STAGE_ORDER.filter(s => stageMap[s]).concat(
+                Object.keys(stageMap).filter(s => !STAGE_ORDER.includes(s))
+              )
+              return (
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                  {orderedStages.map(stage => {
+                    const data = stageMap[stage]
+                    const color = STAGE_COLORS[stage] || T.textDim
+                    return (
+                      <div key={stage} style={{
+                        padding: '3px 8px', borderRadius: '12px',
+                        background: `${color}12`, border: `1px solid ${color}30`,
+                        fontFamily: FONT_MONO, fontSize: '9px', color,
+                      }}>
+                        {stage}: {data.count} deal{data.count > 1 ? 's' : ''} · {$k(data.mrr)}/mo
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         )
       })}
@@ -440,7 +606,9 @@ function MyAccountsTab({
 function MiniStat({ label, value, color }) {
   return (
     <div>
-      <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim }}>{label}</div>
+      <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim }}>
+        <Tip label={label.toUpperCase()}>{label}</Tip>
+      </div>
       <div style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 600, color }}>{value}</div>
     </div>
   )
@@ -452,7 +620,8 @@ function MiniStat({ label, value, color }) {
 
 function MyPipelineTab({
   allActiveDeals, repAccounts, rep, totalPipelineMRR, weightedPipeline,
-  quotaRemaining, closedWonDeals, quarterlyQuota, allHistorical,
+  targetRemaining, closedWonDeals, periodQuota, funnelClosed,
+  periodMode, currentQ, currentMonthName,
 }) {
   const now = new Date()
   const thirtyDaysOut = new Date(now.getTime() + 30 * 86400000)
@@ -491,54 +660,60 @@ function MyPipelineTab({
     return [...allActiveDeals].sort((a, b) => (order[a.stage] ?? 5) - (order[b.stage] ?? 5))
   }, [allActiveDeals])
 
-  // MRR trajectory data: monthly cumulative from historical bookings
+  // MRR trajectory data: monthly cumulative from POSITIVE MRR deals only
   const trajectoryData = useMemo(() => {
+    const now = new Date()
+    const nowKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     const months = {}
-    // Build monthly net bookings from historical deals
-    for (const d of allHistorical) {
+
+    // Build monthly bookings from funnel closed deals — positive MRR only
+    for (const d of funnelClosed) {
       const dt = parseDate(d.close)
       if (!dt) continue
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
-      if (!months[key]) months[key] = { month: key, booked: 0, churn: 0 }
       const mrr = d.mrr || 0
-      if (mrr >= 0) months[key].booked += mrr
-      else months[key].churn += Math.abs(mrr)
+      if (mrr <= 0) continue // only positive MRR deals
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+      if (!months[key]) months[key] = { month: key, booked: 0, projected: 0 }
+      months[key].booked += mrr
     }
-    const sorted = Object.values(months).sort((a, b) => a.month.localeCompare(b.month))
-    let cumMRR = 0
-    const actual = sorted.map(m => {
-      cumMRR += m.booked - m.churn
-      return { month: m.month, actual: Math.round(cumMRR) }
-    })
 
-    // Forecast projection: extend 3 months from last actual using weighted pipeline
-    if (actual.length > 0) {
-      const lastActual = actual[actual.length - 1].actual
-      const monthlyWeighted = weightedTotal / 3 // spread weighted pipeline over ~3 months
-      const lastMonth = actual[actual.length - 1].month
-      const [y, m] = lastMonth.split('-').map(Number)
-      for (let i = 1; i <= 3; i++) {
-        const nm = m + i
-        const ny = y + Math.floor((nm - 1) / 12)
-        const mm = ((nm - 1) % 12) + 1
-        actual.push({
-          month: `${ny}-${String(mm).padStart(2, '0')}`,
-          forecast: Math.round(lastActual + monthlyWeighted * i),
-        })
-      }
+    // Forecast: use each active deal's close date, weighted by stage win probability
+    for (const d of allActiveDeals) {
+      const dt = parseDate(d.close)
+      const mrr = d.mrr || 0
+      if (!dt || mrr <= 0) continue
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+      if (key <= nowKey) continue // skip deals with close dates in the past
+      if (!months[key]) months[key] = { month: key, booked: 0, projected: 0 }
+      months[key].projected += mrr * stageProb(d.stage)
     }
-    return actual
-  }, [allHistorical, weightedTotal])
+
+    const sorted = Object.values(months).sort((a, b) => a.month.localeCompare(b.month))
+    let cumActual = 0
+    let cumForecast = 0
+    return sorted.map(m => {
+      cumActual += m.booked || 0
+      cumForecast += m.projected || 0
+      const result = { month: m.month }
+      if (m.month <= nowKey) {
+        result.actual = Math.round(cumActual)
+      }
+      if (m.month >= nowKey && cumForecast > 0) {
+        result.forecast = Math.round(cumActual + cumForecast)
+      }
+      return result
+    })
+  }, [funnelClosed, allActiveDeals])
 
   return (
     <div>
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <Stat label="Pipeline MRR" value={`${$k(totalPipelineMRR)}/mo`} sub={`${allActiveDeals.length} deals`} color={T.purple} />
-        <Stat label="Prob-Adjusted Pipeline" value={$k(weightedPipeline)} sub="SUM(MRR x Stage Win %)" color={T.teal} />
-        <Stat label="Quota Remaining" value={$k(quotaRemaining)} color={T.orange} />
-        <Stat label="Closing in 30d" value={closingSoon.length} sub={`${$k(closingSoon.reduce((s, d) => s + (d.mrr || 0), 0))}/mo`} color={T.green} />
-        <Stat label="Stalled" value={stalledDeals.length} color={stalledDeals.length > 0 ? T.red : T.green} />
+        <Stat label={<Tip label="Total raw MRR across all active deals in the pipeline.">Pipeline MRR</Tip>} value={`${$k(totalPipelineMRR)}/mo`} sub={`${allActiveDeals.length} deals`} color={T.purple} />
+        <Stat label={<Tip label="SUM(Deal MRR × Stage Win Probability). Excludes deals already forecast as Closed. Discover 30.6%, Design Solution 53.2%, Propose 66.2%, Negotiate 84.7%, Verbal Agreement 92.5%.">Prob-Adjusted Pipeline</Tip>} value={`${$k(weightedPipeline)}/mo`} sub="SUM(MRR × Stage Win %)" color={T.teal} />
+        <Stat label={<Tip label={`Remaining target for the current ${periodMode} after subtracting bookings already closed.`}>Target Remaining</Tip>} value={$k(targetRemaining)} color={T.orange} />
+        <Stat label={<Tip>CLOSING IN 30D</Tip>} value={closingSoon.length} sub={`${$k(closingSoon.reduce((s, d) => s + (d.mrr || 0), 0))}/mo`} color={T.green} />
+        <Stat label={<Tip>STALLED</Tip>} value={stalledDeals.length} color={stalledDeals.length > 0 ? T.red : T.green} />
       </div>
 
       {/* Pipeline by Stage — raw vs weighted */}
@@ -586,7 +761,7 @@ function MyPipelineTab({
       {trajectoryData.length > 0 && (
         <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
           <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Solid line shows actual cumulative MRR from historical bookings. Dashed line shows probability-adjusted forecast projection using weighted pipeline.">
+            <Tip label="Positive MRR deals only. Solid line shows actual cumulative MRR from closed-won bookings by month. Dashed line projects future months using each active deal's expected close date weighted by its stage win probability (Discover 30.6%, Design Solution 53.2%, Propose 66.2%, Negotiate 84.7%, Verbal Agreement 92.5%).">
               MRR TRAJECTORY + FORECAST
             </Tip>
           </div>
@@ -670,14 +845,15 @@ function MyPipelineTab({
 // =======================================================================
 
 function KPITab({
-  repAccounts, rep, repProfile, qtdBookings, ytdBookings,
-  quarterlyQuota, annualQuota, closedWonDeals, allHistorical,
-  allActiveDeals, expectedQTD, qPacePct, currentQ,
+  repAccounts, rep, repProfile, periodBookings, ytdBookings,
+  periodQuota, annualQuota, closedWonDeals, funnelClosed,
+  allActiveDeals, expectedPeriod, periodPacePct, currentQ,
+  periodMode, currentMonthName, qtdBookings,
 }) {
   const now = new Date()
 
-  // Win rate
-  const allClosed = allHistorical.filter(d => {
+  // Win rate — from funnel.csv closed deals only
+  const allClosed = funnelClosed.filter(d => {
     const s = normalizeStage(d.stage)
     return s === 'closed won' || s === 'closed lost'
   })
@@ -752,18 +928,18 @@ function KPITab({
     ), [repAccounts, rep])
 
   const annualPace = annualQuota > 0 ? ytdBookings / (annualQuota * (now.getMonth() + 1) / 12) : 0
-  const qPace = quarterlyQuota > 0 && expectedQTD > 0 ? qtdBookings / expectedQTD : 0
+  const periodPace = periodQuota > 0 && expectedPeriod > 0 ? periodBookings / expectedPeriod : 0
 
   return (
     <div>
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <KPICard label="Annual Attainment" value={annualQuota > 0 ? pc(ytdBookings / annualQuota) : '---'} sub={`${$k(ytdBookings)} of ${$k(annualQuota)}`} pace={annualPace} />
-        <KPICard label={`Q${currentQ} Attainment`} value={quarterlyQuota > 0 ? pc(qtdBookings / quarterlyQuota) : '---'} sub={`${$k(qtdBookings)} of ${$k(quarterlyQuota)}`} pace={qPace} />
-        <KPICard label="Win Rate" value={pc(winRate)} sub={`${totalWon}W / ${totalLost}L`} pace={winRate >= 0.5 ? 1.1 : winRate >= 0.3 ? 0.85 : 0.5} />
-        <KPICard label="Avg Deal Size" value={$k(avgDealSize)} sub={`${closedWonDeals.length} deals`} pace={1} />
-        <KPICard label="Pipeline Generated" value={$k(pipelineGen)} sub={`${allActiveDeals.length} open deals`} pace={1} />
-        <KPICard label="Active Accounts" value={repAccounts.filter(a => (a.active_deals?.length || 0) > 0).length} sub={`of ${repAccounts.length} total`} pace={1} />
+        <KPICard label={<Tip label={`YTD Bookings ÷ Annual Quota = ${$k(ytdBookings)} ÷ ${$k(annualQuota)} = ${annualQuota > 0 ? pc(ytdBookings / annualQuota) : '---'}. Bookings: Forecast Category = Closed, MRR > 0, Major Project = blank, Close Date in ${now.getFullYear()}.`}>Annual Attainment</Tip>} value={annualQuota > 0 ? pc(ytdBookings / annualQuota) : '---'} sub={`${$k(ytdBookings)} of ${$k(annualQuota)}`} pace={annualPace} />
+        <KPICard label={<Tip label={`Period Bookings ÷ Period Quota = ${$k(periodBookings)} ÷ ${$k(periodQuota)} = ${periodQuota > 0 ? pc(periodBookings / periodQuota) : '---'}. Bookings: Forecast Category = Closed, MRR > 0, Major Project = blank, Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ}.`}>{periodMode === 'month' ? `${currentMonthName} Attainment` : `Q${currentQ} Attainment`}</Tip>} value={periodQuota > 0 ? pc(periodBookings / periodQuota) : '---'} sub={`${$k(periodBookings)} of ${$k(periodQuota)}`} pace={periodPace} />
+        <KPICard label={<Tip label={`Won ÷ (Won + Lost) = ${totalWon} ÷ (${totalWon} + ${totalLost}) = ${pc(winRate)}. From all closed deals for this seller. Source: funnel.csv`}>Win Rate</Tip>} value={pc(winRate)} sub={`${totalWon}W / ${totalLost}L`} pace={winRate >= 0.5 ? 1.1 : winRate >= 0.3 ? 0.85 : 0.5} />
+        <KPICard label={<Tip label={`SUM(closed-won MRR × 12) ÷ count of closed-won deals = ${$k(avgDealSize)}. Positive MRR deals only. Source: funnel.csv`}>Avg Deal Size</Tip>} value={$k(avgDealSize)} sub={`${closedWonDeals.length} deals`} pace={1} />
+        <KPICard label={<Tip label={`SUM(active deal MRR × 12) = ${$k(pipelineGen)}. ${allActiveDeals.length} non-closed deals with MRR > 0. Source: funnel.csv`}>Pipeline Generated</Tip>} value={$k(pipelineGen)} sub={`${allActiveDeals.length} open deals`} pace={1} />
+        <KPICard label={<Tip label="Count of accounts that have at least one active (non-closed) deal in the pipeline.">Active Accounts</Tip>} value={repAccounts.filter(a => (a.active_deals?.length || 0) > 0).length} sub={`of ${repAccounts.length} total`} pace={1} />
       </div>
 
       {/* Stage Win Probability Reference Card */}
@@ -802,7 +978,7 @@ function KPITab({
           {/* Right: Weighted total + formula + breakdown */}
           <div>
             <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
-              WEIGHTED PIPELINE SUMMARY
+              <Tip>WEIGHTED PIPELINE SUMMARY</Tip>
             </div>
             <div style={{ fontFamily: FONT_MONO, fontSize: '28px', fontWeight: 700, color: T.teal, marginBottom: '4px' }}>
               {$k(totalWeightedARR)}
@@ -851,7 +1027,7 @@ function KPITab({
         {/* Bookings by type */}
         <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
           <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            Bookings by Type
+            <Tip>BOOKINGS BY TYPE</Tip>
           </div>
           {bookingsByType.length > 0 ? (
             <ResponsiveContainer width="100%" height={140}>
@@ -870,7 +1046,7 @@ function KPITab({
         {/* Monthly bookings chart */}
         <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
           <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            Q{currentQ} Monthly Bookings
+            <Tip label="Monthly bookings for the current quarter from closed-won deals.">{periodMode === 'month' ? `${currentMonthName} Bookings` : `Q${currentQ} Monthly Bookings`}</Tip>
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={monthlyBookings} margin={{ left: 10, right: 10 }}>
@@ -888,7 +1064,7 @@ function KPITab({
       {ytdLosses.length > 0 && (
         <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
           <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.red, letterSpacing: '0.04em', marginBottom: '10px' }}>
-            YTD Losses ({ytdLosses.length})
+            <Tip label="Deals lost year-to-date by this seller. Includes competitive losses, no-decisions, and churn.">YTD Losses ({ytdLosses.length})</Tip>
           </div>
           {ytdLosses.map((d, i) => (
             <div key={i} style={{

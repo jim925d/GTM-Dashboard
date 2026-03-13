@@ -5,9 +5,10 @@
 function normalizeStage(raw) {
   if (!raw) return ''
   const s = raw.toLowerCase().trim()
+  // Closed Won — match "closed won", "closed-won", "accepted", "5 - accepted"
+  if (s === 'closed won' || s === 'closed-won' || s.includes('accepted') || s === '5 - accepted') return 'closed won'
+  if (s === 'closed lost' || s.includes('closed lost') || s === 'close lost') return 'closed lost'
   // Salesforce numeric stages
-  if (s.includes('accepted') || s === '5 - accepted' || s === 'closed-won') return 'closed won'
-  if (s.includes('closed lost') || s === 'closed lost') return 'closed lost'
   if (s.includes('discover') || s.startsWith('1')) return 'Discover'
   if (s.includes('design') || s.startsWith('2')) return 'Design'
   if (s.includes('propose') || s.startsWith('3')) return 'Propose'
@@ -60,20 +61,12 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
   }
 
   // Won/Lost — separate positive wins from churn/negative re-rates
-  // Filter out deals where created_date and close_date are within 2 days (data imports, not real deals)
-  const isRealDeal = (d) => {
-    const created = parseDate(d.created_date)
-    const closed = parseDate(d.close_date)
-    if (!created || !closed) return true // keep if we can't determine
-    const daysBetween = Math.abs(closed - created) / (1000 * 60 * 60 * 24)
-    return daysBetween > 2
-  }
-
-  const closedWon = funnel.filter(d => normalizeStage(d.stage) === 'closed won' && isRealDeal(d))
+  // No isRealDeal filter — same-day created/closed deals are legitimate (renewals, re-rates, Accepted stage)
+  const closedWon = funnel.filter(d => normalizeStage(d.stage) === 'closed won')
   const wonDeals = closedWon.filter(d => (parseFloat(d.mrr) || 0) >= 0)
   const churnDeals = closedWon.filter(d => (parseFloat(d.mrr) || 0) < 0)
   const churnMRR = Math.abs(churnDeals.reduce((sum, d) => sum + (parseFloat(d.mrr) || 0), 0))
-  const filteredCloseLost = closeLost.filter(isRealDeal)
+  const filteredCloseLost = closeLost
   const totalWon = wonDeals.length
   const totalLost = filteredCloseLost.length
   const winRate = (totalWon + totalLost) > 0 ? totalWon / (totalWon + totalLost) : 0
@@ -211,7 +204,8 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
     locations,
     competitor_landscape: [...competitors],
     funnel_deals: activePipeline,
-    historical_deals: [
+    // funnel_closed: closed deals from funnel.csv — used for bookings & forecast
+    funnel_closed: [
       ...closedWon.map(d => ({
         product: d.product_group || d.product || 'Unknown',
         mrr: parseFloat(d.mrr) || 0,
@@ -220,6 +214,10 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
         close: d.close_date,
         rep: d.rep || '',
         opportunity_id: d.opportunity_id || '',
+        sales_channel: d.sales_channel || '',
+        created: d.created_date || '',
+        forecast_category: d.forecast_category || '',
+        major_project: d.major_project || '',
       })),
       ...filteredCloseLost.map(d => ({
         product: d.product_group || d.product || 'Unknown',
@@ -229,6 +227,35 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
         close: d.close_date,
         rep: d.rep || '',
         opportunity_id: d.opportunity_id || '',
+        sales_channel: d.sales_channel || '',
+        created: d.created_date || '',
+        forecast_category: d.forecast_category || '',
+        major_project: d.major_project || '',
+      })),
+    ],
+    // historical_deals: kept for modeling/predictions only
+    historical_deals: [
+      ...closedWon.map(d => ({
+        product: d.product_group || d.product || 'Unknown',
+        mrr: parseFloat(d.mrr) || 0,
+        stage: normalizeStage(d.stage),
+        type: d.type || 'Won',
+        close: d.close_date,
+        rep: d.rep || '',
+        opportunity_id: d.opportunity_id || '',
+        sales_channel: d.sales_channel || '',
+        created: d.created_date || '',
+      })),
+      ...filteredCloseLost.map(d => ({
+        product: d.product_group || d.product || 'Unknown',
+        mrr: parseFloat(d.mrr) || 0,
+        stage: 'closed lost',
+        type: d.type || d.loss_reason || 'Lost',
+        close: d.close_date,
+        rep: d.rep || '',
+        opportunity_id: d.opportunity_id || '',
+        sales_channel: d.sales_channel || '',
+        created: d.created_date || '',
       })),
     ],
     close_lost_deals: filteredCloseLost,

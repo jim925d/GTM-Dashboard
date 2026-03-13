@@ -44,6 +44,8 @@ const FIELD_MAP = {
   rep: ['created by', 'rep', 'owner', 'deal owner', 'sales rep', 'representative', 'opportunity owner', 'opp owner', 'account owner', 'full name'],
   competitor: ['competitor', 'competition', 'competitive threat'],
   next_step: ['next step', 'next_step', 'next action', 'next steps'],
+  sales_channel: ['sales channel', 'opportunity owner sales channel', 'account owner sales channel', 'opp owner sales channel'],
+  major_project: ['major project name', 'major project', 'major_project', 'major_project_name'],
 
   // === CLOSE LOST ===
   loss_reason: ['loss reason', 'loss_reason', 'close lost reason', 'reason lost', 'closed lost reason', 'reason', 'lost reason'],

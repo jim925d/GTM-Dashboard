@@ -13,7 +13,8 @@ export default function Tip({ children, label, tip, delay, style }) {
   const ref = useRef(null)
   const timerRef = useRef(null)
 
-  const text = tip || DEFS[label] || DEFS[typeof children === 'string' ? children : '']
+  const childKey = typeof children === 'string' ? children : ''
+  const text = tip || DEFS[label] || DEFS[childKey] || DEFS[childKey.toUpperCase()] || label
   if (!text) return <span style={style}>{children}</span>
 
   const handleEnter = () => {

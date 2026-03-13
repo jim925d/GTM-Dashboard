@@ -20,6 +20,7 @@ import Learning from './pages/Learning'
 import Priority from './pages/Priority'
 import Engagement from './pages/Engagement'
 import RepDashboard from './pages/RepDashboard'
+import ForecastDashboard from './pages/ForecastDashboard'
 
 export default function App() {
   const { accounts: uploadedAccounts, isDemo: isUploadDemo, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
@@ -111,7 +112,7 @@ export default function App() {
           Select a dashboard to get started.
         </p>
 
-        <div style={{ display: 'flex', gap: '20px', maxWidth: '680px', width: '100%' }}>
+        <div style={{ display: 'flex', gap: '20px', maxWidth: '960px', width: '100%' }}>
           {/* GTM Dashboard card */}
           <div
             onClick={() => setMode('gtm')}
@@ -163,6 +164,32 @@ export default function App() {
               SELECT A SELLER TO VIEW
             </div>
           </div>
+
+          {/* Forecast Dashboard card */}
+          <div
+            onClick={() => setMode('forecast')}
+            style={{
+              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
+              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
+              border: `1px solid ${T.border}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.green; e.currentTarget.style.boxShadow = `0 0 20px ${T.green}15` }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '14px' }}>📊</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
+              Forecast Dashboard
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
+              Revenue forecasting, bookings composition, churn modeling, win rate trends, and rep productivity analytics.
+            </div>
+            <div style={{
+              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+              color: T.green, letterSpacing: '0.04em',
+            }}>
+              STAGE-WEIGHTED MODELING
+            </div>
+          </div>
         </div>
 
         {dataSource === 'local' && (
@@ -200,7 +227,7 @@ export default function App() {
           >
             ← Back
           </button>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600 }}>
+          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
             REVOS
           </div>
           <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
@@ -211,6 +238,43 @@ export default function App() {
         {/* RepDashboard fills the rest */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
           <RepDashboard
+            accounts={accounts}
+            rawData={hasLocalData ? localRawData : rawData}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Forecast Dashboard mode ----------
+  if (mode === 'forecast') {
+    return (
+      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{
+          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
+          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setMode(null)}
+            style={{
+              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
+              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
+              color: T.textDim, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+            REVOS
+          </div>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+            Forecast Dashboard
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          <ForecastDashboard
             accounts={accounts}
             rawData={hasLocalData ? localRawData : rawData}
           />
@@ -314,7 +378,7 @@ export default function App() {
 
   return (
     <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <Header accountCount={searchedAccounts.length} isDemo={isDemo} />
+      <Header accountCount={searchedAccounts.length} isDemo={isDemo} onLogoClick={() => setMode(null)} />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <div style={{ width: '220px', borderRight: `1px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>

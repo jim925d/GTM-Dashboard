@@ -252,10 +252,29 @@ export default function useAccounts() {
             close: d.close_date,
             rep: d.rep,
             opportunity_id: d.opportunity_id || '',
+            sales_channel: d.sales_channel || '',
+            created: d.created_date || '',
+            major_project: d.major_project || '',
             icb: icbByOppName[oppName] || null,
             icb_id: icbByOppName[oppName]?.icb_id || '',
           }
         }),
+        // funnel_closed: closed deals from funnel.csv ONLY — used for bookings & forecast
+        // NEVER replaced by JSON historical data
+        funnel_closed: (state.funnel_closed || []).map(d => ({
+          product: d.product || 'Unknown',
+          mrr: d.mrr || 0,
+          stage: d.stage || '',
+          type: d.type || '',
+          close: d.close || '',
+          rep: d.rep || '',
+          opportunity_id: d.opportunity_id || '',
+          sales_channel: d.sales_channel || '',
+          created: d.created || '',
+          forecast: d.forecast_category || '',
+          major_project: d.major_project || '',
+        })),
+        // historical_deals: from JSON historical (for modeling/predictions only)
         historical_deals: jsonHistorical.length > 0
           ? jsonHistorical.map(d => ({
               product: d.p || 'Unknown', mrr: d.m || 0, stage: d.s || '',
