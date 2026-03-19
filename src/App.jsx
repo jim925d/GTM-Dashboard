@@ -21,9 +21,13 @@ import Priority from './pages/Priority'
 import Engagement from './pages/Engagement'
 import RepDashboard from './pages/RepDashboard'
 import ForecastDashboard from './pages/ForecastDashboard'
+import EngineDashboard from './pages/EngineDashboard'
+import BacktestEngine from './pages/BacktestEngine'
+import SellerLocations from './pages/SellerLocations'
+import SellerActions from './pages/SellerActions'
 
 export default function App() {
-  const { accounts: uploadedAccounts, isDemo: isUploadDemo, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
+  const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
   const { localAccounts, localFiles, localRawData, loading: localLoading, dataDir, setDataDir, refresh, serverAvailable } = useLocalData()
   const [showDirPicker, setShowDirPicker] = useState(false)
   const [dirInput, setDirInput] = useState('')
@@ -44,8 +48,7 @@ export default function App() {
   // Priority: local data/ folder files > uploaded CSVs > demo data
   const hasLocalData = localAccounts && localAccounts.length > 0
   const accounts = hasLocalData ? localAccounts : uploadedAccounts
-  const isDemo = hasLocalData ? false : isUploadDemo
-  const dataSource = hasLocalData ? 'local' : isUploadDemo ? 'demo' : 'uploaded'
+  const dataSource = hasLocalData ? 'local' : 'uploaded'
 
   const [mode, setMode] = useState(null) // null = landing, 'gtm', 'seller'
   const [selAcct, setSelAcct] = useState(0)
@@ -83,6 +86,7 @@ export default function App() {
   // Hosted mode: no server, no uploaded data yet → show full-screen drop zone
   const [dropping, setDropping] = useState(false)
   const [dropStatus, setDropStatus] = useState(null)
+  const [uploadProgress, setUploadProgress] = useState(null) // { current, total, fileName, phase }
   const dropRef = useCallback((node) => {
     if (!node) return
     const prevent = (e) => e.preventDefault()
@@ -91,10 +95,10 @@ export default function App() {
     return () => { node.removeEventListener('dragover', prevent); node.removeEventListener('drop', prevent) }
   }, [])
 
-  const hostedNoData = serverAvailable === false && isUploadDemo
+  const hasNoData = accounts.length === 0
 
   // ---------- Landing page (mode === null) ----------
-  if (!hostedNoData && mode === null) {
+  if (!hasNoData && mode === null) {
     return (
       <div style={{
         height: '100vh', background: T.bg, color: T.text,
@@ -165,6 +169,32 @@ export default function App() {
             </div>
           </div>
 
+          {/* Seller Actions card */}
+          <div
+            onClick={() => setMode('seller-actions')}
+            style={{
+              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
+              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
+              border: `1px solid ${T.border}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.pink; e.currentTarget.style.boxShadow = `0 0 20px ${T.pink}15` }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '14px' }}>🎯</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
+              Seller Actions
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
+              Priority accounts, expansion signals & churn alerts with AI-powered win probability scoring.
+            </div>
+            <div style={{
+              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+              color: T.pink, letterSpacing: '0.04em',
+            }}>
+              3 ACTIONS TODAY
+            </div>
+          </div>
+
           {/* Forecast Dashboard card */}
           <div
             onClick={() => setMode('forecast')}
@@ -190,6 +220,84 @@ export default function App() {
               STAGE-WEIGHTED MODELING
             </div>
           </div>
+
+          {/* Prediction Engine card */}
+          <div
+            onClick={() => setMode('engine')}
+            style={{
+              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
+              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
+              border: `1px solid ${T.border}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.teal; e.currentTarget.style.boxShadow = `0 0 20px ${T.teal}15` }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '14px' }}>⚡</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
+              Prediction Engine
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
+              AI-powered deal scoring, strategy recommendations, pricing optimization, and model calibration.
+            </div>
+            <div style={{
+              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+              color: T.teal, letterSpacing: '0.04em',
+            }}>
+              ML-POWERED SCORING
+            </div>
+          </div>
+
+          {/* Backtest Engine card */}
+          <div
+            onClick={() => setMode('backtest')}
+            style={{
+              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
+              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
+              border: `1px solid ${T.border}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 20px ${T.orange}15` }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '14px' }}>🔬</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
+              Backtest Engine
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
+              Upload historical deal data, train a logistic model, and validate prediction accuracy with cross-validation.
+            </div>
+            <div style={{
+              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+              color: T.orange, letterSpacing: '0.04em',
+            }}>
+              MODEL VALIDATION
+            </div>
+          </div>
+
+          {/* Seller Locations card */}
+          <div
+            onClick={() => setMode('locations')}
+            style={{
+              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
+              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
+              border: `1px solid ${T.border}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.purple; e.currentTarget.style.boxShadow = `0 0 20px ${T.purple}15` }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '14px' }}>◈</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
+              Location Intelligence
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
+              Account location enrichment, multi-source discovery, Bayesian expansion signals, and geographic footprint mapping.
+            </div>
+            <div style={{
+              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
+              color: T.purple, letterSpacing: '0.04em',
+            }}>
+              ENRICHMENT ENGINE
+            </div>
+          </div>
         </div>
 
         {dataSource === 'local' && (
@@ -197,9 +305,9 @@ export default function App() {
             LIVE DATA FROM data/
           </div>
         )}
-        {dataSource === 'demo' && (
+        {dataSource === 'uploaded' && (
           <div style={{ marginTop: '24px', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>
-            DEMO DATA — DROP YOUR FILES TO USE REAL DATA
+            YOUR DATA · LOCAL ONLY
           </div>
         )}
       </div>
@@ -246,6 +354,44 @@ export default function App() {
     )
   }
 
+  // ---------- Seller Actions mode ----------
+  if (mode === 'seller-actions') {
+    return (
+      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{
+          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
+          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setMode(null)}
+            style={{
+              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
+              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
+              color: T.textDim, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+            REVOS
+          </div>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+            Seller Actions
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <SellerActions
+            accounts={accounts}
+            rawData={hasLocalData ? localRawData : rawData}
+            onNavigate={setMode}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // ---------- Forecast Dashboard mode ----------
   if (mode === 'forecast') {
     return (
@@ -283,8 +429,110 @@ export default function App() {
     )
   }
 
-  // ---------- Hosted mode: no data yet ----------
-  if (hostedNoData) {
+  // ---------- Prediction Engine mode ----------
+  if (mode === 'engine') {
+    return (
+      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{
+          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
+          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setMode(null)}
+            style={{
+              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
+              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
+              color: T.textDim, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+            REVOS
+          </div>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+            Prediction Engine
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          <EngineDashboard />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Backtest Engine mode ----------
+  if (mode === 'backtest') {
+    return (
+      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{
+          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
+          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setMode(null)}
+            style={{
+              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
+              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
+              color: T.textDim, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+            REVOS
+          </div>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+            Backtest Engine
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <BacktestEngine />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Location Intelligence mode ----------
+  if (mode === 'locations') {
+    return (
+      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{
+          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
+          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setMode(null)}
+            style={{
+              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
+              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
+              color: T.textDim, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+            REVOS
+          </div>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+            Location Intelligence
+          </div>
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <SellerLocations />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- No data yet: show upload screen ----------
+  if (hasNoData) {
     return (
       <div
         ref={dropRef}
@@ -293,11 +541,14 @@ export default function App() {
         onDrop={async (e) => {
           e.preventDefault()
           setDropping(false)
+          setUploadProgress(null)
           setDropStatus({ type: 'loading', message: 'Processing files...' })
           try {
-            const result = await ingestAllFiles(Array.from(e.dataTransfer.files))
+            const result = await ingestAllFiles(Array.from(e.dataTransfer.files), (p) => setUploadProgress(p))
+            setUploadProgress(null)
             setDropStatus({ type: 'success', message: `Loaded ${result.accounts_count} accounts` })
           } catch (err) {
+            setUploadProgress(null)
             setDropStatus({ type: 'error', message: err.message })
           }
         }}
@@ -325,11 +576,14 @@ export default function App() {
             input.multiple = true
             input.accept = '.csv,.json'
             input.onchange = async (e) => {
+              setUploadProgress(null)
               setDropStatus({ type: 'loading', message: 'Processing files...' })
               try {
-                const result = await ingestAllFiles(Array.from(e.target.files))
+                const result = await ingestAllFiles(Array.from(e.target.files), (p) => setUploadProgress(p))
+                setUploadProgress(null)
                 setDropStatus({ type: 'success', message: `Loaded ${result.accounts_count} accounts` })
               } catch (err) {
+                setUploadProgress(null)
                 setDropStatus({ type: 'error', message: err.message })
               }
             }
@@ -344,17 +598,47 @@ export default function App() {
             transition: 'all 0.2s',
           }}
         >
-          <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.6 }}>
-            {dropStatus?.type === 'loading' ? '...' : ''}
-          </div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '14px', color: T.textMid, marginBottom: '8px' }}>
-            {dropStatus?.type === 'loading' ? 'Processing...' : 'Drop all files here or click to select'}
-          </div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim, lineHeight: 1.6 }}>
-            Select all CSV + JSON files from your data folder<br/>
-            customers.csv, funnel.csv, close_lost.csv, services.csv, ICB.csv,<br/>
-            locations.json, historical.json, engagements.json, etc.
-          </div>
+          {dropStatus?.type === 'loading' && uploadProgress ? (
+            <div style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}>
+              {/* File counter */}
+              <div style={{ fontFamily: FONT_MONO, fontSize: '12px', color: T.textMid, marginBottom: '12px', textAlign: 'center' }}>
+                {uploadProgress.phase === 'building'
+                  ? 'Building accounts...'
+                  : `${uploadProgress.phase === 'reading' ? 'Reading' : 'Parsing'} ${uploadProgress.fileName}`}
+              </div>
+              {/* Progress bar */}
+              <div style={{
+                width: '100%', height: '6px', background: T.border, borderRadius: '3px',
+                overflow: 'hidden', marginBottom: '8px',
+              }}>
+                <div style={{
+                  height: '100%', borderRadius: '3px', background: T.cyan,
+                  width: `${Math.round(((uploadProgress.current + (uploadProgress.phase === 'parsing' ? 0.5 : 0)) / uploadProgress.total) * 100)}%`,
+                  transition: 'width 0.15s ease',
+                }} />
+              </div>
+              {/* Counter text */}
+              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim, textAlign: 'center' }}>
+                {uploadProgress.phase === 'building'
+                  ? 'Aggregating records into accounts'
+                  : `${uploadProgress.current + 1} of ${uploadProgress.total} files`}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.6 }}>
+                {dropStatus?.type === 'loading' ? '...' : ''}
+              </div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: '14px', color: T.textMid, marginBottom: '8px' }}>
+                {dropStatus?.type === 'loading' ? 'Processing...' : 'Drop all files here or click to select'}
+              </div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim, lineHeight: 1.6 }}>
+                Select all CSV + JSON files from your data folder<br/>
+                customers.csv, funnel.csv, close_lost.csv, services.csv, ICB.csv,<br/>
+                locations.json, historical.json, engagements.json, etc.
+              </div>
+            </>
+          )}
         </div>
 
         {dropStatus && dropStatus.type !== 'loading' && (
@@ -378,7 +662,7 @@ export default function App() {
 
   return (
     <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <Header accountCount={searchedAccounts.length} isDemo={isDemo} onLogoClick={() => setMode(null)} />
+      <Header accountCount={searchedAccounts.length} onLogoClick={() => setMode(null)} />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <div style={{ width: '220px', borderRight: `1px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>

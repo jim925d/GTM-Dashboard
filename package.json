@@ -6,15 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "batch": "node --experimental-vm-modules scripts/run-batch.js",
+    "build-locations": "node scripts/build-location-summary.js"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
+    "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.13.3",
-    "leaflet": "^1.9.4",
     "react-leaflet": "^4.2.1",
-    "papaparse": "^5.4.1"
+    "recharts": "^2.13.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

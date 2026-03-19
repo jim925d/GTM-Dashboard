@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -9,7 +9,7 @@ import Badge from '../components/shared/Badge'
 import Tip from '../components/shared/Tip'
 import { chartTheme, $k, pc } from '../components/shared/ChartTheme'
 
-export default function Backtest({ a }) {
+export default memo(function Backtest({ a }) {
   const bt = a.backtest
   if (!bt?.length) return null
 
@@ -112,4 +112,4 @@ export default function Backtest({ a }) {
       </div>
     </div>
   )
-}
+})

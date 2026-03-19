@@ -1,10 +1,11 @@
+import { memo } from 'react'
 import { T, FONT_MONO } from '../lib/constants'
 import Stat from '../components/shared/Stat'
 import Badge from '../components/shared/Badge'
 import Tip from '../components/shared/Tip'
 import { $, pc } from '../components/shared/ChartTheme'
 
-export default function Losses({ a }) {
+export default memo(function Losses({ a }) {
   const l = a.losses || {}
   const hasLosses = (l.deals?.length > 0) || (a.churn_deals > 0) || (a.disconnects > 0) || (a.downgrades > 0) || (a.lost > 0)
 
@@ -99,4 +100,4 @@ export default function Losses({ a }) {
       )}
     </div>
   )
-}
+})

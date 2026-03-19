@@ -231,14 +231,27 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
     }
   }
 
+  // Build indices once — O(M) total instead of O(N×M) filtering
+  const index = {}
+  for (const [table, records] of Object.entries(raw)) {
+    if (!Array.isArray(records)) continue
+    index[table] = new Map()
+    for (const r of records) {
+      const key = r.customer_account
+      if (!key) continue
+      if (!index[table].has(key)) index[table].set(key, [])
+      index[table].get(key).push(r)
+    }
+  }
+
   const built = []
   for (const name of accountNames) {
     const customer = customerMap[name]
-    const funnel = raw.funnel.filter((r) => r.customer_account === name)
-    const closeLost = raw.close_lost.filter((r) => r.customer_account === name)
-    const quotes = raw.quotes.filter((r) => r.customer_account === name)
-    const services = raw.services.filter((r) => r.customer_account === name)
-    const locations = raw.locations.filter((r) => r.customer_account === name)
+    const funnel = index.funnel?.get(name) || []
+    const closeLost = index.close_lost?.get(name) || []
+    const quotes = index.quotes?.get(name) || []
+    const services = index.services?.get(name) || []
+    const locations = index.locations?.get(name) || []
 
     // Get pre-built location, historical, and engagement data from JSON
     const jsonLocations = locationsJSON[name] || []
@@ -266,6 +279,9 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       velocity: state.deal_velocity_trend,
       risk_score: state.risk_score,
       risk_level: state.risk_level,
+      health: state.health,
+      health_level: state.health_level,
+      health_factors: state.health_factors,
       rep: state.primary_rep,
       manager: state.account_manager,
       sales_owner: state.sales_owner,
@@ -283,7 +299,7 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       predictions: [],
       cross_sell: [],
       churn_preds: [],
-      portfolio_health: state.risk_score >= 50 ? 'at_risk' : state.net_revenue_retention >= 1 ? 'growing' : 'contracting',
+      portfolio_health: state.health < 40 ? 'at_risk' : state.net_revenue_retention >= 1 ? 'growing' : 'contracting',
       arr_12mo_change: '',
       active_deals: state.funnel_deals.map((d) => {
         const oppName = (d.opportunity_name || '').trim()
@@ -295,10 +311,27 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
           close: d.close_date,
           rep: d.rep,
           opportunity_id: d.opportunity_id || '',
+          sales_channel: d.sales_channel || '',
+          created: d.created_date || '',
+          major_project: d.major_project || '',
           icb: icbByOppName[oppName] || null,
           icb_id: icbByOppName[oppName]?.icb_id || '',
         }
       }),
+      // funnel_closed: closed deals from funnel.csv — used for bookings & forecast
+      funnel_closed: (state.funnel_closed || []).map(d => ({
+        product: d.product || 'Unknown',
+        mrr: d.mrr || 0,
+        stage: d.stage || '',
+        type: d.type || '',
+        close: d.close || '',
+        rep: d.rep || '',
+        opportunity_id: d.opportunity_id || '',
+        sales_channel: d.sales_channel || '',
+        created: d.created || '',
+        forecast: d.forecast_category || '',
+        major_project: d.major_project || '',
+      })),
       historical_deals: jsonHistorical.length > 0
         ? jsonHistorical.map(d => ({
             product: d.p || 'Unknown', mrr: d.m || 0, stage: d.s || '',

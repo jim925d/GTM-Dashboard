@@ -127,18 +127,18 @@ export default function Priority({ accounts, onSelect }) {
   const scored = useMemo(() => {
     return accounts.map((acc, idx) => {
       const { score, reasons } = scoreAccount(acc)
-      return { acc, idx, score, reasons, bestProb: getBestWinProb(acc) }
+      return { acc, idx, score, reasons, bestProb: getBestWinProb(acc), daysSilent: getDaysSilent(acc) }
     })
   }, [accounts])
 
   const filtered = useMemo(() => {
     let list = scored
     if (activeFilters.size > 0) {
-      list = list.filter(({ acc }) => {
+      list = list.filter(({ acc, daysSilent }) => {
         for (const f of activeFilters) {
           if (f === 'deals' && !(acc.active_deals?.length > 0)) return false
-          if (f === 'dark' && getDaysSilent(acc) !== null && getDaysSilent(acc) < 60) return false
-          if (f === 'dark' && getDaysSilent(acc) === null && acc.engagement) return false
+          if (f === 'dark' && daysSilent !== null && daysSilent < 60) return false
+          if (f === 'dark' && daysSilent === null && acc.engagement) return false
           if (f === 'need' && !hasOpenNeed(acc)) return false
           if (f === 'highprob' && getBestWinProb(acc) <= 0.6) return false
           if (f === 'onnet' && !(acc.locations?.some(l => l.status === 'on-net'))) return false
@@ -157,8 +157,8 @@ export default function Priority({ accounts, onSelect }) {
 
   // Summary stats
   const totalPipeline = filtered.reduce((s, { acc }) => s + (acc.pipeline_mrr || 0), 0)
-  const darkCount = filtered.filter(({ acc }) => { const d = getDaysSilent(acc); return d === null || d > 60 }).length
-  const highProbCount = filtered.filter(({ acc }) => getBestWinProb(acc) > 0.6).length
+  const darkCount = filtered.filter(({ daysSilent }) => daysSilent === null || daysSilent > 60).length
+  const highProbCount = filtered.filter(({ bestProb }) => bestProb > 0.6).length
 
   return (
     <div>
@@ -226,8 +226,7 @@ export default function Priority({ accounts, onSelect }) {
         </div>
       )}
 
-      {filtered.map(({ acc, idx, score, reasons, bestProb }, i) => {
-        const daysSilent = getDaysSilent(acc)
+      {filtered.map(({ acc, idx, score, reasons, bestProb, daysSilent }, i) => {
         const dealCount = acc.active_deals?.length || 0
         const onNet = acc.locations?.filter(l => l.status === 'on-net').length || 0
         const totalLocs = acc.locations?.length || 0

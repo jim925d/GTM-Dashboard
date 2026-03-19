@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW } from '../lib/constants'
 import Stat from '../components/shared/Stat'
 import Badge from '../components/shared/Badge'
@@ -68,13 +68,13 @@ function mergeAllDeals(a) {
   return all
 }
 
-export default function Deals({ a }) {
+export default memo(function Deals({ a }) {
   const [tab, setTab] = useState('current')
   const [selDeal, setSelDeal] = useState(0)
   const [histFilter, setHistFilter] = useState('all')
 
   const activeDeals = a.active_deals || []
-  const allHistorical = mergeAllDeals(a)
+  const allHistorical = useMemo(() => mergeAllDeals(a), [a])
 
   // Filter historicals by sub-tab
   const historicalDeals = histFilter === 'all' ? allHistorical
@@ -431,4 +431,4 @@ export default function Deals({ a }) {
       )}
     </div>
   )
-}
+})

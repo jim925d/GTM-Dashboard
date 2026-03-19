@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { DEMO_ACCOUNTS } from '../demo/demoData'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState } from '../lib/accountBuilder'
 
@@ -9,8 +8,8 @@ import { buildAccountState } from '../lib/accountBuilder'
  * parsed in-browser, and stored in React state.
  */
 export default function useAccounts() {
-  const [accounts, setAccounts] = useState(DEMO_ACCOUNTS)
-  const [isDemo, setIsDemo] = useState(true)
+  const [accounts, setAccounts] = useState([])
+  const [isDemo, setIsDemo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -185,6 +184,19 @@ export default function useAccounts() {
       }
     }
 
+    // Build indices once — O(M) total instead of O(N×M) filtering
+    const index = {}
+    for (const [table, records] of Object.entries(raw)) {
+      if (!Array.isArray(records)) continue
+      index[table] = new Map()
+      for (const r of records) {
+        const key = r.customer_account
+        if (!key) continue
+        if (!index[table].has(key)) index[table].set(key, [])
+        index[table].get(key).push(r)
+      }
+    }
+
     const built = []
     for (const name of accountNames) {
       const customer = customerMap[name] || {
@@ -192,11 +204,11 @@ export default function useAccounts() {
         mega_vertical: 'Unknown',
         primary_rep: 'Unknown',
       }
-      const funnel = raw.funnel.filter((r) => r.customer_account === name)
-      const closeLost = raw.close_lost.filter((r) => r.customer_account === name)
-      const quotes = raw.quotes.filter((r) => r.customer_account === name)
-      const services = raw.services.filter((r) => r.customer_account === name)
-      const locations = raw.locations.filter((r) => r.customer_account === name)
+      const funnel = index.funnel?.get(name) || []
+      const closeLost = index.close_lost?.get(name) || []
+      const quotes = index.quotes?.get(name) || []
+      const services = index.services?.get(name) || []
+      const locations = index.locations?.get(name) || []
 
       const jsonLocations = jd.locations[name] || []
       const jsonHistorical = jd.historical[name] || []
@@ -223,6 +235,9 @@ export default function useAccounts() {
         velocity: state.deal_velocity_trend,
         risk_score: state.risk_score,
         risk_level: state.risk_level,
+        health: state.health,
+        health_level: state.health_level,
+        health_factors: state.health_factors,
         rep: state.primary_rep,
         manager: state.account_manager,
         sales_owner: state.sales_owner,
@@ -240,7 +255,7 @@ export default function useAccounts() {
         predictions: [],
         cross_sell: [],
         churn_preds: [],
-        portfolio_health: state.risk_score >= 50 ? 'at_risk' : state.net_revenue_retention >= 1 ? 'growing' : 'contracting',
+        portfolio_health: state.health < 40 ? 'at_risk' : state.net_revenue_retention >= 1 ? 'growing' : 'contracting',
         arr_12mo_change: '',
         active_deals: state.funnel_deals.map((d) => {
           const oppName = (d.opportunity_name || '').trim()
@@ -348,21 +363,28 @@ export default function useAccounts() {
    * Ingest all dropped files at once — CSV and JSON.
    * This is the primary path for hosted/browser-only mode.
    */
-  const ingestAllFiles = useCallback(async (fileList) => {
+  const ingestAllFiles = useCallback(async (fileList, onProgress) => {
     setLoading(true)
     setError(null)
     try {
       const newRaw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [] }
       const newJson = { locations: {}, historical: {}, engagements: {}, engagements_2026: {} }
       const results = {}
+      const total = fileList.length
 
-      for (const file of fileList) {
-        const text = await readFileAsText(file)
+      const tick = () => new Promise(r => setTimeout(r, 0))
+
+      for (let i = 0; i < total; i++) {
+        const file = fileList[i]
         const name = file.name.toLowerCase()
+        if (onProgress) { onProgress({ current: i, total, fileName: file.name, phase: 'reading' }); await tick() }
+
+        const text = await readFileAsText(file)
 
         // Handle JSON files
         if (name.endsWith('.json')) {
           try {
+            if (onProgress) { onProgress({ current: i, total, fileName: file.name, phase: 'parsing' }); await tick() }
             const parsed = JSON.parse(text)
             if (name.includes('location')) newJson.locations = parsed
             else if (name.includes('historical')) newJson.historical = parsed
@@ -375,6 +397,7 @@ export default function useAccounts() {
 
         // Handle CSV files
         if (!name.endsWith('.csv')) continue
+        if (onProgress) { onProgress({ current: i, total, fileName: file.name, phase: 'parsing' }); await tick() }
         const records = parseCSV(text)
         if (!records.length) continue
 
@@ -385,6 +408,7 @@ export default function useAccounts() {
         results[tabType] = (results[tabType] || 0) + records.length
       }
 
+      if (onProgress) { onProgress({ current: total, total, fileName: '', phase: 'building' }); await tick() }
       setRawData(newRaw)
       setJsonData(newJson)
       rebuildAccounts(newRaw, newJson)
@@ -408,8 +432,8 @@ export default function useAccounts() {
   const clearData = useCallback(() => {
     setRawData({ customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [] })
     setJsonData({ locations: {}, historical: {}, engagements: {}, engagements_2026: {} })
-    setAccounts(DEMO_ACCOUNTS)
-    setIsDemo(true)
+    setAccounts([])
+    setIsDemo(false)
     setError(null)
   }, [])
 

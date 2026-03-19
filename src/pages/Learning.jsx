@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
@@ -7,7 +8,7 @@ import Stat from '../components/shared/Stat'
 import Tip from '../components/shared/Tip'
 import { chartTheme } from '../components/shared/ChartTheme'
 
-export default function Learning({ a }) {
+export default memo(function Learning({ a }) {
   const lc = a.learning
   if (!lc?.length) return null
 
@@ -80,4 +81,4 @@ export default function Learning({ a }) {
       </div>
     </div>
   )
-}
+})

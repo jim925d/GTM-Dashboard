@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, stageProb } from '../lib/constants'
 import Badge from '../components/shared/Badge'
 import ProbBar from '../components/shared/ProbBar'
@@ -8,9 +9,9 @@ import { $, $k, pc } from '../components/shared/ChartTheme'
 export default function Predictions({ a }) {
   // Generate local predictions from account data, calibrated by backtest
   const cal = a.calibration || { winLR: 1, churnLR: 1, quarters: 0, avgAccuracy: 0, bias: 'uncalibrated' }
-  const predictions = a.predictions?.length > 0 ? a.predictions : buildLocalPredictions(a, cal)
+  const predictions = useMemo(() => a.predictions?.length > 0 ? a.predictions : buildLocalPredictions(a, cal), [a])
   const crossSell = a.cross_sell?.length > 0 ? a.cross_sell : []
-  const churnPreds = a.churn_preds?.length > 0 ? a.churn_preds : buildChurnPredictions(a, cal)
+  const churnPreds = useMemo(() => a.churn_preds?.length > 0 ? a.churn_preds : buildChurnPredictions(a, cal), [a])
 
   return (
     <div>

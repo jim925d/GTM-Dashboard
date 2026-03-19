@@ -128,7 +128,7 @@ function localDataPlugin() {
         const fileName = url.searchParams.get('name')
         res.setHeader('Access-Control-Allow-Origin', '*')
 
-        if (!fileName || fileName.includes('..') || !fileName.endsWith('.csv')) {
+        if (!fileName || fileName.includes('..') || !(fileName.endsWith('.csv') || fileName.endsWith('.json'))) {
           res.statusCode = 400
           res.end('Invalid file name')
           return
@@ -144,7 +144,8 @@ function localDataPlugin() {
           return
         }
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+        const ct = fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
+        res.setHeader('Content-Type', ct)
         res.end(fs.readFileSync(filePath, 'utf-8'))
       })
     },
@@ -250,5 +251,12 @@ export default defineConfig({
   plugins: [react(), localDataPlugin(), analyzePlugin()],
   server: {
     port: 5173,
+    proxy: {
+      '/api/engine': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/engine/, '/api'),
+      },
+    },
   },
 })

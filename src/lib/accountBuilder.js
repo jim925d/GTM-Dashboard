@@ -120,34 +120,37 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
   const startingMRR = totalMRR + downgradeMRR + disconnects.reduce((s, d) => s + (parseFloat(d.mrr) || 0), 0)
   const nrr = startingMRR > 0 ? totalMRR / startingMRR : 1.0
 
-  // Risk
-  const recentLosses = filteredCloseLost.filter(d => {
-    const cd = parseDate(d.close_date)
-    return cd && (today - cd) / (1000 * 60 * 60 * 24) < 365
-  }).length
+  // Health Score — CLAUDE.md canonical formula (5-factor composite, 0-100)
+  const productCount = Object.keys(concentration).length
+  // Tenure: estimate from earliest service start or customer_since
+  let tenureMonths = 0
+  const custSince = parseDate(customer?.customer_since)
+  if (custSince) {
+    tenureMonths = Math.max(0, (today - custSince) / (1000 * 60 * 60 * 24 * 30.44))
+  } else {
+    // Fallback: earliest service start_date
+    for (const s of services) {
+      const sd = parseDate(s.start_date)
+      if (sd) {
+        const mo = (today - sd) / (1000 * 60 * 60 * 24 * 30.44)
+        if (mo > tenureMonths) tenureMonths = mo
+      }
+    }
+  }
+  // churnRate: fraction of services that churned (disconnected + downgraded) vs total
+  const totalServiceCount = services.length || 1
+  const churnRate = (disconnects.length + downgrades.length) / totalServiceCount
 
-  const concRisk = Object.values(concentration).some(v => v.pct > 0.7)
-  let riskScore = 0
-  if (daysSilent > 365) riskScore += 30
-  else if (daysSilent > 180) riskScore += 20
-  else if (daysSilent > 90) riskScore += 12
-  if (recentLosses >= 3) riskScore += 25
-  else if (recentLosses >= 1) riskScore += 15
-  if (churnDeals.length >= 3) riskScore += 20
-  else if (churnDeals.length >= 1) riskScore += 10
-  if (churnMRR > 5000) riskScore += 10
-  if (lostMRR > 5000) riskScore += 10
-  if (disconnects.length >= 2) riskScore += 15
-  else if (disconnects.length >= 1) riskScore += 8
-  if (downgradeMRR > 2000) riskScore += 12
-  else if (downgradeMRR > 0) riskScore += 6
-  if (velocity === 'stalled') riskScore += 12
-  else if (velocity === 'decelerating') riskScore += 6
-  if (reps.size > 10) riskScore += 8
-  if (concRisk) riskScore += 5
-  riskScore = Math.min(riskScore, 100)
+  const nrrScore = Math.min(40, (nrr / 1.0) * 40)
+  const churnPenalty = Math.min(20, churnRate * 200)
+  const productDiversityScore = Math.min(15, productCount * 3)
+  const pipelineBonusScore = pipelineMRR > 0 ? Math.min(15, (pipelineMRR / 10000) * 15) : 0
+  const tenureScoreVal = Math.min(10, (tenureMonths / 24) * 10)
 
-  const riskLevel = riskScore >= 50 ? 'critical' : riskScore >= 30 ? 'high' : riskScore >= 15 ? 'moderate' : 'low'
+  let healthScore = nrrScore - churnPenalty + productDiversityScore + pipelineBonusScore + tenureScoreVal
+  healthScore = Math.max(0, Math.min(Math.round(healthScore), 100))
+
+  const healthLevel = healthScore >= 70 ? 'healthy' : healthScore >= 40 ? 'at_risk' : 'critical'
 
   // Competitors
   const competitors = new Set()
@@ -199,8 +202,11 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
     deal_velocity_trend: velocity,
     days_since_last_activity: daysSilent,
     rep_count: reps.size,
-    risk_score: riskScore,
-    risk_level: riskLevel,
+    risk_score: healthScore,
+    risk_level: healthLevel,
+    health: healthScore,
+    health_level: healthLevel,
+    health_factors: { nrrScore: Math.round(nrrScore), churnPenalty: Math.round(churnPenalty), productDiversity: Math.round(productDiversityScore), pipelineBonus: Math.round(pipelineBonusScore), tenureScore: Math.round(tenureScoreVal) },
     locations,
     competitor_landscape: [...competitors],
     funnel_deals: activePipeline,

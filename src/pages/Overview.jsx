@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -9,7 +10,7 @@ import ProbBar from '../components/shared/ProbBar'
 import Tip from '../components/shared/Tip'
 import { chartTheme, $, $k, pc } from '../components/shared/ChartTheme'
 
-export default function Overview({ a }) {
+export default memo(function Overview({ a }) {
   const stages = ['Discover', 'Design', 'Propose', 'Negotiate']
   const stageC = STAGE_COLORS
 
@@ -22,7 +23,7 @@ export default function Overview({ a }) {
         <Stat label="WIN RATE" value={pc(a.win_rate)} sub={`${a.won}W / ${a.lost}L`} color={a.win_rate > 0.7 ? T.green : T.yellow} />
         <Stat label="LOST MRR" value={$(a.lost_mrr)} sub={`${a.lost} deals`} color={T.red} />
         <Stat label="NRR" value={pc(a.nrr)} color={a.nrr >= 1 ? T.green : a.nrr >= 0.9 ? T.yellow : T.red} />
-        <Stat label="RISK" value={`${a.risk_score}/100`} sub={a.risk_level} color={a.risk_score >= 50 ? T.red : a.risk_score >= 30 ? T.orange : T.green} />
+        <Stat label="HEALTH" value={`${a.health ?? a.risk_score}/100`} sub={a.health_level ?? a.risk_level} color={(a.health ?? a.risk_score) >= 70 ? T.green : (a.health ?? a.risk_score) >= 40 ? T.yellow : T.red} />
       </div>
 
       {/* Pipeline + Risk */}
@@ -51,28 +52,45 @@ export default function Overview({ a }) {
           </div>
         </div>
 
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, border: a.risk_score >= 30 ? `1px solid ${T.red}30` : 'none', padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: a.risk_score >= 30 ? T.red : T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
-            <Tip label="RISK SIGNALS">RISK SIGNALS</Tip>
+        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, border: (a.health ?? a.risk_score) < 40 ? `1px solid ${T.red}30` : 'none', padding: '14px' }}>
+          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: (a.health ?? a.risk_score) < 40 ? T.red : T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
+            <Tip label="ACCOUNT HEALTH">ACCOUNT HEALTH</Tip>
           </div>
-          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-            {[
-              a.days_silent > 90 && `${a.days_silent}d silent`,
-              a.lost > 2 && `${a.lost} losses`,
-              a.disconnects > 0 && `${a.disconnects} disconnects`,
-              a.downgrades > 0 && `↓$${a.downgrade_mrr}`,
-              a.velocity === 'stalled' && 'Stalled velocity',
-              a.reps > 10 && `${a.reps} reps (churn)`,
-              a.nrr < 0.9 && `NRR ${pc(a.nrr)}`,
-            ]
-              .filter(Boolean)
-              .map((r, i) => (
-                <Badge key={i} color={T.red}>{r}</Badge>
+          {a.health_factors ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {[
+                { label: 'NRR Score', value: a.health_factors.nrrScore, max: 40, color: T.green },
+                { label: 'Churn Penalty', value: -a.health_factors.churnPenalty, max: 20, color: T.red },
+                { label: 'Product Diversity', value: a.health_factors.productDiversity, max: 15, color: T.teal },
+                { label: 'Pipeline Bonus', value: a.health_factors.pipelineBonus, max: 15, color: T.blue },
+                { label: 'Tenure Score', value: a.health_factors.tenureScore, max: 10, color: T.purple },
+              ].map(f => (
+                <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, width: '100px', flexShrink: 0 }}>{f.label}</div>
+                  <div style={{ flex: 1, height: '5px', background: T.border, borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.max(0, (Math.abs(f.value) / f.max) * 100)}%`, height: '100%', borderRadius: '3px', background: f.color }} />
+                  </div>
+                  <div style={{ fontFamily: FONT_MONO, fontSize: '9px', fontWeight: 600, color: f.value < 0 ? T.red : f.color, width: '28px', textAlign: 'right' }}>{f.value > 0 ? '+' : ''}{f.value}</div>
+                </div>
               ))}
-            {a.risk_score < 20 && (
-              <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.green }}>✓ Account is healthy</span>
-            )}
-          </div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700, color: (a.health ?? a.risk_score) >= 70 ? T.green : (a.health ?? a.risk_score) >= 40 ? T.yellow : T.red, textAlign: 'right', marginTop: '4px' }}>
+                = {a.health ?? a.risk_score}/100 {(a.health_level ?? a.risk_level).toUpperCase()}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+              {[
+                a.days_silent > 90 && `${a.days_silent}d silent`,
+                a.lost > 2 && `${a.lost} losses`,
+                a.disconnects > 0 && `${a.disconnects} disconnects`,
+                a.nrr < 0.9 && `NRR ${pc(a.nrr)}`,
+              ]
+                .filter(Boolean)
+                .map((r, i) => (
+                  <Badge key={i} color={T.red}>{r}</Badge>
+                ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -170,4 +188,4 @@ export default function Overview({ a }) {
       </div>
     </div>
   )
-}
+})

@@ -32,13 +32,13 @@ export default function Tip({ children, label, tip, delay, style }) {
   useEffect(() => {
     if (show && ref.current) {
       const r = ref.current.getBoundingClientRect()
-      const tipW = 260
+      const tipW = 440
       // Center horizontally on the element, clamp to viewport
       let left = r.left + r.width / 2 - tipW / 2
       left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8))
       // Position above by default; flip below if too close to top
       let top = r.top - 8
-      const above = top > 120 // enough room above
+      const above = top > 400 // enough room above for tall tooltips
       if (!above) top = r.bottom + 8
       setPos({ left, top, above })
     }
@@ -58,17 +58,18 @@ export default function Tip({ children, label, tip, delay, style }) {
           left: pos.left,
           top: pos.above ? undefined : pos.top,
           bottom: pos.above ? `${window.innerHeight - pos.top}px` : undefined,
-          padding: '8px 12px',
+          padding: '12px 16px',
           background: '#1C2333',
           border: `1px solid ${T.border}`,
           borderRadius: '6px',
           fontFamily: FONT_MONO,
-          fontSize: '10px',
+          fontSize: '11px',
           fontWeight: 400,
-          lineHeight: 1.5,
+          lineHeight: 1.6,
           color: T.textMid,
-          whiteSpace: 'normal',
-          width: '260px',
+          whiteSpace: 'pre-wrap',
+          width: '440px',
+          maxWidth: 'calc(100vw - 16px)',
           textTransform: 'none',
           letterSpacing: 'normal',
           zIndex: 99999,

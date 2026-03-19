@@ -18,6 +18,6 @@ export const chartTheme = {
 
 // Formatters
 export const $ = (n) => `$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-export const $k = (n) => Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n.toFixed(0)}`
+export const $k = (n) => `$${Math.round(n).toLocaleString()}`
 export const pc = (n) => `${(n * 100).toFixed(0)}%`
 export const pc1 = (n) => `${(n * 100).toFixed(1)}%`

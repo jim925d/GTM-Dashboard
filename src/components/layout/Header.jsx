@@ -1,6 +1,6 @@
 import { FONT_MONO, FONT_SANS, T, RADIUS } from '../../lib/constants'
 
-export default function Header({ accountCount, isDemo, onLogoClick }) {
+export default function Header({ accountCount, onLogoClick }) {
   return (
     <div
       style={{
@@ -41,7 +41,7 @@ export default function Header({ accountCount, isDemo, onLogoClick }) {
         </div>
       </div>
       <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim }}>
-        {isDemo ? 'Demo Mode' : 'Live'} · {accountCount} accounts
+        Live · {accountCount} accounts
       </div>
     </div>
   )

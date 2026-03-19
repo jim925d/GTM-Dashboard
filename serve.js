@@ -103,16 +103,17 @@ const server = http.createServer(async (req, res) => {
   if (p === '/local-data/engagements.json') return serveJSON(res, 'engagements.json')
   if (p === '/local-data/engagements_2026.json') return serveJSON(res, 'engagements_2026.json')
 
-  // --- /local-data/file?name=xxx.csv ---
+  // --- /local-data/file?name=xxx.csv or xxx.json ---
   if (p === '/local-data/file') {
     const fileName = url.searchParams.get('name')
-    if (!fileName || fileName.includes('..') || !fileName.endsWith('.csv')) {
+    if (!fileName || fileName.includes('..') || !(fileName.endsWith('.csv') || fileName.endsWith('.json'))) {
       res.writeHead(400); res.end('Invalid file name'); return
     }
-    const geocodedPath = path.join(dataDir, fileName.replace('.csv', '_geocoded.csv'))
-    const filePath = fs.existsSync(geocodedPath) ? geocodedPath : path.join(dataDir, fileName)
+    const geocodedPath = fileName.endsWith('.csv') ? path.join(dataDir, fileName.replace('.csv', '_geocoded.csv')) : null
+    const filePath = (geocodedPath && fs.existsSync(geocodedPath)) ? geocodedPath : path.join(dataDir, fileName)
     if (!fs.existsSync(filePath)) { res.writeHead(404); res.end('File not found'); return }
-    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Access-Control-Allow-Origin': '*' })
+    const ct = fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
+    res.writeHead(200, { 'Content-Type': ct, 'Access-Control-Allow-Origin': '*' })
     res.end(fs.readFileSync(filePath, 'utf-8'))
     return
   }
