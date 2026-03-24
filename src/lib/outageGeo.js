@@ -196,6 +196,44 @@ export function projectToMap(lat, lng, width, height) {
   }
 }
 
+// ── Albers USA projection matching D3 geoAlbersUsa().fitSize([960,600]) ─────
+// Used for the state-boundary SVG map (usStatesGeo.js paths)
+
+const DEG = Math.PI / 180
+
+function albersRaw(lat, lng, lat0, lng0, phi1, phi2) {
+  const n = 0.5 * (Math.sin(phi1) + Math.sin(phi2))
+  const c = Math.cos(phi1) * Math.cos(phi1) + 2 * n * Math.sin(phi1)
+  const rho0 = Math.sqrt(c - 2 * n * Math.sin(lat0)) / n
+  const rho = Math.sqrt(c - 2 * n * Math.sin(lat)) / n
+  const theta = n * (lng - lng0)
+  return { x: rho * Math.sin(theta), y: rho0 - rho * Math.cos(theta) }
+}
+
+export function projectAlbersUsa(lat, lng) {
+  // Continental US Albers: standard parallels 29.5° & 45.5°, center -96°, 38.7°
+  const latR = lat * DEG, lngR = lng * DEG
+  const p = albersRaw(latR, lngR, 38.7 * DEG, -96 * DEG, 29.5 * DEG, 45.5 * DEG)
+  // Scale & translate to fit 960x600 (calibrated to match D3 output)
+  const scale = 1280
+  const tx = 480, ty = 300
+  let px = p.x * scale + tx
+  let py = -p.y * scale + ty
+  // Alaska: shift down-left and scale
+  if (lat > 50 && lng < -130) {
+    const ak = albersRaw(latR, lngR, 64 * DEG, -154 * DEG, 55 * DEG, 65 * DEG)
+    px = ak.x * 400 + 150
+    py = -ak.y * 400 + 530
+  }
+  // Hawaii: shift right and down
+  if (lat < 25 && lat > 18 && lng < -154 && lng > -161) {
+    const hi = albersRaw(latR, lngR, 20 * DEG, -157 * DEG, 19 * DEG, 22 * DEG)
+    px = hi.x * 1200 + 300
+    py = -hi.y * 1200 + 540
+  }
+  return { x: Math.max(0, Math.min(960, px)), y: Math.max(0, Math.min(600, py)) }
+}
+
 // ── Resolve a location string to lat/lng ────────────────────────────────────
 
 export function resolveCoordinates(location, locationCode) {

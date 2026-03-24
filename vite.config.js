@@ -58,7 +58,13 @@ function localDataPlugin() {
             res.end(JSON.stringify({ files: [], dataDir }))
             return
           }
-          let csvFiles = fs.readdirSync(dataDir).filter(f => f.endsWith('.csv'))
+          const allFiles = fs.readdirSync(dataDir)
+          // Include XLSX files
+          const xlsxFiles = allFiles.filter(f => f.endsWith('.xlsx')).map(f => {
+            const stat = fs.statSync(path.join(dataDir, f))
+            return { name: f, modified: stat.mtimeMs, size: stat.size, realName: f, type: 'xlsx' }
+          })
+          let csvFiles = allFiles.filter(f => f.endsWith('.csv'))
           // Exclude files that have pre-built JSON equivalents
           const jsonExcludes = ['locations', 'locations_geocoded', 'historical', 'engagements', 'engagement_2026']
           csvFiles = csvFiles.filter(f => !jsonExcludes.includes(f.replace('.csv', '').toLowerCase()))
@@ -67,10 +73,13 @@ function localDataPlugin() {
           const originals = geocoded.map(f => f.replace('_geocoded', ''))
           csvFiles = csvFiles.filter(f => !originals.includes(f) || !geocoded.includes(f.replace('.csv', '_geocoded.csv')))
           // Rename geocoded files in manifest so the app sees them as the original name
-          const files = csvFiles.map(f => {
+          const files = [
+            ...xlsxFiles,
+            ...csvFiles.map(f => {
               const stat = fs.statSync(path.join(dataDir, f))
               return { name: f.replace('_geocoded', ''), modified: stat.mtimeMs, size: stat.size, realName: f }
             })
+          ]
           res.end(JSON.stringify({ files, dataDir }))
         } catch (err) {
           res.end(JSON.stringify({ files: [], error: err.message }))
@@ -131,7 +140,7 @@ function localDataPlugin() {
         const fileName = url.searchParams.get('name')
         res.setHeader('Access-Control-Allow-Origin', '*')
 
-        if (!fileName || fileName.includes('..') || !(fileName.endsWith('.csv') || fileName.endsWith('.json'))) {
+        if (!fileName || fileName.includes('..') || !(fileName.endsWith('.csv') || fileName.endsWith('.json') || fileName.endsWith('.xlsx'))) {
           res.statusCode = 400
           res.end('Invalid file name')
           return
@@ -167,9 +176,14 @@ function localDataPlugin() {
           return
         }
 
-        const ct = fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
-        res.setHeader('Content-Type', ct)
-        res.end(fs.readFileSync(filePath, 'utf-8'))
+        if (fileName.endsWith('.xlsx')) {
+          res.setHeader('Content-Type', 'application/octet-stream')
+          res.end(fs.readFileSync(filePath))
+        } else {
+          const ct = fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
+          res.setHeader('Content-Type', ct)
+          res.end(fs.readFileSync(filePath, 'utf-8'))
+        }
       })
     },
   }

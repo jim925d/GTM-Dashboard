@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState, buildBacktestData, buildLearningData, buildCalibration, normalizeStage } from '../lib/accountBuilder'
 
@@ -49,6 +50,55 @@ function detectTabTypeFromRecord(record) {
   return 'funnel'
 }
 
+// ── XLSX sheet name → data type mapping ──────────────────────────────────────
+const XLSX_SHEET_MAP = {
+  'customers': 'customers',
+  'historicals': 'funnel',        // contains both active pipeline + closed deals
+  'churn': 'close_lost',          // churn deals map to close_lost
+  'closed lost': 'close_lost',
+  'services': 'services',
+  'quotes': 'quotes',
+  'engagement': 'engagements',
+  'engagement_2026': 'engagements_2026',
+  'hiearchy': 'hierarchy',
+  'hierarchy': 'hierarchy',
+}
+
+function xlsxSheetToTabType(sheetName) {
+  const key = sheetName.trim().toLowerCase().replace(/\s+/g, ' ')
+  if (XLSX_SHEET_MAP[key]) return XLSX_SHEET_MAP[key]
+  // Fuzzy match
+  if (key.includes('customer')) return 'customers'
+  if (key.includes('historical') || key.includes('funnel') || key.includes('pipeline')) return 'funnel'
+  if (key.includes('churn') || key.includes('lost') || key.includes('loss')) return 'close_lost'
+  if (key.includes('service')) return 'services'
+  if (key.includes('quote')) return 'quotes'
+  if (key.includes('engagement') && key.includes('2026')) return 'engagements_2026'
+  if (key.includes('engagement')) return 'engagements'
+  if (key.includes('hierarch')) return 'hierarchy'
+  return null
+}
+
+async function parseXlsxFile(url) {
+  const res = await fetch(url)
+  if (!res.ok) return {}
+  const buf = await res.arrayBuffer()
+  const wb = XLSX.read(buf, { type: 'array' })
+  const result = {}
+  for (const sheetName of wb.SheetNames) {
+    const tabType = xlsxSheetToTabType(sheetName)
+    if (!tabType) continue
+    const ws = wb.Sheets[sheetName]
+    // Convert sheet to CSV text, then use existing parseCSV for field normalization
+    const csvText = XLSX.utils.sheet_to_csv(ws)
+    const records = parseCSV(csvText)
+    if (!records.length) continue
+    if (!result[tabType]) result[tabType] = []
+    result[tabType].push(...records)
+  }
+  return result
+}
+
 export default function useLocalData() {
   const [localFiles, setLocalFiles] = useState([])
   const [localAccounts, setLocalAccounts] = useState(null) // null = not loaded yet
@@ -80,25 +130,47 @@ export default function useLocalData() {
     setLoading(true)
     setError(null)
     try {
-      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [] }
+      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
 
-      // Load CSV files
-      for (const file of files) {
+      // Track which data types were loaded from XLSX (these take priority)
+      const xlsxTypes = new Set()
+
+      // 1) Load XLSX files first — they take priority over individual CSVs
+      const xlsxFiles = files.filter(f => f.name.endsWith('.xlsx') || f.type === 'xlsx')
+      for (const file of xlsxFiles) {
+        const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
+        for (const [tabType, records] of Object.entries(xlsxData)) {
+          if (raw[tabType]) {
+            raw[tabType] = [...raw[tabType], ...records]
+            xlsxTypes.add(tabType)
+          }
+        }
+      }
+
+      // 2) Load CSV files — skip types already loaded from XLSX
+      const csvFiles = files.filter(f => f.name.endsWith('.csv'))
+      for (const file of csvFiles) {
+        let tabType = tabTypeFromFileName(file.name)
+        // Skip CSVs whose data type was already loaded from XLSX
+        if (tabType && xlsxTypes.has(tabType)) continue
+
         const res = await fetch(`/local-data/file?name=${encodeURIComponent(file.name)}`)
         if (!res.ok) continue
         const text = await res.text()
         const records = parseCSV(text)
         if (!records.length) continue
 
-        let tabType = tabTypeFromFileName(file.name)
         if (!tabType) {
           tabType = detectTabTypeFromRecord(records[0])
         }
+        // Skip if XLSX already provided this type
+        if (xlsxTypes.has(tabType)) continue
 
         raw[tabType] = [...raw[tabType], ...records]
       }
 
       // Load pre-built JSON files (locations + historical + engagements)
+      // Only load JSON if XLSX didn't provide the data
       let locationsJSON = {}
       let historicalJSON = {}
       let engagements2025 = {}
@@ -107,18 +179,24 @@ export default function useLocalData() {
         const locRes = await fetch('/local-data/locations.json')
         if (locRes.ok) locationsJSON = await locRes.json()
       } catch {}
-      try {
-        const histRes = await fetch('/local-data/historical.json')
-        if (histRes.ok) historicalJSON = await histRes.json()
-      } catch {}
-      try {
-        const eng25Res = await fetch('/local-data/engagements.json')
-        if (eng25Res.ok) engagements2025 = await eng25Res.json()
-      } catch {}
-      try {
-        const eng26Res = await fetch('/local-data/engagements_2026.json')
-        if (eng26Res.ok) engagements2026 = await eng26Res.json()
-      } catch {}
+      if (!xlsxTypes.has('funnel')) {
+        try {
+          const histRes = await fetch('/local-data/historical.json')
+          if (histRes.ok) historicalJSON = await histRes.json()
+        } catch {}
+      }
+      if (!xlsxTypes.has('engagements')) {
+        try {
+          const eng25Res = await fetch('/local-data/engagements.json')
+          if (eng25Res.ok) engagements2025 = await eng25Res.json()
+        } catch {}
+      }
+      if (!xlsxTypes.has('engagements_2026')) {
+        try {
+          const eng26Res = await fetch('/local-data/engagements_2026.json')
+          if (eng26Res.ok) engagements2026 = await eng26Res.json()
+        } catch {}
+      }
 
       setLocalRawData(raw)
       const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
@@ -256,8 +334,11 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
     // Get pre-built location, historical, and engagement data from JSON
     const jsonLocations = locationsJSON[name] || []
     const jsonHistorical = historicalJSON[name] || []
-    const eng25 = engagements2025[name] || null
-    const eng26 = engagements2026[name] || null
+    // Engagement: prefer raw XLSX/CSV rows over pre-built JSON
+    const engRows25 = index.engagements?.get(name) || []
+    const engRows26 = index.engagements_2026?.get(name) || []
+    const eng25 = engRows25.length > 0 ? buildEngagementFromRows(engRows25) : (engagements2025[name] || null)
+    const eng26 = engRows26.length > 0 ? buildEngagementFromRows(engRows26) : (engagements2026[name] || null)
 
     const state = buildAccountState(customer, funnel, closeLost, quotes, services, locations)
 
@@ -408,6 +489,42 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
 
   built.sort((a, b) => b.tmr - a.tmr)
   return built
+}
+
+// Build engagement object from raw CSV/XLSX engagement rows for a given account
+function buildEngagementFromRows(rows) {
+  if (!rows || rows.length === 0) return null
+  const byType = {}
+  const byMonth = {}
+  let total = 0, contacts = new Set(), reps = new Set(), lastDate = ''
+  const events = []
+
+  for (const r of rows) {
+    total++
+    const task = r.task || r.subject || ''
+    if (task) byType[task] = (byType[task] || 0) + 1
+    if (r.contact) contacts.add(r.contact)
+    if (r.assigned) reps.add(r.assigned)
+    const dateStr = r.date || ''
+    if (dateStr) {
+      if (dateStr > lastDate) lastDate = dateStr
+      // Extract YYYY-MM for monthly grouping
+      const d = new Date(dateStr)
+      if (!isNaN(d.getTime())) {
+        const mo = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        byMonth[mo] = (byMonth[mo] || 0) + 1
+      }
+    }
+    events.push({ d: dateStr, t: task, s: r.status || '', c: r.contact || '' })
+  }
+
+  // Sort events by date descending, keep most recent 50
+  events.sort((a, b) => (b.d || '').localeCompare(a.d || ''))
+  const timeline = Object.entries(byMonth)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, count]) => ({ month, count }))
+
+  return { total, byType, timeline, contacts: contacts.size, reps: reps.size, lastDate, events: events.slice(0, 50) }
 }
 
 function mergeEngagement(eng25, eng26) {

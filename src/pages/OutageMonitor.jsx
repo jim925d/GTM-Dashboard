@@ -8,7 +8,8 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useOutageData } from '../lib/OutageContext'
-import { projectToMap, US_OUTLINE } from '../lib/outageGeo'
+import { projectAlbersUsa } from '../lib/outageGeo'
+import { US_STATES, STATE_BORDERS } from '../lib/usStatesGeo'
 
 // ── Clean Slate palette ─────────────────────────────────────────────────────
 
@@ -117,36 +118,37 @@ function OutageMap({ outages, selected, hovered, onSelect, onHover }) {
   }, [])
 
   const { w, h } = dims
+  // Scale factor to fit 960x600 paths into the container
+  const scaleX = w / 960
+  const scaleY = h / 600
+  const scale = Math.min(scaleX, scaleY)
+  const offsetX = (w - 960 * scale) / 2
+  const offsetY = (h - 600 * scale) / 2
 
-  // Project US outline
-  const outlinePath = useMemo(() => {
-    return US_OUTLINE.map(([lat, lng], i) => {
-      const { x, y } = projectToMap(lat, lng, w, h)
-      return `${i === 0 ? 'M' : 'L'}${x},${y}`
-    }).join(' ') + ' Z'
-  }, [w, h])
-
-  // Project outage markers
+  // Project outage markers into the 960x600 space, then scale
   const markers = useMemo(() => {
     return outages
       .filter(o => o.lat && o.lng)
-      .map(o => ({
-        ...o,
-        ...projectToMap(o.lat, o.lng, w, h),
-      }))
-  }, [outages, w, h])
+      .map(o => {
+        const p = projectAlbersUsa(o.lat, o.lng)
+        return {
+          ...o,
+          x: p.x * scale + offsetX,
+          y: p.y * scale + offsetY,
+        }
+      })
+  }, [outages, scale, offsetX, offsetY])
 
   return (
     <div ref={containerRef} className="w-full h-full relative" style={{ minHeight: 300 }}>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', inset: 0 }}>
-        {/* US outline */}
-        <path
-          d={outlinePath}
-          fill={CS.surface}
-          stroke={CS.slate200}
-          strokeWidth={1.5}
-          strokeLinejoin="round"
-        />
+        {/* State fills + borders */}
+        <g transform={`translate(${offsetX},${offsetY}) scale(${scale})`}>
+          {US_STATES.map(s => (
+            <path key={s.id} d={s.path} fill={CS.slate100} stroke={CS.slate200} strokeWidth={0.5} strokeLinejoin="round" />
+          ))}
+          <path d={STATE_BORDERS} fill="none" stroke={CS.slate300} strokeWidth={0.5} strokeLinejoin="round" />
+        </g>
 
         {/* Outage markers */}
         {markers.map(m => {
