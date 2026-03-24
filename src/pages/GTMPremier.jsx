@@ -8,7 +8,7 @@
  * All data from ModelingContext snapshot hooks — zero direct computation.
  */
 
-import { useState, useMemo, useCallback, memo, Component } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
@@ -217,30 +217,8 @@ function KPICard({ label, value, accent, trend, trendColor }) {
   )
 }
 
-// ─── Error Boundary ──────────────────────────────────────────────────────────
-class PremierErrorBoundary extends Component {
-  state = { error: null }
-  static getDerivedStateFromError(error) { return { error } }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ padding: 40, color: '#F87171', fontFamily: 'monospace', fontSize: 13, background: '#0B0F19', minHeight: '100vh' }}>
-          <div style={{ marginBottom: 8, fontWeight: 700 }}>GTM Premier — Render Error</div>
-          <pre style={{ whiteSpace: 'pre-wrap', color: '#E5E7EB' }}>{this.state.error.message}</pre>
-          <pre style={{ whiteSpace: 'pre-wrap', color: '#6B7280', fontSize: 11, marginTop: 8 }}>{this.state.error.stack}</pre>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
-
 // ─── Main Component ──────────────────────────────────────────────────────────
-export default function GTMPremierWrapper(props) {
-  return <PremierErrorBoundary><GTMPremierInner {...props} /></PremierErrorBoundary>
-}
-
-function GTMPremierInner({ accounts = [] }) {
+export default function GTMPremier({ accounts = [] }) {
   const enrichedAccounts = useAllEnrichedAccounts()
   const { isLoading, isStale, lastRunAge } = useEngineStatus()
   const eventFeed = useEventFeed(90)
