@@ -348,7 +348,7 @@ function classifyAccount(acct) {
   const has2026Pipeline = pipeline2026.length > 0
   const pipeline2026Mrr = pipeline2026.reduce((s, d) => s + (parseFloat(d.mrr) || 0), 0)
 
-  if (tmr > 0 && !isDormant && has2026Pipeline) {
+  if (tmr > 0 && has2026Pipeline) {
     const bestDeal = pipeline2026.reduce((best, d) => (!best || (d.mrr || 0) > (best.mrr || 0)) ? d : best, null)
     const dealMrr = bestDeal?.mrr || pipeline2026Mrr || tmr * 0.2
     const impactScore = pipeline2026Mrr * (winRate > 0 ? winRate : 0.5) * (velocity === 'accelerating' ? 1.3 : 1.0)
@@ -356,13 +356,13 @@ function classifyAccount(acct) {
     if (bestDeal) signals.push({ icon: '\ud83c\udfe2', text: `${bestDeal.product || 'Deal'} at ${fmt$(bestDeal.mrr || 0)} MRR \u2014 stage: ${bestDeal.stage || 'Active'}` })
     if (pipeline2026.length > 1) signals.push({ icon: '\ud83d\udcca', text: `${pipeline2026.length} deals in 2026 pipeline totaling ${fmt$(pipeline2026Mrr)} MRR` })
     else signals.push({ icon: '\ud83d\udcca', text: `1 deal in 2026 pipeline \u2014 ${fmt$(pipeline2026Mrr)} MRR` })
-    signals.push({ icon: '\u2705', text: `Purchased in last 12 months \u2014 active buyer` })
+    signals.push({ icon: '\u2705', text: `Active billing customer \u2014 ${fmt$(tmr)} TMR` })
     if (winRate > 0.6) signals.push({ icon: '\ud83c\udfc6', text: `Historical win rate ${(winRate * 100).toFixed(0)}% \u2014 strong conversion pattern` })
     else if (winRate > 0) signals.push({ icon: '\ud83d\udcca', text: `Win rate ${(winRate * 100).toFixed(0)}% at this account \u2014 ${winRate >= 0.4 ? 'solid' : 'needs attention'}` })
     if (velocity === 'accelerating') signals.push({ icon: '\u26a1', text: 'Account velocity accelerating \u2014 momentum is on your side' })
     if (tmr > 0) signals.push({ icon: '\ud83d\udcb0', text: `Current TMR ${fmt$(tmr)} \u2014 expansion grows wallet share` })
     if (products.length > 0) signals.push({ icon: '\ud83d\udd04', text: `Currently on ${products.slice(0, 2).join(', ')} \u2014 cross-sell potential` })
-    const tagline = `${pipeline2026.length} deal${pipeline2026.length > 1 ? 's' : ''} in 2026 pipeline \u00b7 ${fmt$(pipeline2026Mrr)} MRR \u00b7 Recent buyer`
+    const tagline = `${pipeline2026.length} deal${pipeline2026.length > 1 ? 's' : ''} in 2026 pipeline \u00b7 ${fmt$(pipeline2026Mrr)} MRR \u00b7 ${fmt$(tmr)} TMR`
     const suggestedMove = bestDeal?.stage?.toLowerCase().includes('propose') || bestDeal?.stage?.toLowerCase().includes('negotiate')
       ? `Deal is in late stage \u2014 focus on removing blockers and getting to verbal. Lead with ROI proof from their existing ${fmt$(tmr)} TMR services.`
       : `Advance the 2026 pipeline. Leverage recent purchase history and existing relationship (${fmt$(tmr)} TMR customer) to accelerate the ${fmt$(dealMrr)} opportunity.`
@@ -575,7 +575,7 @@ function generateIntelForAccount(acct) {
 
 const MODE_META = {
   Dormant:     { color: T.blue, icon: '\ud83d\udca4', desc: 'No bookings in 12 months or no 2026 pipeline' },
-  Growth:      { color: T.green, icon: '\ud83d\udcc8', desc: 'Purchased in last 12 months with 2026 pipeline' },
+  Growth:      { color: T.green, icon: '\ud83d\udcc8', desc: 'Active billing accounts with 2026 pipeline' },
   Retention:   { color: T.yellow, icon: '\ud83d\udee1\ufe0f', desc: 'Expiring services & MTM accounts needing attention' },
 }
 
