@@ -41,7 +41,7 @@ export default function CSVUploader({ onUpload, onUploadMulti, onClear, rawData 
       e.preventDefault()
       setIsDragging(false)
       const file = e.dataTransfer.files[0]
-      if (file && (file.name.endsWith('.csv') || file.name.endsWith('.txt'))) {
+      if (file && (file.name.endsWith('.csv') || file.name.endsWith('.txt') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
         handleFile(file)
       }
     },

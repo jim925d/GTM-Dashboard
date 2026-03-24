@@ -689,7 +689,7 @@ export default function App() {
             const input = document.createElement('input')
             input.type = 'file'
             input.multiple = true
-            input.accept = '.csv,.json'
+            input.accept = '.csv,.json,.xlsx,.xls'
             input.onchange = async (e) => {
               setUploadProgress(null)
               setDropStatus({ type: 'loading', message: 'Processing files...' })

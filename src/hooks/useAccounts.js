@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState, normalizeStage } from '../lib/accountBuilder'
 
@@ -37,6 +38,36 @@ export default function useAccounts() {
       reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
       reader.readAsText(file)
     })
+  }
+
+  const readFileAsArrayBuffer = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target.result)
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  // XLSX sheet name → data type mapping (mirrors useLocalData.js)
+  const xlsxSheetToTabType = (sheetName) => {
+    const key = sheetName.trim().toLowerCase().replace(/\s+/g, ' ')
+    const map = {
+      'customers': 'customers', 'historicals': 'funnel', 'churn': 'close_lost',
+      'closed lost': 'close_lost', 'services': 'services', 'quotes': 'quotes',
+      'engagement': 'engagements', 'engagement_2026': 'engagements_2026',
+      'hiearchy': 'hierarchy', 'hierarchy': 'hierarchy',
+    }
+    if (map[key]) return map[key]
+    if (key.includes('customer')) return 'customers'
+    if (key.includes('historical') || key.includes('funnel') || key.includes('pipeline')) return 'funnel'
+    if (key.includes('churn') || key.includes('lost') || key.includes('loss')) return 'close_lost'
+    if (key.includes('service')) return 'services'
+    if (key.includes('quote')) return 'quotes'
+    if (key.includes('engagement') && key.includes('2026')) return 'engagements_2026'
+    if (key.includes('engagement')) return 'engagements'
+    if (key.includes('hierarch')) return 'hierarchy'
+    return null
   }
 
   const detectTabType = (record) => {
@@ -387,6 +418,25 @@ export default function useAccounts() {
         const file = fileList[i]
         const name = file.name.toLowerCase()
         if (onProgress) { onProgress({ current: i, total, fileName: file.name, phase: 'reading' }); await tick() }
+
+        // Handle XLSX files first (need ArrayBuffer, not text)
+        if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+          if (onProgress) { onProgress({ current: i, total, fileName: file.name, phase: 'parsing' }); await tick() }
+          const buf = await readFileAsArrayBuffer(file)
+          const wb = XLSX.read(buf, { type: 'array' })
+          for (const sheetName of wb.SheetNames) {
+            const tabType = xlsxSheetToTabType(sheetName)
+            if (!tabType) continue
+            const ws = wb.Sheets[sheetName]
+            const csvText = XLSX.utils.sheet_to_csv(ws)
+            const sheetRecords = parseCSV(csvText)
+            if (!sheetRecords.length) continue
+            if (!newRaw[tabType]) newRaw[tabType] = []
+            newRaw[tabType] = [...newRaw[tabType], ...sheetRecords]
+            results[tabType] = (results[tabType] || 0) + sheetRecords.length
+          }
+          continue
+        }
 
         const text = await readFileAsText(file)
 
