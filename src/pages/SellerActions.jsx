@@ -77,10 +77,10 @@ const buildChurnBreakdown = (deal, md) => {
 
 // ── Demo deal profiles & card content ──────────────────────────
 const DEMO_CARDS = [
-  // ── PROSPECTING ──────────────────────────────────────
+  // ── DORMANT ──────────────────────────────────────────
   {
     card: {
-      type: 'prospect_1', label: 'PROSPECTING', labelColor: T.blue, mode: 'Prospecting',
+      type: 'prospect_1', label: 'DORMANT', labelColor: T.blue, mode: 'Dormant',
       account: 'Pacific Fiber Networks', tagline: '3 new locations detected \u00b7 Competitor shift at HQ',
       signals: [
         { icon: '\ud83d\udccd', text: 'Added 3 locations in Sacramento metro (last 30 days)' },
@@ -95,7 +95,7 @@ const DEMO_CARDS = [
   },
   {
     card: {
-      type: 'prospect_2', label: 'PROSPECTING', labelColor: T.blue, mode: 'Prospecting',
+      type: 'prospect_2', label: 'DORMANT', labelColor: T.blue, mode: 'Dormant',
       account: 'Redwood Municipal Broadband', tagline: 'New logo \u00b7 RFP open for dark fiber backbone',
       signals: [
         { icon: '\ud83c\udfaf', text: 'Open RFP for 10G dark fiber ring connecting 5 city buildings \u2014 deadline Apr 15' },
@@ -110,7 +110,7 @@ const DEMO_CARDS = [
   },
   {
     card: {
-      type: 'prospect_3', label: 'PROSPECTING', labelColor: T.blue, mode: 'Prospecting',
+      type: 'prospect_3', label: 'DORMANT', labelColor: T.blue, mode: 'Dormant',
       account: 'Summit Health Partners', tagline: 'Healthcare expansion \u00b7 3 new clinic sites announced',
       signals: [
         { icon: '\ud83c\udfe5', text: '3 new urgent care clinics opening in Denver metro \u2014 Q2 2026 target' },
@@ -245,9 +245,76 @@ function classifyAccount(acct) {
   const churnMrr = acct.churn_mrr || 0
   const disconnects = acct.disconnects || 0
   const nrr = acct.nrr ?? 1.0
+  const services = acct.services || []
+  const funnelClosed = acct.funnel_closed || []
 
-  // RETENTION
-  if ((riskLevel === 'at_risk' || riskLevel === 'critical') && mrr > 0) {
+  // ── Detect MTM and expiring services ──
+  const now = new Date()
+  const ninetyDaysOut = new Date(now.getTime() + 90 * 86400000)
+  const mtmServices = services.filter(s => {
+    const exp = s.expDate || s.exp_date || ''
+    const term = String(s.term || '').toLowerCase()
+    if (term === 'mtm' || term === 'month-to-month' || term === 'month to month') return true
+    if (exp) {
+      const expDate = new Date(exp)
+      return !isNaN(expDate.getTime()) && expDate < now
+    }
+    return false
+  })
+  const expiringServices = services.filter(s => {
+    const exp = s.expDate || s.exp_date || ''
+    if (!exp) return false
+    const expDate = new Date(exp)
+    return !isNaN(expDate.getTime()) && expDate >= now && expDate <= ninetyDaysOut
+  })
+  const mtmMrr = mtmServices.reduce((s, svc) => s + (parseFloat(svc.mrr) || 0), 0)
+  const expiringMrr = expiringServices.reduce((s, svc) => s + (parseFloat(svc.mrr) || 0), 0)
+  const atRiskServiceCount = mtmServices.length + expiringServices.length
+  const atRiskMrr = mtmMrr + expiringMrr
+
+  // ── Detect dormancy: no bookings in last 12 months ──
+  const twelveMoAgo = new Date(now)
+  twelveMoAgo.setMonth(twelveMoAgo.getMonth() - 12)
+  const recentBookings = funnelClosed.filter(d => {
+    if (!d.close) return false
+    const closeDate = new Date(d.close)
+    return !isNaN(closeDate.getTime()) && closeDate >= twelveMoAgo && (d.stage || '').toLowerCase().includes('won') && (parseFloat(d.mrr) || 0) >= 0
+  })
+  const isDormant = tmr > 0 && recentBookings.length === 0
+
+  // RETENTION — accounts with expiring services and/or MTM, prioritized by score
+  if (tmr > 0 && atRiskServiceCount > 0) {
+    const mrrAtRisk = atRiskMrr > 0 ? atRiskMrr : mrr
+    // Score: more MTM/expiring services + higher MRR = higher priority
+    const mtmWeight = mtmServices.length * 1.5
+    const expiringWeight = expiringServices.length * 1.2
+    const silentPenalty = Math.min(2.0, daysSilent / 30)
+    const riskMultiplier = riskLevel === 'critical' ? 1.5 : riskLevel === 'at_risk' ? 1.2 : 1.0
+    const impactScore = mrrAtRisk * (mtmWeight + expiringWeight + 1) * riskMultiplier * (1 + silentPenalty * 0.3)
+    const signals = []
+    if (mtmServices.length > 0) signals.push({ icon: '\u23f0', text: `${mtmServices.length} service${mtmServices.length > 1 ? 's' : ''} on month-to-month (${fmt$(mtmMrr)} MRR) \u2014 no contract lock` })
+    if (expiringServices.length > 0) signals.push({ icon: '\ud83d\udcdc', text: `${expiringServices.length} service${expiringServices.length > 1 ? 's' : ''} expiring within 90 days (${fmt$(expiringMrr)} MRR)` })
+    if (daysSilent > 30) signals.push({ icon: '\u23f0', text: `No contact in ${daysSilent} days \u2014 accounts go silent before they leave` })
+    if (disconnects > 0) signals.push({ icon: '\ud83d\udcc9', text: `${disconnects} service disconnects on record \u2014 signals dissatisfaction` })
+    if (nrr < 1.0) signals.push({ icon: '\u26a0\ufe0f', text: `NRR at ${(nrr * 100).toFixed(0)}% \u2014 revenue contracting` })
+    if (churnMrr > 0) signals.push({ icon: '\ud83d\udcb0', text: `${fmt$(churnMrr)} MRR already churned \u2014 pattern suggests more at risk` })
+    if (riskScore >= 70) signals.push({ icon: '\ud83d\udea8', text: `Risk score ${riskScore}/100 \u2014 ${riskLevel === 'critical' ? 'immediate' : 'elevated'} churn probability` })
+    if (signals.length < 2) signals.push({ icon: '\ud83d\udee1\ufe0f', text: `${fmt$(mrrAtRisk)} MRR at risk \u2014 proactive outreach improves save rate` })
+    const tagline = mtmServices.length > 0
+      ? `${mtmServices.length} MTM service${mtmServices.length > 1 ? 's' : ''} \u00b7 ${fmt$(mrrAtRisk)} MRR at risk`
+      : `${expiringServices.length} expiring service${expiringServices.length > 1 ? 's' : ''} \u00b7 ${fmt$(mrrAtRisk)} MRR at risk`
+    const suggestedMove = mtmServices.length > 0
+      ? `${mtmServices.length} services are month-to-month with no contract protection. Contact this week with a renewal offer \u2014 lock in a term commitment before a competitor approaches.`
+      : `${expiringServices.length} services expire within 90 days. Proactively engage with a renewal package \u2014 bundle pricing or rate lock to retain.`
+    return {
+      mode: 'Retention', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
+      dealProfile: { vertical, product: products[0] || 'DIA', dealValue: mrrAtRisk, daysOpen: null, mtmDays: mtmServices.length > 0 ? daysSilent : 0, daysSinceContact: daysSilent },
+      hasWinProb: true, hasChurnRisk: true,
+    }
+  }
+
+  // RETENTION fallback — at-risk/critical accounts even without MTM/expiring (existing behavior)
+  if ((riskLevel === 'at_risk' || riskLevel === 'critical') && tmr > 0) {
     const mrrAtRisk = mrr
     const urgency = riskLevel === 'critical' ? 1.5 : 1.0
     const silentPenalty = Math.min(2.0, daysSilent / 30)
@@ -271,23 +338,34 @@ function classifyAccount(acct) {
     }
   }
 
-  // GROWTH
-  if (mrr > 0 && pipelineCount > 0) {
-    const bestDeal = deals.reduce((best, d) => (!best || (d.mrr || 0) > (best.mrr || 0)) ? d : best, null)
-    const dealMrr = bestDeal?.mrr || pipelineMrr
-    const impactScore = pipelineMrr * (winRate > 0 ? winRate : 0.5) * (velocity === 'accelerating' ? 1.3 : 1.0)
+  // GROWTH — purchased in last 12 months AND has 2026 pipeline deals
+  const pipeline2026 = deals.filter(d => {
+    const close = d.close || ''
+    if (!close) return false
+    const yr = new Date(close).getFullYear()
+    return yr === 2026
+  })
+  const has2026Pipeline = pipeline2026.length > 0
+  const pipeline2026Mrr = pipeline2026.reduce((s, d) => s + (parseFloat(d.mrr) || 0), 0)
+
+  if (tmr > 0 && !isDormant && has2026Pipeline) {
+    const bestDeal = pipeline2026.reduce((best, d) => (!best || (d.mrr || 0) > (best.mrr || 0)) ? d : best, null)
+    const dealMrr = bestDeal?.mrr || pipeline2026Mrr || tmr * 0.2
+    const impactScore = pipeline2026Mrr * (winRate > 0 ? winRate : 0.5) * (velocity === 'accelerating' ? 1.3 : 1.0)
     const signals = []
     if (bestDeal) signals.push({ icon: '\ud83c\udfe2', text: `${bestDeal.product || 'Deal'} at ${fmt$(bestDeal.mrr || 0)} MRR \u2014 stage: ${bestDeal.stage || 'Active'}` })
-    if (pipelineCount > 1) signals.push({ icon: '\ud83d\udcca', text: `${pipelineCount} active opportunities totaling ${fmt$(pipelineMrr)} pipeline MRR` })
-    if (winRate > 0.6) signals.push({ icon: '\u2705', text: `Historical win rate ${(winRate * 100).toFixed(0)}% \u2014 strong conversion pattern` })
+    if (pipeline2026.length > 1) signals.push({ icon: '\ud83d\udcca', text: `${pipeline2026.length} deals in 2026 pipeline totaling ${fmt$(pipeline2026Mrr)} MRR` })
+    else signals.push({ icon: '\ud83d\udcca', text: `1 deal in 2026 pipeline \u2014 ${fmt$(pipeline2026Mrr)} MRR` })
+    signals.push({ icon: '\u2705', text: `Purchased in last 12 months \u2014 active buyer` })
+    if (winRate > 0.6) signals.push({ icon: '\ud83c\udfc6', text: `Historical win rate ${(winRate * 100).toFixed(0)}% \u2014 strong conversion pattern` })
     else if (winRate > 0) signals.push({ icon: '\ud83d\udcca', text: `Win rate ${(winRate * 100).toFixed(0)}% at this account \u2014 ${winRate >= 0.4 ? 'solid' : 'needs attention'}` })
     if (velocity === 'accelerating') signals.push({ icon: '\u26a1', text: 'Account velocity accelerating \u2014 momentum is on your side' })
     if (tmr > 0) signals.push({ icon: '\ud83d\udcb0', text: `Current TMR ${fmt$(tmr)} \u2014 expansion grows wallet share` })
-    if (signals.length < 2) signals.push({ icon: '\ud83d\udca1', text: `${fmt$(pipelineMrr)} in active pipeline \u2014 push to close` })
-    const tagline = `${pipelineCount} active deal${pipelineCount > 1 ? 's' : ''} \u00b7 ${fmt$(pipelineMrr)} pipeline MRR`
+    if (products.length > 0) signals.push({ icon: '\ud83d\udd04', text: `Currently on ${products.slice(0, 2).join(', ')} \u2014 cross-sell potential` })
+    const tagline = `${pipeline2026.length} deal${pipeline2026.length > 1 ? 's' : ''} in 2026 pipeline \u00b7 ${fmt$(pipeline2026Mrr)} MRR \u00b7 Recent buyer`
     const suggestedMove = bestDeal?.stage?.toLowerCase().includes('propose') || bestDeal?.stage?.toLowerCase().includes('negotiate')
-      ? `Deal is in late stage \u2014 focus on removing blockers and getting to verbal. Lead with ROI proof from their existing ${fmt$(mrr)} MRR services.`
-      : `Advance the pipeline. Leverage existing relationship (${fmt$(mrr)} MRR customer) to accelerate the ${fmt$(dealMrr)} opportunity.`
+      ? `Deal is in late stage \u2014 focus on removing blockers and getting to verbal. Lead with ROI proof from their existing ${fmt$(tmr)} TMR services.`
+      : `Advance the 2026 pipeline. Leverage recent purchase history and existing relationship (${fmt$(tmr)} TMR customer) to accelerate the ${fmt$(dealMrr)} opportunity.`
     return {
       mode: 'Growth', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
       dealProfile: { vertical, product: bestDeal?.product || products[0] || 'DIA', dealValue: dealMrr, daysOpen: bestDeal?.created ? Math.floor((Date.now() - new Date(bestDeal.created).getTime()) / 86400000) : 20, mtmDays: null, daysSinceContact: null },
@@ -295,22 +373,48 @@ function classifyAccount(acct) {
     }
   }
 
-  // PROSPECTING
-  const prospectMrr = pipelineMrr || (tmr > 0 ? mrr * 0.3 : 8000)
-  const impactScore = mrr === 0 ? prospectMrr * 1.2 : prospectMrr * 0.8
+  // DORMANT — no bookings in 12 months OR has recent bookings but no 2026 pipeline
+  if (tmr > 0 && (isDormant || !has2026Pipeline)) {
+    const dormantMrr = tmr
+    const noPipeline = !has2026Pipeline && !isDormant
+    const impactScore = dormantMrr * 1.5 * (1 + Math.min(2.0, daysSilent / 60))
+    const signals = []
+    if (isDormant) signals.push({ icon: '\ud83d\udca4', text: `No bookings in the last 12 months \u2014 account is dormant` })
+    else if (noPipeline) signals.push({ icon: '\ud83d\udca4', text: `No deals in 2026 pipeline \u2014 needs new opportunities` })
+    if (tmr > 0) signals.push({ icon: '\ud83d\udcb0', text: `Still billing ${fmt$(tmr)} TMR \u2014 existing relationship to leverage` })
+    if (daysSilent > 60) signals.push({ icon: '\u23f0', text: `${daysSilent} days since last engagement \u2014 re-engage before competitor does` })
+    if (products.length > 0) signals.push({ icon: '\ud83d\udd04', text: `Currently on ${products.slice(0, 2).join(', ')} \u2014 cross-sell potential` })
+    if (disconnects > 0) signals.push({ icon: '\ud83d\udcc9', text: `${disconnects} prior disconnects \u2014 address any lingering concerns` })
+    if (velocity === 'stalled') signals.push({ icon: '\ud83d\udcc9', text: 'Account velocity stalled \u2014 needs a catalyst' })
+    if (vertical) signals.push({ icon: '\ud83c\udfe2', text: `Vertical: ${vertical} \u2014 tailor approach to industry priorities` })
+    if (signals.length < 2) signals.push({ icon: '\ud83d\udccd', text: 'Research current needs and initiate re-engagement' })
+    const tagline = noPipeline
+      ? `${fmt$(tmr)} TMR \u00b7 No 2026 pipeline \u00b7 Dormant`
+      : `${fmt$(tmr)} TMR \u00b7 No bookings in 12+ months \u00b7 Dormant`
+    const suggestedMove = noPipeline
+      ? `Active billing customer with no 2026 pipeline. Start a discovery conversation to identify expansion, upgrade, or cross-sell opportunities for the coming year.`
+      : daysSilent > 90
+        ? `This account has been dormant for ${daysSilent}+ days despite active billing. Reach out with a fresh value proposition \u2014 they may be evaluating alternatives. Lead with an account review and new product options.`
+        : `Billing customer with no recent deal activity. Schedule a check-in to understand their current needs and identify new opportunities.`
+    return {
+      mode: 'Dormant', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
+      dealProfile: { vertical, product: products[0] || 'Metro Ethernet', dealValue: dormantMrr, daysOpen: null, mtmDays: null, daysSinceContact: daysSilent || null },
+      hasWinProb: false, hasChurnRisk: false,
+    }
+  }
+
+  // DORMANT fallback — accounts with no TMR (true new logos or zero-billing)
+  const prospectMrr = pipelineMrr || 8000
+  const impactScore = prospectMrr * 0.8
   const signals = []
-  if (mrr === 0 && tmr === 0) signals.push({ icon: '\ud83c\udfaf', text: 'New logo opportunity \u2014 no existing services' })
-  else if (pipelineCount === 0) signals.push({ icon: '\ud83d\udca1', text: `Existing customer (${fmt$(mrr)} MRR) with no active pipeline \u2014 whitespace opportunity` })
-  if (products.length > 0 && mrr > 0) signals.push({ icon: '\ud83d\udd04', text: `Currently on ${products.slice(0, 2).join(', ')} \u2014 cross-sell potential` })
-  if (daysSilent > 60 && mrr > 0) signals.push({ icon: '\u23f0', text: `${daysSilent} days since last engagement \u2014 re-engage before competitor does` })
+  signals.push({ icon: '\ud83d\udca4', text: 'No active billing \u2014 dormant or lapsed account' })
+  if (pipelineCount > 0) signals.push({ icon: '\ud83d\udcca', text: `${pipelineCount} deal${pipelineCount > 1 ? 's' : ''} in pipeline (${fmt$(pipelineMrr)} MRR)` })
   if (vertical) signals.push({ icon: '\ud83c\udfe2', text: `Vertical: ${vertical} \u2014 tailor approach to industry priorities` })
   if (signals.length < 2) signals.push({ icon: '\ud83d\udccd', text: 'Research account needs and initiate outreach' })
-  const tagline = mrr > 0 ? `Existing customer \u00b7 No active pipeline \u00b7 Whitespace` : `New logo target \u00b7 ${vertical}`
-  const suggestedMove = mrr > 0
-    ? `This customer has ${fmt$(mrr)} MRR but no deals in flight. Start a discovery conversation \u2014 identify unmet needs or upcoming contract renewals.`
-    : `Research this account and initiate outreach. Focus on their ${vertical} vertical pain points and lead with a relevant case study.`
+  const tagline = pipelineCount > 0 ? `No billing \u00b7 ${pipelineCount} deal${pipelineCount > 1 ? 's' : ''} in pipeline` : `No active billing \u00b7 Dormant`
+  const suggestedMove = `This account has no active billing. Research their current situation and initiate outreach to re-engage or establish a new relationship.`
   return {
-    mode: 'Prospecting', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
+    mode: 'Dormant', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
     dealProfile: { vertical, product: products[0] || 'Metro Ethernet', dealValue: prospectMrr, daysOpen: null, mtmDays: null, daysSinceContact: daysSilent || null },
     hasWinProb: false, hasChurnRisk: false,
   }
@@ -325,11 +429,11 @@ function rankAccounts(accounts, mode) {
   const filtered = classified.filter(c => c.mode === mode)
   filtered.sort((a, b) => b.impactScore - a.impactScore)
   if (filtered.length === 0) return null
-  const labelMap = { Prospecting: { label: 'PROSPECTING', color: T.blue }, Growth: { label: 'GROWTH', color: T.green }, Retention: { label: 'RETENTION', color: T.yellow } }
-  const ctaMap = { Prospecting: 'Draft Outreach', Growth: 'Build Quote', Retention: 'Build Renewal Offer' }
+  const labelMap = { Dormant: { label: 'DORMANT', color: T.blue }, Growth: { label: 'GROWTH', color: T.green }, Retention: { label: 'RETENTION', color: T.yellow } }
+  const ctaMap = { Dormant: 'Draft Outreach', Growth: 'Build Quote', Retention: 'Build Renewal Offer' }
   return filtered.map((item, i) => {
     const id = `ranked_${i}`
-    const lbl = labelMap[item.mode] || labelMap.Prospecting
+    const lbl = labelMap[item.mode] || labelMap.Dormant
     return {
       card: {
         type: id, label: lbl.label, labelColor: lbl.color,
@@ -470,9 +574,9 @@ function generateIntelForAccount(acct) {
 // ── UI Components ──────────────────────────────────────────────
 
 const MODE_META = {
-  Prospecting: { color: T.blue, icon: '\ud83c\udfaf', desc: 'New logos and whitespace opportunities' },
-  Growth:      { color: T.green, icon: '\ud83d\udcc8', desc: 'Existing customers with active pipeline' },
-  Retention:   { color: T.yellow, icon: '\ud83d\udee1\ufe0f', desc: 'At-risk accounts needing attention' },
+  Dormant:     { color: T.blue, icon: '\ud83d\udca4', desc: 'No bookings in 12 months or no 2026 pipeline' },
+  Growth:      { color: T.green, icon: '\ud83d\udcc8', desc: 'Purchased in last 12 months with 2026 pipeline' },
+  Retention:   { color: T.yellow, icon: '\ud83d\udee1\ufe0f', desc: 'Expiring services & MTM accounts needing attention' },
 }
 
 // Section (progressive disclosure)
@@ -621,7 +725,7 @@ function MarketIntelContent({ intel }) {
 
 export default function SellerActions({ accounts, onNavigate }) {
   const [expandedCard, setExpandedCard] = useState(null)
-  const [steeringMode, setSteeringMode] = useState('Prospecting')
+  const [steeringMode, setSteeringMode] = useState('Dormant')
   const [modelData, setModelData] = useState(DEMO_MODEL)
   const [intelData, setIntelData] = useState({})
   const [refreshingAccount, setRefreshingAccount] = useState(null)
@@ -672,7 +776,7 @@ export default function SellerActions({ accounts, onNavigate }) {
   }, [filteredAccounts, hasAccounts])
 
   const modeCounts = useMemo(() => {
-    const counts = { Prospecting: 0, Growth: 0, Retention: 0 }
+    const counts = { Dormant: 0, Growth: 0, Retention: 0 }
     allClassified.forEach(a => { counts[a.mode] = (counts[a.mode] || 0) + 1 })
     return counts
   }, [allClassified])
@@ -688,11 +792,11 @@ export default function SellerActions({ accounts, onNavigate }) {
     const filtered = classified.filter(c => c.mode === steeringMode)
     filtered.sort((a, b) => b.impactScore - a.impactScore)
     if (filtered.length === 0) return null
-    const labelMap = { Prospecting: { label: 'PROSPECTING', color: T.blue }, Growth: { label: 'GROWTH', color: T.green }, Retention: { label: 'RETENTION', color: T.yellow } }
-    const ctaMap = { Prospecting: 'Draft Outreach', Growth: 'Build Quote', Retention: 'Build Renewal Offer' }
+    const labelMap = { Dormant: { label: 'DORMANT', color: T.blue }, Growth: { label: 'GROWTH', color: T.green }, Retention: { label: 'RETENTION', color: T.yellow } }
+    const ctaMap = { Dormant: 'Draft Outreach', Growth: 'Build Quote', Retention: 'Build Renewal Offer' }
     return filtered.map((item, i) => {
       const id = `ranked_${i}`
-      const lbl = labelMap[item.mode] || labelMap.Prospecting
+      const lbl = labelMap[item.mode] || labelMap.Dormant
       return {
         card: {
           type: id, label: lbl.label, labelColor: lbl.color,
