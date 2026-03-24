@@ -26,7 +26,9 @@ export default function TopNav({ activePage, onPageChange }) {
           className={cn(
             'flex items-center gap-1 px-3.5 py-1.5 rounded-lg border-none font-sans text-[10px] cursor-pointer transition-all duration-150',
             activePage === p.id
-              ? 'bg-revos-card text-revos-text font-semibold shadow-card'
+              ? p.id === 'premier'
+                ? 'bg-revos-purple/15 text-revos-purple font-semibold shadow-card'
+                : 'bg-revos-card text-revos-text font-semibold shadow-card'
               : 'bg-transparent text-revos-text-dim font-normal hover:text-revos-text-mid'
           )}
         >

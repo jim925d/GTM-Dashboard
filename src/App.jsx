@@ -31,6 +31,7 @@ import EngagementDashboard from './pages/EngagementDashboard'
 import PlaybookEngine from './pages/PlaybookEngine'
 import PricingEngine from './pages/PricingEngine'
 import OutageMonitor from './pages/OutageMonitor'
+import GTMPremier from './pages/GTMPremier'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
@@ -135,6 +136,23 @@ export default function App() {
             Sales Dashboards
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+            {/* GTM Premier */}
+            <div
+              onClick={() => setMode('premier')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-purple hover:shadow-[0_0_20px_rgba(167,139,250,0.12)]"
+            >
+              <div className="text-[32px] mb-3.5">◎</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                GTM Premier
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Target account intelligence, market analysis, priority scoring, and whitespace detection powered by the modeling layer.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-purple tracking-[0.04em]">
+                MARKET INTELLIGENCE
+              </div>
+            </div>
+
             {/* GTM Dashboard */}
             <div
               onClick={() => setMode('gtm')}
@@ -342,6 +360,31 @@ export default function App() {
             YOUR DATA · LOCAL ONLY
           </div>
         )}
+      </div>
+    )
+  }
+
+  // ---------- GTM Premier mode ----------
+  if (mode === 'premier') {
+    return (
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setMode(null)}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
+            REVOS
+          </div>
+          <div className="font-sans text-xs text-revos-text-mid">
+            GTM Premier
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <GTMPremier accounts={accounts} />
+        </div>
       </div>
     )
   }
@@ -898,7 +941,9 @@ export default function App() {
           <TopNav activePage={page} onPageChange={setPage} />
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            {page === 'priority' ? (
+            {page === 'premier' ? (
+              <GTMPremier accounts={searchedAccounts} />
+            ) : page === 'priority' ? (
               <Priority
                 accounts={searchedAccounts}
                 onSelect={(idx) => { setSelAcct(idx); setPage('overview') }}

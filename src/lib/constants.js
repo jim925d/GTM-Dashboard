@@ -34,6 +34,7 @@ export const FONT_MONO = "'IBM Plex Mono', 'SF Mono', 'Cascadia Code', monospace
 export const FONT_SANS = "'IBM Plex Sans', -apple-system, system-ui, sans-serif"
 
 export const PAGES = [
+  { id: 'premier', label: 'GTM Premier', icon: '◎' },
   { id: 'priority', label: 'Priority', icon: '⚡' },
   { id: 'overview', label: 'Overview', icon: '◉' },
   { id: 'engagement', label: 'Engagement', icon: '💬' },
