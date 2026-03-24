@@ -277,8 +277,10 @@ function resolveAccountIds(rows, accounts, hierarchy) {
 }
 
 // ─── Demo Data ────────────────────────────────────────────────────
-function generateDemoData() {
-  const reps = ["Sarah Chen", "Marcus Johnson", "Elena Rodriguez", "James Park"];
+function generateDemoData(sellerNames) {
+  const reps = sellerNames && sellerNames.length > 0
+    ? sellerNames
+    : ["Sarah Chen", "Marcus Johnson", "Elena Rodriguez", "James Park"];
   // Stage distribution modeled from real funnel.csv data (766 opps)
   const stageWeights = [
     { stage: "Discover", weight: 0.13, prob: 0.10 },
@@ -773,7 +775,7 @@ function CoverageHeatmap({ accounts, engagements, pipeline, months, onAccountCli
 }
 
 // ─── Main Dashboard ───────────────────────────────────────────────
-export default function EngagementDashboard() {
+export default function EngagementDashboard({ accounts: externalAccounts = [] }) {
   const [view, setView] = useState("rep");
   const [dataMode, setDataMode] = useState("demo");
   const [countMode, setCountMode] = useState("total");
@@ -786,7 +788,19 @@ export default function EngagementDashboard() {
   const [resolveReport, setResolveReport] = useState(null); // { tableKey, stats }
   const [showDiag, setShowDiag] = useState(false);
 
-  const demo = useMemo(() => generateDemoData(), []);
+  // Extract unique seller names from external accounts (data folder)
+  const sellerNames = useMemo(() => {
+    if (!externalAccounts || externalAccounts.length === 0) return []
+    return [...new Set(
+      externalAccounts.map(a => (a.sales_owner || a.rep || '').trim()).filter(Boolean)
+    )].sort((a, b) => {
+      const aLast = a.split(/\s+/).pop().toLowerCase()
+      const bLast = b.split(/\s+/).pop().toLowerCase()
+      return aLast.localeCompare(bLast)
+    })
+  }, [externalAccounts])
+
+  const demo = useMemo(() => generateDemoData(sellerNames), [sellerNames]);
   const data = useMemo(() => {
     if (dataMode === "demo") return demo;
     // Merge live uploads with demo fallback for missing tables

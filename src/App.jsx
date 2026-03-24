@@ -30,6 +30,7 @@ import SellerActions from './pages/SellerActions'
 import EngagementDashboard from './pages/EngagementDashboard'
 import PlaybookEngine from './pages/PlaybookEngine'
 import PricingEngine from './pages/PricingEngine'
+import OutageMonitor from './pages/OutageMonitor'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
@@ -311,6 +312,23 @@ export default function App() {
                 RATE MANAGEMENT
               </div>
             </div>
+
+            {/* Outage Monitor */}
+            <div
+              onClick={() => setMode('outages')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-red hover:shadow-[0_0_20px_rgba(248,113,113,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">⚡</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Outage Monitor
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Live US ISP outage tracking from Cloudflare Radar and IODA with SVG map and incident feed.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-red tracking-[0.04em]">
+                OUTAGE INTELLIGENCE
+              </div>
+            </div>
           </div>
         </div>
 
@@ -378,6 +396,31 @@ export default function App() {
     )
   }
 
+  // ---------- Outage Monitor mode ----------
+  if (mode === 'outages') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setMode(null)}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
+            REVOS
+          </div>
+          <div className="font-sans text-xs text-revos-text-mid">
+            Outage Monitor
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <OutageMonitor />
+        </div>
+      </div>
+    )
+  }
+
   // ---------- Engagement Dashboard mode ----------
   if (mode === 'engagement') {
     return (
@@ -397,7 +440,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <EngagementDashboard />
+          <EngagementDashboard accounts={accounts} />
         </div>
       </div>
     )
