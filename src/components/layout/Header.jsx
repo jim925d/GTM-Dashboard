@@ -1,47 +1,29 @@
-import { FONT_MONO, FONT_SANS, T, RADIUS } from '../../lib/constants'
+import ThemeToggle from '../ThemeToggle'
 
 export default function Header({ accountCount, onLogoClick }) {
   return (
-    <div
-      style={{
-        padding: '8px 16px',
-        borderBottom: `1px solid ${T.border}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        background: T.surface,
-        flexShrink: 0,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: onLogoClick ? 'pointer' : 'default' }} onClick={onLogoClick}>
-        <div
-          style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: RADIUS,
-            background: `linear-gradient(135deg, ${T.cyan}, ${T.purple})`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: FONT_MONO,
-            fontWeight: 700,
-            fontSize: '12px',
-            color: T.bg,
-          }}
-        >
+    <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-revos-surface shrink-0">
+      <div
+        className={`flex items-center gap-2.5 ${onLogoClick ? 'cursor-pointer' : 'cursor-default'}`}
+        onClick={onLogoClick}
+      >
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-revos-cyan to-revos-purple flex items-center justify-center font-mono font-bold text-xs text-revos-bg">
           R
         </div>
         <div>
-          <div style={{ fontFamily: FONT_MONO, fontWeight: 700, fontSize: '13px', letterSpacing: '-0.01em' }}>
+          <div className="font-mono font-bold text-[13px] tracking-tight">
             RevOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.02em' }}>
+          <div className="font-sans text-[9px] text-revos-text-dim tracking-wide">
             Bayesian Prediction · Game Theory · Signal Intelligence
           </div>
         </div>
       </div>
-      <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim }}>
-        Live · {accountCount} accounts
+      <div className="flex items-center gap-3">
+        <span className="font-sans text-[9px] text-revos-text-dim">
+          Live · {accountCount} accounts
+        </span>
+        <ThemeToggle />
       </div>
     </div>
   )

@@ -1,31 +1,44 @@
 import { useMemo } from 'react'
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, stageProb } from '../lib/constants'
+import { T, stageProb } from '../lib/constants'
+import { cn } from '@/lib/utils'
 import Badge from '../components/shared/Badge'
 import ProbBar from '../components/shared/ProbBar'
 import Stat from '../components/shared/Stat'
 import Tip from '../components/shared/Tip'
 import { $, $k, pc } from '../components/shared/ChartTheme'
 
-export default function Predictions({ a }) {
+export default function Predictions({ a, backtestResults }) {
+  // If engine backtest was run this session, derive calibration from its accuracy
+  const engineCal = useMemo(() => {
+    if (!backtestResults) return null
+    const best = backtestResults.B.auc >= backtestResults.A.auc ? backtestResults.B : backtestResults.A
+    // Use engine accuracy to derive a likelihood ratio adjustment
+    const winLR = best.acc > 0 ? best.acc / backtestResults.overallWinRate : 1
+    return { winLR, churnLR: 1 / winLR, quarters: 1, avgAccuracy: best.acc, bias: best.acc > 0.6 ? 'calibrated' : 'weak' }
+  }, [backtestResults])
+
   // Generate local predictions from account data, calibrated by backtest
-  const cal = a.calibration || { winLR: 1, churnLR: 1, quarters: 0, avgAccuracy: 0, bias: 'uncalibrated' }
-  const predictions = useMemo(() => a.predictions?.length > 0 ? a.predictions : buildLocalPredictions(a, cal), [a])
+  const cal = engineCal || a.calibration || { winLR: 1, churnLR: 1, quarters: 0, avgAccuracy: 0, bias: 'uncalibrated' }
+  const predictions = useMemo(() => a.predictions?.length > 0 ? a.predictions : buildLocalPredictions(a, cal), [a, cal])
   const crossSell = a.cross_sell?.length > 0 ? a.cross_sell : []
-  const churnPreds = useMemo(() => a.churn_preds?.length > 0 ? a.churn_preds : buildChurnPredictions(a, cal), [a])
+  const churnPreds = useMemo(() => a.churn_preds?.length > 0 ? a.churn_preds : buildChurnPredictions(a, cal), [a, cal])
 
   return (
     <div>
       {/* Summary banner */}
-      <div style={{ background: `linear-gradient(135deg, ${T.teal}08, ${T.blue}08)`, border: `1px solid ${T.teal}25`, borderRadius: RADIUS, padding: '16px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.teal, letterSpacing: '0.04em' }}><Tip label="PREDICTION SUMMARY">PREDICTION SUMMARY</Tip></div>
-          <div style={{ display: 'flex', gap: '4px' }}>
+      <div
+        className="rounded-xl p-4 mb-4"
+        style={{ background: `linear-gradient(135deg, ${T.teal}08, ${T.blue}08)`, border: `1px solid ${T.teal}25` }}
+      >
+        <div className="flex justify-between mb-2">
+          <div className="font-sans text-[10px] text-revos-teal tracking-[0.04em]"><Tip label="PREDICTION SUMMARY">PREDICTION SUMMARY</Tip></div>
+          <div className="flex gap-1">
             <Badge color={a.portfolio_health === 'growing' ? T.green : a.portfolio_health === 'at_risk' ? T.red : T.yellow}>
               {(a.portfolio_health || 'unknown').toUpperCase().replace('_', ' ')}
             </Badge>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+        <div className="grid grid-cols-4 gap-2">
           <Stat small label="WIN RATE" value={pc(a.win_rate)} color={a.win_rate >= 0.5 ? T.green : T.yellow} />
           <Stat small label="PIPELINE" value={`${$k(a.pipeline_mrr)}/mo`} sub={`${a.pipeline_count} deals`} color={T.blue} />
           <Stat small label="HISTORICAL WINS" value={a.won} color={T.green} />
@@ -35,20 +48,21 @@ export default function Predictions({ a }) {
 
       {/* Calibration status */}
       {cal.quarters >= 3 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '10px 14px', marginBottom: '14px', borderRadius: RADIUS,
-          background: cal.avgAccuracy >= 60 ? `${T.green}08` : `${T.yellow}08`,
-          border: `1px solid ${cal.avgAccuracy >= 60 ? T.green : T.yellow}22`,
-        }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: cal.avgAccuracy >= 60 ? T.green : T.yellow, letterSpacing: '0.04em', flexShrink: 0 }}>
+        <div
+          className="flex items-center gap-2.5 px-3.5 py-2.5 mb-3.5 rounded-xl"
+          style={{
+            background: cal.avgAccuracy >= 60 ? `${T.green}08` : `${T.yellow}08`,
+            border: `1px solid ${cal.avgAccuracy >= 60 ? T.green : T.yellow}22`,
+          }}
+        >
+          <div className={cn('font-sans text-[10px] tracking-[0.04em] shrink-0', cal.avgAccuracy >= 60 ? 'text-revos-green' : 'text-revos-yellow')}>
             <Tip label="CALIBRATION STATUS">CALIBRATED</Tip>
           </div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textMid, flex: 1 }}>
+          <div className="font-mono text-[10px] text-revos-text-mid flex-1">
             Model tuned from {cal.quarters} quarters of backtest data · {cal.avgAccuracy}% avg accuracy
             {cal.bias !== 'balanced' && <> · Correcting {cal.bias} bias</>}
           </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="flex gap-1.5">
             <Badge color={T.teal}>Win LR ×{cal.winLR.toFixed(2)}</Badge>
             <Badge color={T.orange}>Churn LR ×{cal.churnLR.toFixed(2)}</Badge>
           </div>
@@ -58,34 +72,34 @@ export default function Predictions({ a }) {
       {/* Pipeline predictions */}
       {predictions.length > 0 && (
         <>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.teal, letterSpacing: '0.08em', marginBottom: '10px' }}>
+          <div className="font-mono text-[9px] text-revos-teal tracking-[0.08em] mb-2.5">
             <Tip label="DEAL PREDICTIONS">DEAL PREDICTIONS</Tip> ({predictions.length})
           </div>
           {predictions.map((p, i) => {
             const prob = p.posterior || p.prob || 0
             const color = prob > 0.6 ? T.green : prob > 0.35 ? T.yellow : T.orange
             return (
-              <div key={i} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: '8px', padding: '14px', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div key={i} className="bg-revos-card border border-revos-border rounded-lg p-3.5 mb-2.5">
+                <div className="flex justify-between items-center mb-2">
                   <div>
-                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{p.product}</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim, marginLeft: '8px' }}>{p.event || p.stage}</span>
+                    <span className="font-semibold text-sm">{p.product}</span>
+                    <span className="font-mono text-[10px] text-revos-text-dim ml-2">{p.event || p.stage}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {p.prior != null && <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>Base: {pc(p.prior)}</span>}
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '16px', fontWeight: 700, color }}>{pc(prob)}</span>
+                  <div className="flex items-center gap-2">
+                    {p.prior != null && <span className="font-mono text-[10px] text-revos-text-dim">Base: {pc(p.prior)}</span>}
+                    <span className="font-mono text-[16px] font-bold" style={{ color }}>{pc(prob)}</span>
                   </div>
                 </div>
                 <ProbBar value={prob} color={color} h={6} />
-                <div style={{ display: 'flex', gap: '10px', marginTop: '8px', fontFamily: FONT_MONO, fontSize: '10px' }}>
-                  <span style={{ color: T.cyan }}>{$(p.mrr)}/mo</span>
-                  {p.close && <span style={{ color: T.yellow }}>Close: {p.close}</span>}
-                  {p.rep && <span style={{ color: T.textDim }}>{p.rep}</span>}
+                <div className="flex gap-2.5 mt-2 font-mono text-[10px]">
+                  <span className="text-revos-cyan">{$(p.mrr)}/mo</span>
+                  {p.close && <span className="text-revos-yellow">Close: {p.close}</span>}
+                  {p.rep && <span className="text-revos-text-dim">{p.rep}</span>}
                 </div>
                 {p.evidence && (
-                  <div style={{ marginTop: '8px' }}>
+                  <div className="mt-2">
                     {p.evidence.map((e, j) => (
-                      <div key={j} style={{ fontSize: '11px', color: T.textMid, paddingLeft: '8px', borderLeft: `2px solid ${color}30`, marginBottom: '3px' }}>
+                      <div key={j} className="text-[11px] text-revos-text-mid pl-2 mb-[3px]" style={{ borderLeft: `2px solid ${color}30` }}>
                         {e}
                       </div>
                     ))}
@@ -99,27 +113,27 @@ export default function Predictions({ a }) {
 
       {/* Churn risk */}
       {churnPreds.length > 0 && (
-        <div style={{ background: T.card, border: `1px solid ${T.red}18`, borderRadius: '8px', padding: '14px', marginTop: '14px' }}>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.red, letterSpacing: '0.08em', marginBottom: '10px' }}>
+        <div className="bg-revos-card rounded-lg p-3.5 mt-3.5" style={{ border: `1px solid ${T.red}18` }}>
+          <div className="font-mono text-[9px] text-revos-red tracking-[0.08em] mb-2.5">
             <Tip label="CHURN RISK INDICATORS">CHURN RISK INDICATORS</Tip>
           </div>
           {churnPreds.map((ch, i) => (
-            <div key={i} style={{ marginBottom: '10px', padding: '8px', background: T.surface, borderRadius: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontWeight: 600, fontSize: '12px' }}>{ch.signal}</span>
+            <div key={i} className="mb-2.5 p-2 bg-revos-surface rounded-[6px]">
+              <div className="flex justify-between mb-1">
+                <span className="font-semibold text-xs">{ch.signal}</span>
                 <Badge color={ch.severity === 'high' ? T.red : ch.severity === 'medium' ? T.orange : T.yellow}>
                   {ch.severity.toUpperCase()}
                 </Badge>
               </div>
-              <div style={{ fontSize: '11px', color: T.textMid, lineHeight: 1.5 }}>{ch.detail}</div>
+              <div className="text-[11px] text-revos-text-mid leading-normal">{ch.detail}</div>
             </div>
           ))}
         </div>
       )}
 
       {predictions.length === 0 && churnPreds.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px', color: T.textDim }}>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '11px' }}>No pipeline deals to predict on. Add deals to funnel.csv.</div>
+        <div className="text-center p-10 text-revos-text-dim">
+          <div className="font-mono text-[11px]">No pipeline deals to predict on. Add deals to funnel.csv.</div>
         </div>
       )}
     </div>

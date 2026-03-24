@@ -10,7 +10,7 @@ export function buildAnalyzePrompt(a) {
   lines.push(`Analyze this B2B telecom/connectivity account and provide strategic recommendations.`)
   lines.push(``)
   lines.push(`ACCOUNT: ${a.name}`)
-  lines.push(`Vertical: ${a.vertical} | ARR: $${Math.round(a.arr).toLocaleString()} | NRR: ${pc(a.nrr)}`)
+  lines.push(`Vertical: ${a.vertical} | TMR: $${Math.round(a.tmr).toLocaleString()} | NRR: ${pc(a.nrr)}`)
   lines.push(`Risk: ${a.risk_score}/100 (${a.risk_level}) | Win Rate: ${pc(a.win_rate)} (${a.won}W/${a.lost}L)`)
   lines.push(`Rep: ${a.rep} | Manager: ${a.manager}`)
   lines.push(``)

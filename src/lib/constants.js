@@ -1,33 +1,37 @@
-// RevOS Design System Constants — Editorial Theme
+// RevOS Design System Constants — Aceternity Dark Theme
 
 export const T = {
-  bg: '#111111',
-  surface: '#161616',
-  card: '#1C1C1C',
-  cardHover: '#222222',
-  border: '#2A2A2A',
-  borderLight: '#3A3A3A',
-  text: '#F5F0E8',
-  textMid: '#D8D0C4',
-  textDim: '#A89888',
-  cyan: '#6EC8E4',
-  green: '#6ED8A0',
-  red: '#E87070',
-  yellow: '#E8C868',
-  orange: '#E8A050',
-  purple: '#B090E0',
-  blue: '#70A8E0',
-  teal: '#50D0B8',
-  pink: '#E888B0',
-  lime: '#B0E050',
+  bg: '#06080F',
+  surface: '#161B22',
+  card: '#161B22',
+  cardHover: '#1C2128',
+  border: '#21262D',
+  borderLight: 'rgba(255,255,255,0.06)',
+  text: '#e6edf3',
+  textMid: '#c9d1d9',
+  textDim: '#8b949e',
+  cyan: '#60a5fa',
+  green: '#34d399',
+  red: '#f87171',
+  yellow: '#fbbf24',
+  orange: '#f0883e',
+  purple: '#a78bfa',
+  blue: '#60a5fa',
+  teal: '#2dd4bf',
+  pink: '#f472b6',
+  lime: '#a3e635',
+  accent: '#7c5aff',
+  accentDim: 'rgba(120,90,255,0.08)',
+  accentBorder: 'rgba(120,90,255,0.15)',
+  tertiary: '#484f58',
 }
 
-export const RADIUS = '12px'
-export const CARD_SHADOW = '0 1px 3px rgba(0,0,0,0.3)'
-export const BADGE_RADIUS = '16px'
+export const RADIUS = '16px'
+export const CARD_SHADOW = '0 1px 4px rgba(0,0,0,0.4)'
+export const BADGE_RADIUS = '100px'
 
-export const FONT_MONO = "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace"
-export const FONT_SANS = "'Inter', system-ui, sans-serif"
+export const FONT_MONO = "'IBM Plex Mono', 'SF Mono', 'Cascadia Code', monospace"
+export const FONT_SANS = "'IBM Plex Sans', -apple-system, system-ui, sans-serif"
 
 export const PAGES = [
   { id: 'priority', label: 'Priority', icon: '⚡' },
@@ -48,17 +52,17 @@ export const MODELING_PAGES = [
 export const API_BASE = '/api'
 
 export const STAGE_COLORS = {
-  Discover: T.blue,
-  Design: T.purple,
-  'Design Solution': T.purple,
-  Propose: T.yellow,
-  Negotiate: T.green,
-  'Verbal Agreement': T.teal,
-  Accepted: T.cyan,
-  '5 - Accepted': T.cyan,
-  'Closed Won': T.cyan,
-  'Closed-Won': T.cyan,
-  Closed: T.cyan,
+  Discover: '#60a5fa',
+  Design: '#818cf8',
+  'Design Solution': '#818cf8',
+  Propose: '#a78bfa',
+  Negotiate: '#c084fc',
+  'Verbal Agreement': '#34d399',
+  Accepted: '#34d399',
+  '5 - Accepted': '#34d399',
+  'Closed Won': '#34d399',
+  'Closed-Won': '#34d399',
+  Closed: '#34d399',
   'Closed Lost': T.red,
   'Close Lost': T.red,
 }

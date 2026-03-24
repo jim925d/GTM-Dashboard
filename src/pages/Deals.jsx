@@ -1,18 +1,13 @@
 import { useState, useMemo, memo } from 'react'
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW } from '../lib/constants'
+import { T } from '../lib/constants'
+import { cn } from '@/lib/utils'
 import Stat from '../components/shared/Stat'
 import Badge from '../components/shared/Badge'
 import Tip from '../components/shared/Tip'
 import { $, $k, pc } from '../components/shared/ChartTheme'
+import { AnimatedBorderCard, RevealCard, GlowBadge } from '../components/effects'
 
 const TAB_STYLE = (active) => ({
-  padding: '6px 16px',
-  fontFamily: FONT_SANS,
-  fontSize: '10px',
-  letterSpacing: '0.04em',
-  cursor: 'pointer',
-  border: 'none',
-  borderRadius: '4px',
   background: active ? `${T.purple}15` : T.surface,
   boxShadow: active ? `0 0 0 1px ${T.purple}30` : 'none',
   color: active ? T.purple : T.textDim,
@@ -22,41 +17,14 @@ const TAB_STYLE = (active) => ({
 function normalizeStage(s) {
   if (!s) return ''
   const l = s.toLowerCase().trim()
-  if (l === 'closed won') return 'Closed Won'
+  if (l === 'closed won' || l === 'closed-won' || l.includes('accepted') || l === '5 - accepted') return 'Closed Won'
   if (l === 'close lost' || l === 'closed lost') return 'Closed Lost'
   return s
 }
 
-function mergeAllDeals(a) {
-  const seen = new Set()
-  const all = []
-
-  // Add historical deals (from historical.json — bookings, some losses, open stages)
-  for (const d of (a.historical_deals || [])) {
-    const key = `${d.product}|${d.mrr}|${d.close}|${d.type}`
-    seen.add(key)
-    all.push({ ...d, stage: normalizeStage(d.stage) })
-  }
-
-  // Add close_lost deals that aren't already in historicals
-  for (const d of (a.losses?.deals || [])) {
-    const key = `${d.product}|${d.mrr}|${d.date}|${d.type}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    all.push({
-      product: d.product,
-      mrr: d.mrr,
-      stage: 'Closed Lost',
-      type: d.type || '',
-      close: d.date || '',
-      rep: d.rep || '',
-      manager: '',
-      forecast: '',
-      term: 0,
-      npv: 0,
-      opportunity_id: d.opportunity_id || '',
-    })
-  }
+// Deals dashboard uses funnel.csv ONLY (no historical.json or close_lost.csv)
+function getClosedDeals(a) {
+  const all = (a.funnel_closed || []).map(d => ({ ...d, stage: normalizeStage(d.stage) }))
 
   // Sort by close date descending
   all.sort((a, b) => {
@@ -74,7 +42,7 @@ export default memo(function Deals({ a }) {
   const [histFilter, setHistFilter] = useState('all')
 
   const activeDeals = a.active_deals || []
-  const allHistorical = useMemo(() => mergeAllDeals(a), [a])
+  const allHistorical = useMemo(() => getClosedDeals(a), [a])
 
   // Filter historicals by sub-tab
   const historicalDeals = histFilter === 'all' ? allHistorical
@@ -87,9 +55,9 @@ export default memo(function Deals({ a }) {
 
   if (hasNone) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>
-        <div style={{ fontSize: '28px', marginBottom: '8px' }}>&#9823;</div>
-        <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim }}>No deals</div>
+      <div className="text-center p-10 opacity-50">
+        <div className="text-[28px] mb-2">&#9823;</div>
+        <div className="font-mono text-[11px] text-revos-text-dim">No deals</div>
       </div>
     )
   }
@@ -103,55 +71,54 @@ export default memo(function Deals({ a }) {
   return (
     <div>
       {/* Tab toggle */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        <button style={TAB_STYLE(tab === 'current')} onClick={() => { setTab('current'); setSelDeal(0) }}>
+      <div className="flex gap-2 mb-4">
+        <button className="px-4 py-1.5 font-sans text-[10px] tracking-[0.04em] cursor-pointer border-none rounded" style={TAB_STYLE(tab === 'current')} onClick={() => { setTab('current'); setSelDeal(0) }}>
           <Tip label="CURRENT FUNNEL">CURRENT FUNNEL</Tip> ({activeDeals.length})
         </button>
-        <button style={TAB_STYLE(tab === 'historical')} onClick={() => { setTab('historical'); setHistFilter('all') }}>
+        <button className="px-4 py-1.5 font-sans text-[10px] tracking-[0.04em] cursor-pointer border-none rounded" style={TAB_STYLE(tab === 'historical')} onClick={() => { setTab('historical'); setHistFilter('all') }}>
           <Tip label="HISTORICALS">HISTORICALS</Tip> ({allHistorical.length})
         </button>
       </div>
 
       {tab === 'current' && (
         activeDeals.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px', opacity: 0.5 }}>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim }}>No active pipeline deals</div>
+          <div className="text-center p-[30px] opacity-50">
+            <div className="font-mono text-[11px] text-revos-text-dim">No active pipeline deals</div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '12px' }}>
+          <div className="grid grid-cols-[280px_1fr] gap-3">
             {/* Deal list */}
             <div>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.purple, letterSpacing: '0.04em', marginBottom: '8px' }}>
+              <div className="font-sans text-[10px] text-revos-purple tracking-[0.04em] mb-2">
                 {activeDeals.length} ACTIVE DEALS
               </div>
               {activeDeals.map((d, i) => (
-                <div
+                <RevealCard
                   key={i}
+                  className={cn('mb-1.5 cursor-pointer opacity-0 animate-fade-slide-in', i === selDeal && '!border-revos-purple/30')}
+                  style={{ animationDelay: `${i * 0.06}s` }}
+                >
+                <div
                   onClick={() => setSelDeal(i)}
+                  className="p-2.5 shadow-card rounded-xl"
                   style={{
                     background: i === selDeal ? T.cardHover : T.card,
-                    boxShadow: CARD_SHADOW,
-                    borderRadius: RADIUS,
-                    padding: '10px',
-                    marginBottom: '6px',
-                    cursor: 'pointer',
                     borderLeft: `3px solid ${i === selDeal ? T.purple : 'transparent'}`,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '11px' }}>{d.product}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div className="flex justify-between mb-0.5">
+                    <span className="font-semibold text-[11px]">{d.product}</span>
+                    <div className="flex items-center gap-1">
                       {d.icb_id && (
                         <a
                           href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.icb_id}/view`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
+                          className="font-mono text-[8px] font-semibold px-1.5 py-0.5 rounded-[3px] no-underline cursor-pointer"
                           style={{
-                            fontFamily: FONT_MONO, fontSize: '8px', fontWeight: 600,
-                            padding: '2px 6px', borderRadius: '3px',
                             background: `${T.orange}18`, border: `1px solid ${T.orange}`,
-                            color: T.orange, textDecoration: 'none', cursor: 'pointer',
+                            color: T.orange,
                           }}
                         >
                           ICB
@@ -163,11 +130,10 @@ export default memo(function Deals({ a }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
+                          className="font-mono text-[8px] font-semibold px-1.5 py-0.5 rounded-[3px] no-underline cursor-pointer"
                           style={{
-                            fontFamily: FONT_MONO, fontSize: '8px', fontWeight: 600,
-                            padding: '2px 6px', borderRadius: '3px',
                             background: `${T.cyan}18`, border: `1px solid ${T.cyan}`,
-                            color: T.cyan, textDecoration: 'none', cursor: 'pointer',
+                            color: T.cyan,
                           }}
                         >
                           SFDC
@@ -176,10 +142,11 @@ export default memo(function Deals({ a }) {
                       <Badge color={T.purple}>{d.stage}</Badge>
                     </div>
                   </div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textMid }}>
+                  <div className="font-mono text-[10px] text-revos-text-mid">
                     {$k(d.mrr)}/mo &middot; {d.forecast} &middot; {d.close}
                   </div>
                 </div>
+                </RevealCard>
               ))}
             </div>
 
@@ -188,21 +155,20 @@ export default memo(function Deals({ a }) {
               {activeDeals[selDeal] && (() => {
                 const d = activeDeals[selDeal]
                 return (
-                  <div style={{ background: T.card, boxShadow: CARD_SHADOW, borderRadius: RADIUS, padding: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <div style={{ fontWeight: 700, fontSize: '15px' }}>{d.product}</div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                  <AnimatedBorderCard borderColor={`${T.purple}60`}>
+                  <div className="bg-revos-card shadow-card rounded-xl p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="font-bold text-[15px]">{d.product}</div>
+                      <div className="flex gap-1.5">
                         {d.icb_id && (
                           <a
                             href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.icb_id}/view`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            className="font-mono text-[9px] font-semibold px-3 py-[5px] rounded-[5px] no-underline cursor-pointer flex items-center gap-1"
                             style={{
-                              fontFamily: FONT_MONO, fontSize: '9px', fontWeight: 600,
-                              padding: '5px 12px', borderRadius: '5px',
                               background: `${T.orange}18`, border: `1px solid ${T.orange}`,
-                              color: T.orange, textDecoration: 'none', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: '4px',
+                              color: T.orange,
                             }}
                           >
                             OPEN ICB ↗
@@ -213,12 +179,10 @@ export default memo(function Deals({ a }) {
                             href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.opportunity_id}/view`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            className="font-mono text-[9px] font-semibold px-3 py-[5px] rounded-[5px] no-underline cursor-pointer flex items-center gap-1"
                             style={{
-                              fontFamily: FONT_MONO, fontSize: '9px', fontWeight: 600,
-                              padding: '5px 12px', borderRadius: '5px',
                               background: `${T.cyan}18`, border: `1px solid ${T.cyan}`,
-                              color: T.cyan, textDecoration: 'none', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: '4px',
+                              color: T.cyan,
                             }}
                           >
                             OPEN IN SALESFORCE ↗
@@ -226,67 +190,71 @@ export default memo(function Deals({ a }) {
                         )}
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' }}>
+                    <div className="grid grid-cols-3 gap-2.5 mb-3">
                       <Stat small label="MRR" value={$k(d.mrr)} color={T.green} />
                       <Stat small label="STAGE" value={d.stage} color={T.purple} />
                       <Stat small label="FORECAST" value={d.forecast} color={T.cyan} />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div style={{ padding: '8px', background: T.surface, borderRadius: '5px' }}>
-                        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '2px' }}><Tip label="CLOSE DATE">CLOSE DATE</Tip></div>
-                        <div style={{ fontSize: '12px', fontWeight: 600 }}>{d.close || '---'}</div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="p-2 bg-revos-surface rounded-[5px]">
+                        <div className="font-sans text-[10px] text-revos-text-dim tracking-[0.04em] mb-0.5"><Tip label="CLOSE DATE">CLOSE DATE</Tip></div>
+                        <div className="text-xs font-semibold">{d.close || '---'}</div>
                       </div>
-                      <div style={{ padding: '8px', background: T.surface, borderRadius: '5px' }}>
-                        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '2px' }}><Tip label="REP">REP</Tip></div>
-                        <div style={{ fontSize: '12px', fontWeight: 600 }}>{d.rep || '---'}</div>
+                      <div className="p-2 bg-revos-surface rounded-[5px]">
+                        <div className="font-sans text-[10px] text-revos-text-dim tracking-[0.04em] mb-0.5"><Tip label="REP">REP</Tip></div>
+                        <div className="text-xs font-semibold">{d.rep || '---'}</div>
                       </div>
                     </div>
 
                     {/* ICB Details */}
                     {d.icb && (
-                      <div style={{ marginTop: '12px', background: `${T.orange}08`, border: `1px solid ${T.orange}22`, borderRadius: '8px', padding: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.orange, letterSpacing: '0.04em', fontWeight: 700 }}>
+                      <div
+                        className="mt-3 rounded-lg p-3"
+                        style={{ background: `${T.orange}08`, border: `1px solid ${T.orange}22` }}
+                      >
+                        <div className="flex justify-between items-center mb-2.5">
+                          <div className="font-sans text-[10px] text-revos-orange tracking-[0.04em] font-bold">
                             ICB DETAILS
                           </div>
                           {d.icb.status && (
-                            <Badge color={
+                            <GlowBadge color={
                               d.icb.status.toLowerCase().includes('approved') ? T.green
                               : d.icb.status.toLowerCase().includes('reject') ? T.red
                               : d.icb.status.toLowerCase().includes('pending') ? T.yellow
                               : T.orange
                             }>
                               {d.icb.status.toUpperCase()}
-                            </Badge>
+                            </GlowBadge>
                           )}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '8px' }}>
-                          <div style={{ padding: '6px 8px', background: T.surface, borderRadius: '5px' }}>
-                            <div style={{ fontFamily: FONT_MONO, fontSize: '7px', color: T.textDim, marginBottom: '2px' }}>STAGE</div>
-                            <div style={{ fontSize: '11px', fontWeight: 600, color: T.text }}>{d.icb.stage || '---'}</div>
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <div className="px-2 py-1.5 bg-revos-surface rounded-[5px]">
+                            <div className="font-mono text-[7px] text-revos-text-dim mb-0.5">STAGE</div>
+                            <div className="text-[11px] font-semibold text-revos-text">{d.icb.stage || '---'}</div>
                           </div>
-                          <div style={{ padding: '6px 8px', background: T.surface, borderRadius: '5px' }}>
-                            <div style={{ fontFamily: FONT_MONO, fontSize: '7px', color: T.textDim, marginBottom: '2px' }}>CREATED DATE</div>
-                            <div style={{ fontSize: '11px', fontWeight: 600, color: T.text }}>{d.icb.created_date || '---'}</div>
+                          <div className="px-2 py-1.5 bg-revos-surface rounded-[5px]">
+                            <div className="font-mono text-[7px] text-revos-text-dim mb-0.5">CREATED DATE</div>
+                            <div className="text-[11px] font-semibold text-revos-text">{d.icb.created_date || '---'}</div>
                           </div>
-                          <div style={{ padding: '6px 8px', background: T.surface, borderRadius: '5px' }}>
-                            <div style={{ fontFamily: FONT_MONO, fontSize: '7px', color: T.textDim, marginBottom: '2px' }}>SE NAME</div>
-                            <div style={{ fontSize: '11px', fontWeight: 600, color: T.text }}>{d.icb.se_name || '---'}</div>
+                          <div className="px-2 py-1.5 bg-revos-surface rounded-[5px]">
+                            <div className="font-mono text-[7px] text-revos-text-dim mb-0.5">SE NAME</div>
+                            <div className="text-[11px] font-semibold text-revos-text">{d.icb.se_name || '---'}</div>
                           </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                          <div style={{ padding: '6px 8px', background: T.surface, borderRadius: '5px' }}>
-                            <div style={{ fontFamily: FONT_MONO, fontSize: '7px', color: T.textDim, marginBottom: '2px' }}>DATE SE REVIEW</div>
-                            <div style={{ fontSize: '11px', fontWeight: 600, color: T.text }}>{d.icb.se_review_date || '---'}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="px-2 py-1.5 bg-revos-surface rounded-[5px]">
+                            <div className="font-mono text-[7px] text-revos-text-dim mb-0.5">DATE SE REVIEW</div>
+                            <div className="text-[11px] font-semibold text-revos-text">{d.icb.se_review_date || '---'}</div>
                           </div>
-                          <div style={{ padding: '6px 8px', background: T.surface, borderRadius: '5px' }}>
-                            <div style={{ fontFamily: FONT_MONO, fontSize: '7px', color: T.textDim, marginBottom: '2px' }}>ICB SE REVIEW TIME</div>
-                            <div style={{ fontSize: '11px', fontWeight: 600, color: T.text }}>{d.icb.se_review_time || '---'}</div>
+                          <div className="px-2 py-1.5 bg-revos-surface rounded-[5px]">
+                            <div className="font-mono text-[7px] text-revos-text-dim mb-0.5">ICB SE REVIEW TIME</div>
+                            <div className="text-[11px] font-semibold text-revos-text">{d.icb.se_review_time || '---'}</div>
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
+                  </AnimatedBorderCard>
                 )
               })()}
             </div>
@@ -296,21 +264,27 @@ export default memo(function Deals({ a }) {
 
       {tab === 'historical' && (
         allHistorical.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px', opacity: 0.5 }}>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim }}>No historical deals</div>
+          <div className="text-center p-[30px] opacity-50">
+            <div className="font-mono text-[11px] text-revos-text-dim">No historical deals</div>
           </div>
         ) : (
           <div>
             {/* Summary stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
-              <Stat small label="TOTAL DEALS" value={allHistorical.length} color={T.purple} />
-              <Stat small label="NET MRR" value={$k(histTotalMRR)} color={histTotalMRR >= 0 ? T.green : T.red} />
-              <Stat small label="WON" value={histWon.length} color={T.green} />
-              <Stat small label="LOST / CHURN" value={`${histLost.length} / ${histChurn.length}`} color={T.red} />
+            <div className="grid grid-cols-4 gap-2.5 mb-3">
+              {[
+                { label: 'TOTAL DEALS', value: allHistorical.length, color: T.purple },
+                { label: 'NET MRR', value: $k(histTotalMRR), color: histTotalMRR >= 0 ? T.green : T.red },
+                { label: 'WON', value: histWon.length, color: T.green },
+                { label: 'LOST / CHURN', value: `${histLost.length} / ${histChurn.length}`, color: T.red },
+              ].map((s, i) => (
+                <div key={s.label} className="opacity-0 animate-fade-slide-in" style={{ animationDelay: `${i * 0.08}s` }}>
+                  <Stat small label={s.label} value={s.value} color={s.color} />
+                </div>
+              ))}
             </div>
 
             {/* Sub-filter tabs */}
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+            <div className="flex gap-1.5 mb-3">
               {[
                 { id: 'all', label: 'ALL', count: allHistorical.length, color: T.purple },
                 { id: 'won', label: 'BOOKINGS', count: histWon.length, color: T.green },
@@ -320,14 +294,8 @@ export default memo(function Deals({ a }) {
                 <button
                   key={f.id}
                   onClick={() => setHistFilter(f.id)}
+                  className="px-2.5 py-1 font-sans text-[10px] tracking-[0.04em] cursor-pointer border-none rounded"
                   style={{
-                    padding: '4px 10px',
-                    fontFamily: FONT_SANS,
-                    fontSize: '10px',
-                    letterSpacing: '0.04em',
-                    cursor: 'pointer',
-                    border: 'none',
-                    borderRadius: '4px',
                     background: histFilter === f.id ? `${f.color}15` : T.surface,
                     boxShadow: histFilter === f.id ? `0 0 0 1px ${f.color}30` : 'none',
                     color: histFilter === f.id ? f.color : T.textDim,
@@ -340,24 +308,14 @@ export default memo(function Deals({ a }) {
             </div>
 
             {/* Historicals table */}
-            <div style={{ background: T.card, boxShadow: CARD_SHADOW, borderRadius: RADIUS, overflow: 'hidden' }}>
+            <div className="bg-revos-card shadow-card rounded-xl overflow-hidden">
               {/* Header */}
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1fr 1fr 50px',
-                  gap: '4px',
-                  padding: '8px 12px',
-                  background: T.surface,
-                  borderBottom: `1px solid ${T.border}`,
-                  fontFamily: FONT_MONO,
-                  fontSize: '8px',
-                  color: T.textDim,
-                  letterSpacing: '0.06em',
-                }}
+                className="grid grid-cols-[2fr_1fr_1fr_1.2fr_1fr_1fr_50px] gap-1 px-3 py-2 bg-revos-surface font-mono text-[8px] text-revos-text-dim tracking-[0.06em]"
+                style={{ borderBottom: `1px solid ${T.border}` }}
               >
                 <div><Tip label="PRODUCT">PRODUCT</Tip></div>
-                <div style={{ textAlign: 'right' }}><Tip label="MRR">MRR</Tip></div>
+                <div className="text-right"><Tip label="MRR">MRR</Tip></div>
                 <div><Tip label="STAGE">STAGE</Tip></div>
                 <div><Tip tip="Deal type: New Service, Re-Rate, Renewal, Disconnect, etc.">TYPE</Tip></div>
                 <div><Tip label="CLOSE DATE">CLOSE DATE</Tip></div>
@@ -366,7 +324,7 @@ export default memo(function Deals({ a }) {
               </div>
 
               {/* Rows */}
-              <div style={{ maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
+              <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
                 {historicalDeals.map((d, i) => {
                   const isNeg = d.mrr < 0
                   const isLost = d.stage === 'Closed Lost'
@@ -374,20 +332,19 @@ export default memo(function Deals({ a }) {
                   return (
                     <div
                       key={i}
+                      className="grid grid-cols-[2fr_1fr_1fr_1.2fr_1fr_1fr_50px] gap-1 px-3 py-2 text-[11px]"
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1fr 1fr 50px',
-                        gap: '4px',
-                        padding: '8px 12px',
                         borderBottom: `1px solid ${T.border}`,
-                        fontSize: '11px',
                         background: i % 2 === 0 ? 'transparent' : T.surface + '40',
                       }}
                     >
-                      <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div className="font-semibold overflow-hidden text-ellipsis whitespace-nowrap">
                         {d.product}
                       </div>
-                      <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color: isNeg ? T.red : T.green }}>
+                      <div
+                        className="text-right font-mono text-[10px] font-semibold"
+                        style={{ color: isNeg ? T.red : T.green }}
+                      >
                         {isNeg ? '-' : ''}{$(Math.abs(d.mrr))}
                       </div>
                       <div>
@@ -395,26 +352,25 @@ export default memo(function Deals({ a }) {
                           {isWon ? 'WON' : isNeg ? 'CHURN' : isLost ? 'LOST' : d.stage || '---'}
                         </Badge>
                       </div>
-                      <div style={{ fontSize: '10px', color: T.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div className="text-[10px] text-revos-text-mid overflow-hidden text-ellipsis whitespace-nowrap">
                         {d.type || '---'}
                       </div>
-                      <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>
+                      <div className="font-mono text-[10px] text-revos-text-dim">
                         {d.close || '---'}
                       </div>
-                      <div style={{ fontSize: '10px', color: T.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div className="text-[10px] text-revos-text-mid overflow-hidden text-ellipsis whitespace-nowrap">
                         {d.rep || '---'}
                       </div>
-                      <div style={{ textAlign: 'center' }}>
+                      <div className="text-center">
                         {d.opportunity_id && (
                           <a
                             href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.opportunity_id}/view`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            className="font-mono text-[8px] font-semibold px-1.5 py-0.5 rounded-[3px] no-underline cursor-pointer"
                             style={{
-                              fontFamily: FONT_MONO, fontSize: '8px', fontWeight: 600,
-                              padding: '2px 6px', borderRadius: '3px',
                               background: `${T.cyan}18`, border: `1px solid ${T.cyan}`,
-                              color: T.cyan, textDecoration: 'none', cursor: 'pointer',
+                              color: T.cyan,
                             }}
                           >
                             SFDC

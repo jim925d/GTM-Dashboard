@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react'
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW } from './lib/constants'
+import { useState, useCallback, useEffect } from 'react'
+import { T } from './lib/constants'
+import { cn } from '@/lib/utils'
 import useAccounts from './hooks/useAccounts'
 import useLocalData from './hooks/useLocalData'
+import { saveBacktest, loadBacktest } from './lib/engineStore'
 import Header from './components/layout/Header'
 import Sidebar from './components/layout/Sidebar'
 import TopNav from './components/layout/TopNav'
@@ -25,6 +27,9 @@ import EngineDashboard from './pages/EngineDashboard'
 import BacktestEngine from './pages/BacktestEngine'
 import SellerLocations from './pages/SellerLocations'
 import SellerActions from './pages/SellerActions'
+import EngagementDashboard from './pages/EngagementDashboard'
+import PlaybookEngine from './pages/PlaybookEngine'
+import PricingEngine from './pages/PricingEngine'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
@@ -56,6 +61,18 @@ export default function App() {
   const [managerFilter, setManagerFilter] = useState('all')
   const [ownerFilter, setOwnerFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [backtestResults, setBacktestResults] = useState(null)
+
+  // Load persisted backtest results on mount
+  useEffect(() => {
+    loadBacktest().then(data => { if (data) setBacktestResults(data) })
+  }, [])
+
+  // Save backtest results whenever they change
+  const handleBacktestResults = useCallback((results) => {
+    setBacktestResults(results)
+    if (results) saveBacktest(results)
+  }, [])
 
   const MANAGERS = ['DCosta', 'Kahn', 'Ochoa']
 
@@ -100,213 +117,210 @@ export default function App() {
   // ---------- Landing page (mode === null) ----------
   if (!hasNoData && mode === null) {
     return (
-      <div style={{
-        height: '100vh', background: T.bg, color: T.text,
-        fontFamily: "'Inter', system-ui, sans-serif",
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '40px',
-      }}>
-        <div style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.15em', color: T.cyan, marginBottom: '8px' }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col items-center justify-center p-10">
+        <div className="font-mono text-[11px] tracking-[0.15em] text-revos-cyan mb-2">
           REVOS
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '6px', textAlign: 'center' }}>
+        <h1 className="text-[28px] font-bold mb-1.5 text-center">
           Account Intelligence Platform
         </h1>
-        <p style={{ color: T.textMid, fontSize: '13px', marginBottom: '40px', textAlign: 'center', maxWidth: '440px' }}>
+        <p className="text-revos-text-mid text-[13px] mb-10 text-center max-w-[440px]">
           Select a dashboard to get started.
         </p>
 
-        <div style={{ display: 'flex', gap: '20px', maxWidth: '960px', width: '100%' }}>
-          {/* GTM Dashboard card */}
-          <div
-            onClick={() => setMode('gtm')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.boxShadow = `0 0 20px ${T.cyan}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>◉</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              GTM Dashboard
+        {/* ── Sales Dashboards ── */}
+        <div className="max-w-[1200px] w-full mb-8">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-3 uppercase">
+            Sales Dashboards
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+            {/* GTM Dashboard */}
+            <div
+              onClick={() => setMode('gtm')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-cyan hover:shadow-[0_0_20px_rgba(110,200,228,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">◉</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                GTM Dashboard
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Account-level intelligence, pipeline analytics, risk signals, engagement tracking, and predictive modeling.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-cyan tracking-[0.04em]">
+                {accounts.length} ACCOUNTS LOADED
+              </div>
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              Account-level intelligence, pipeline analytics, risk signals, engagement tracking, and predictive modeling.
+
+            {/* Seller Dashboard */}
+            <div
+              onClick={() => setMode('seller')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-purple hover:shadow-[0_0_20px_rgba(176,144,224,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">👤</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Seller Dashboard
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Rep-level view with quota attainment, pipeline management, KPI scorecard, and bookings tracking.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-purple tracking-[0.04em]">
+                SELECT A SELLER TO VIEW
+              </div>
             </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.cyan, letterSpacing: '0.04em',
-            }}>
-              {accounts.length} ACCOUNTS LOADED
+
+            {/* Seller Actions */}
+            <div
+              onClick={() => setMode('seller-actions')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-pink hover:shadow-[0_0_20px_rgba(232,136,176,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">🎯</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Seller Actions
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Priority accounts, expansion signals & churn alerts with AI-powered win probability scoring.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-pink tracking-[0.04em]">
+                3 ACTIONS TODAY
+              </div>
+            </div>
+
+            {/* Forecast Dashboard */}
+            <div
+              onClick={() => setMode('forecast')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-green hover:shadow-[0_0_20px_rgba(110,216,160,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">📊</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Forecast Dashboard
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Revenue forecasting, bookings composition, churn modeling, win rate trends, and rep productivity analytics.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-green tracking-[0.04em]">
+                STAGE-WEIGHTED MODELING
+              </div>
+            </div>
+
+            {/* Engagement Dashboard */}
+            <div
+              onClick={() => setMode('engagement')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-blue hover:shadow-[0_0_20px_rgba(112,168,224,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">📈</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Engagement Dashboard
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Rep-level engagement analytics, coverage heatmaps, pipeline correlation, and account deep dives with CSV import.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-blue tracking-[0.04em]">
+                ENGAGEMENT ANALYTICS
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Seller Dashboard card */}
-          <div
-            onClick={() => setMode('seller')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.purple; e.currentTarget.style.boxShadow = `0 0 20px ${T.purple}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>👤</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              Seller Dashboard
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              Rep-level view with quota attainment, pipeline management, KPI scorecard, and bookings tracking.
-            </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.purple, letterSpacing: '0.04em',
-            }}>
-              SELECT A SELLER TO VIEW
-            </div>
+        {/* ── Data Engines ── */}
+        <div className="max-w-[1200px] w-full">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-3 uppercase">
+            Data Engines
           </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+            {/* Backtest Engine */}
+            <div
+              onClick={() => setMode('backtest')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-orange hover:shadow-[0_0_20px_rgba(232,160,80,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">🔬</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Backtest Engine
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Upload historical deal data, train a logistic model, and validate prediction accuracy with cross-validation.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-orange tracking-[0.04em]">
+                MODEL VALIDATION
+              </div>
+            </div>
 
-          {/* Seller Actions card */}
-          <div
-            onClick={() => setMode('seller-actions')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.pink; e.currentTarget.style.boxShadow = `0 0 20px ${T.pink}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>🎯</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              Seller Actions
+            {/* Location Intelligence */}
+            <div
+              onClick={() => setMode('locations')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-purple hover:shadow-[0_0_20px_rgba(176,144,224,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">◈</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Location Intelligence
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Account location enrichment, multi-source discovery, Bayesian expansion signals, and geographic footprint mapping.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-purple tracking-[0.04em]">
+                ENRICHMENT ENGINE
+              </div>
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              Priority accounts, expansion signals & churn alerts with AI-powered win probability scoring.
-            </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.pink, letterSpacing: '0.04em',
-            }}>
-              3 ACTIONS TODAY
-            </div>
-          </div>
 
-          {/* Forecast Dashboard card */}
-          <div
-            onClick={() => setMode('forecast')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.green; e.currentTarget.style.boxShadow = `0 0 20px ${T.green}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>📊</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              Forecast Dashboard
+            {/* Prediction Engine */}
+            <div
+              onClick={() => setMode('engine')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-teal hover:shadow-[0_0_20px_rgba(80,208,184,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">⚡</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Prediction Engine
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                AI-powered deal scoring, strategy recommendations, pricing optimization, and model calibration.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-teal tracking-[0.04em]">
+                ML-POWERED SCORING
+              </div>
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              Revenue forecasting, bookings composition, churn modeling, win rate trends, and rep productivity analytics.
-            </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.green, letterSpacing: '0.04em',
-            }}>
-              STAGE-WEIGHTED MODELING
-            </div>
-          </div>
 
-          {/* Prediction Engine card */}
-          <div
-            onClick={() => setMode('engine')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.teal; e.currentTarget.style.boxShadow = `0 0 20px ${T.teal}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>⚡</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              Prediction Engine
+            {/* Playbook Engine */}
+            <div
+              onClick={() => setMode('playbook')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-pink hover:shadow-[0_0_20px_rgba(244,114,182,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">📋</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Playbook Engine
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                AI-extracted sales rules, qualification frameworks, competitive intelligence, and deal pattern matching.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-pink tracking-[0.04em]">
+                SALES INTELLIGENCE
+              </div>
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              AI-powered deal scoring, strategy recommendations, pricing optimization, and model calibration.
-            </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.teal, letterSpacing: '0.04em',
-            }}>
-              ML-POWERED SCORING
-            </div>
-          </div>
 
-          {/* Backtest Engine card */}
-          <div
-            onClick={() => setMode('backtest')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 20px ${T.orange}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>🔬</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              Backtest Engine
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              Upload historical deal data, train a logistic model, and validate prediction accuracy with cross-validation.
-            </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.orange, letterSpacing: '0.04em',
-            }}>
-              MODEL VALIDATION
-            </div>
-          </div>
-
-          {/* Seller Locations card */}
-          <div
-            onClick={() => setMode('locations')}
-            style={{
-              flex: 1, padding: '32px 28px', background: T.card, borderRadius: RADIUS,
-              boxShadow: CARD_SHADOW, cursor: 'pointer', transition: 'all 0.2s',
-              border: `1px solid ${T.border}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.purple; e.currentTarget.style.boxShadow = `0 0 20px ${T.purple}15` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = CARD_SHADOW }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '14px' }}>◈</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-              Location Intelligence
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim, lineHeight: 1.6 }}>
-              Account location enrichment, multi-source discovery, Bayesian expansion signals, and geographic footprint mapping.
-            </div>
-            <div style={{
-              marginTop: '18px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-              color: T.purple, letterSpacing: '0.04em',
-            }}>
-              ENRICHMENT ENGINE
+            {/* Pricing Engine */}
+            <div
+              onClick={() => setMode('pricing')}
+              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-lime hover:shadow-[0_0_20px_rgba(163,230,53,0.08)]"
+            >
+              <div className="text-[32px] mb-3.5">💲</div>
+              <div className="font-sans text-base font-bold mb-1.5">
+                Pricing Engine
+              </div>
+              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
+                Product pricing tables, vertical adjustments, discount rules, and rate card upload management.
+              </div>
+              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-lime tracking-[0.04em]">
+                RATE MANAGEMENT
+              </div>
             </div>
           </div>
         </div>
 
         {dataSource === 'local' && (
-          <div style={{ marginTop: '24px', fontFamily: FONT_MONO, fontSize: '9px', color: T.green }}>
+          <div className="mt-6 font-mono text-[9px] text-revos-green">
             LIVE DATA FROM data/
           </div>
         )}
         {dataSource === 'uploaded' && (
-          <div style={{ marginTop: '24px', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>
+          <div className="mt-6 font-mono text-[9px] text-revos-text-dim">
             YOUR DATA · LOCAL ONLY
           </div>
         )}
@@ -314,37 +328,103 @@ export default function App() {
     )
   }
 
-  // ---------- Seller Dashboard mode ----------
-  if (mode === 'seller') {
+  // ---------- Playbook Engine mode ----------
+  if (mode === 'playbook') {
     return (
-      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Seller header bar */}
-        <div style={{
-          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-        }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
           <button
             onClick={() => setMode(null)}
-            style={{
-              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
-              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
-              color: T.textDim, transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
           >
             ← Back
           </button>
-          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
             REVOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+          <div className="font-sans text-xs text-revos-text-mid">
+            Playbook Engine
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <PlaybookEngine />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Pricing Engine mode ----------
+  if (mode === 'pricing') {
+    return (
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setMode(null)}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
+            REVOS
+          </div>
+          <div className="font-sans text-xs text-revos-text-mid">
+            Pricing Engine
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <PricingEngine />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Engagement Dashboard mode ----------
+  if (mode === 'engagement') {
+    return (
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setMode(null)}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
+            REVOS
+          </div>
+          <div className="font-sans text-xs text-revos-text-mid">
+            Engagement Dashboard
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <EngagementDashboard />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- Seller Dashboard mode ----------
+  if (mode === 'seller') {
+    return (
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        {/* Seller header bar */}
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setMode(null)}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
+          >
+            ← Back
+          </button>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
+            REVOS
+          </div>
+          <div className="font-sans text-xs text-revos-text-mid">
             Seller Dashboard
           </div>
         </div>
 
         {/* RepDashboard fills the rest */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           <RepDashboard
             accounts={accounts}
             rawData={hasLocalData ? localRawData : rawData}
@@ -357,34 +437,24 @@ export default function App() {
   // ---------- Seller Actions mode ----------
   if (mode === 'seller-actions') {
     return (
-      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{
-          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-        }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
           <button
             onClick={() => setMode(null)}
-            style={{
-              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
-              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
-              color: T.textDim, transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
           >
             ← Back
           </button>
-          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
             REVOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+          <div className="font-sans text-xs text-revos-text-mid">
             Seller Actions
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="flex-1 overflow-y-auto">
           <SellerActions
             accounts={accounts}
-            rawData={hasLocalData ? localRawData : rawData}
             onNavigate={setMode}
           />
         </div>
@@ -395,31 +465,22 @@ export default function App() {
   // ---------- Forecast Dashboard mode ----------
   if (mode === 'forecast') {
     return (
-      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{
-          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-        }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
           <button
             onClick={() => setMode(null)}
-            style={{
-              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
-              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
-              color: T.textDim, transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
           >
             ← Back
           </button>
-          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
             REVOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+          <div className="font-sans text-xs text-revos-text-mid">
             Forecast Dashboard
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           <ForecastDashboard
             accounts={accounts}
             rawData={hasLocalData ? localRawData : rawData}
@@ -432,32 +493,23 @@ export default function App() {
   // ---------- Prediction Engine mode ----------
   if (mode === 'engine') {
     return (
-      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{
-          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-        }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
           <button
             onClick={() => setMode(null)}
-            style={{
-              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
-              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
-              color: T.textDim, transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
           >
             ← Back
           </button>
-          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
             REVOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+          <div className="font-sans text-xs text-revos-text-mid">
             Prediction Engine
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-          <EngineDashboard />
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <EngineDashboard accounts={accounts} backtestResults={backtestResults} />
         </div>
       </div>
     )
@@ -466,32 +518,23 @@ export default function App() {
   // ---------- Backtest Engine mode ----------
   if (mode === 'backtest') {
     return (
-      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{
-          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-        }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
           <button
             onClick={() => setMode(null)}
-            style={{
-              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
-              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
-              color: T.textDim, transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
           >
             ← Back
           </button>
-          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
             REVOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+          <div className="font-sans text-xs text-revos-text-mid">
             Backtest Engine
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <BacktestEngine />
+        <div className="flex-1 overflow-y-auto">
+          <BacktestEngine onResults={handleBacktestResults} savedResults={backtestResults} />
         </div>
       </div>
     )
@@ -500,31 +543,22 @@ export default function App() {
   // ---------- Location Intelligence mode ----------
   if (mode === 'locations') {
     return (
-      <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{
-          padding: '8px 16px', borderBottom: `1px solid ${T.border}`, background: T.surface,
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
-        }}>
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
+        <div className="px-4 py-2 border-b border-revos-border bg-revos-surface flex items-center gap-3 shrink-0">
           <button
             onClick={() => setMode(null)}
-            style={{
-              background: 'none', border: `1px solid ${T.border}`, borderRadius: '6px',
-              padding: '4px 10px', cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '10px',
-              color: T.textDim, transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = T.cyan }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim }}
+            className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 cursor-pointer font-mono text-[10px] text-revos-text-dim transition-all duration-150 hover:border-revos-cyan hover:text-revos-cyan"
           >
             ← Back
           </button>
-          <div onClick={() => setMode(null)} style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.12em', color: T.cyan, fontWeight: 600, cursor: 'pointer' }}>
+          <div onClick={() => setMode(null)} className="font-mono text-[11px] tracking-[0.12em] text-revos-cyan font-semibold cursor-pointer">
             REVOS
           </div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '12px', color: T.textMid }}>
+          <div className="font-sans text-xs text-revos-text-mid">
             Location Intelligence
           </div>
         </div>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="flex-1 overflow-hidden">
           <SellerLocations />
         </div>
       </div>
@@ -552,20 +586,15 @@ export default function App() {
             setDropStatus({ type: 'error', message: err.message })
           }
         }}
-        style={{
-          height: '100vh', background: T.bg, color: T.text,
-          fontFamily: "'Inter', system-ui, sans-serif",
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          padding: '40px',
-        }}
+        className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col items-center justify-center p-10"
       >
-        <div style={{ fontFamily: FONT_MONO, fontSize: '11px', letterSpacing: '0.15em', color: T.cyan, marginBottom: '8px' }}>
+        <div className="font-mono text-[11px] tracking-[0.15em] text-revos-cyan mb-2">
           REVOS
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px', textAlign: 'center' }}>
+        <h1 className="text-[28px] font-bold mb-2 text-center">
           Account Intelligence Platform
         </h1>
-        <p style={{ color: T.textMid, fontSize: '14px', marginBottom: '32px', textAlign: 'center', maxWidth: '500px' }}>
+        <p className="text-revos-text-mid text-sm mb-8 text-center max-w-[500px]">
           Drop your data folder contents below to get started. All processing happens in your browser — nothing is uploaded to any server.
         </p>
 
@@ -589,36 +618,32 @@ export default function App() {
             }
             input.click()
           }}
-          style={{
-            width: '100%', maxWidth: '600px', padding: '60px 40px',
-            border: `2px dashed ${dropping ? T.cyan : T.border}`,
-            borderRadius: RADIUS,
-            background: dropping ? `${T.cyan}08` : T.surface,
-            cursor: 'pointer', textAlign: 'center',
-            transition: 'all 0.2s',
-          }}
+          className={cn(
+            "w-full max-w-[600px] px-10 py-[60px] rounded-xl cursor-pointer text-center transition-all duration-200 border-2 border-dashed",
+            dropping
+              ? "border-revos-cyan bg-revos-cyan/[0.03]"
+              : "border-revos-border bg-revos-surface"
+          )}
         >
           {dropStatus?.type === 'loading' && uploadProgress ? (
-            <div style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}>
+            <div className="w-full max-w-[400px] mx-auto">
               {/* File counter */}
-              <div style={{ fontFamily: FONT_MONO, fontSize: '12px', color: T.textMid, marginBottom: '12px', textAlign: 'center' }}>
+              <div className="font-mono text-xs text-revos-text-mid mb-3 text-center">
                 {uploadProgress.phase === 'building'
                   ? 'Building accounts...'
                   : `${uploadProgress.phase === 'reading' ? 'Reading' : 'Parsing'} ${uploadProgress.fileName}`}
               </div>
               {/* Progress bar */}
-              <div style={{
-                width: '100%', height: '6px', background: T.border, borderRadius: '3px',
-                overflow: 'hidden', marginBottom: '8px',
-              }}>
-                <div style={{
-                  height: '100%', borderRadius: '3px', background: T.cyan,
-                  width: `${Math.round(((uploadProgress.current + (uploadProgress.phase === 'parsing' ? 0.5 : 0)) / uploadProgress.total) * 100)}%`,
-                  transition: 'width 0.15s ease',
-                }} />
+              <div className="w-full h-1.5 bg-revos-border rounded-full overflow-hidden mb-2">
+                <div
+                  className="h-full rounded-full bg-revos-cyan transition-[width] duration-150 ease-linear"
+                  style={{
+                    width: `${Math.round(((uploadProgress.current + (uploadProgress.phase === 'parsing' ? 0.5 : 0)) / uploadProgress.total) * 100)}%`,
+                  }}
+                />
               </div>
               {/* Counter text */}
-              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim, textAlign: 'center' }}>
+              <div className="font-mono text-[10px] text-revos-text-dim text-center">
                 {uploadProgress.phase === 'building'
                   ? 'Aggregating records into accounts'
                   : `${uploadProgress.current + 1} of ${uploadProgress.total} files`}
@@ -626,13 +651,13 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.6 }}>
+              <div className="text-[48px] mb-4 opacity-60">
                 {dropStatus?.type === 'loading' ? '...' : ''}
               </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '14px', color: T.textMid, marginBottom: '8px' }}>
+              <div className="font-mono text-sm text-revos-text-mid mb-2">
                 {dropStatus?.type === 'loading' ? 'Processing...' : 'Drop all files here or click to select'}
               </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim, lineHeight: 1.6 }}>
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.6]">
                 Select all CSV + JSON files from your data folder<br/>
                 customers.csv, funnel.csv, close_lost.csv, services.csv, ICB.csv,<br/>
                 locations.json, historical.json, engagements.json, etc.
@@ -642,18 +667,19 @@ export default function App() {
         </div>
 
         {dropStatus && dropStatus.type !== 'loading' && (
-          <div style={{
-            marginTop: '16px', padding: '12px 20px', borderRadius: '8px',
-            fontFamily: FONT_MONO, fontSize: '11px', maxWidth: '600px', width: '100%',
-            background: dropStatus.type === 'error' ? `${T.red}18` : `${T.green}18`,
-            color: dropStatus.type === 'error' ? T.red : T.green,
-            border: `1px solid ${dropStatus.type === 'error' ? T.red : T.green}30`,
-          }}>
+          <div
+            className={cn(
+              "mt-4 px-5 py-3 rounded-lg font-mono text-[11px] max-w-[600px] w-full border",
+              dropStatus.type === 'error'
+                ? "bg-revos-red/10 text-revos-red border-revos-red/20"
+                : "bg-revos-green/10 text-revos-green border-revos-green/20"
+            )}
+          >
             {dropStatus.message}
           </div>
         )}
 
-        <div style={{ marginTop: '24px', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, textAlign: 'center' }}>
+        <div className="mt-6 font-mono text-[9px] text-revos-text-dim text-center">
           YOUR DATA NEVER LEAVES YOUR COMPUTER
         </div>
       </div>
@@ -661,38 +687,30 @@ export default function App() {
   }
 
   return (
-    <div style={{ height: '100vh', background: T.bg, color: T.text, fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col overflow-hidden">
       <Header accountCount={searchedAccounts.length} onLogoClick={() => setMode(null)} />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <div style={{ width: '220px', borderRight: `1px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
+      <div className="flex flex-1 overflow-hidden">
+        <div className="w-[220px] border-r border-revos-border bg-revos-surface flex flex-col shrink-0 min-h-0 overflow-hidden">
           {/* Data source panel */}
-          <div style={{ padding: '8px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+          <div className="p-2 border-b border-revos-border shrink-0">
             {/* Data folder selector */}
-            <div style={{ marginBottom: '6px' }}>
+            <div className="mb-1.5">
               <button
                 onClick={() => { setShowDirPicker(!showDirPicker); setDirError(''); if (!dirInput && dataDir) setDirInput(dataDir) }}
-                style={{
-                  width: '100%', padding: '6px 8px', borderRadius: '5px', cursor: 'pointer',
-                  fontFamily: FONT_MONO, fontSize: '9px', fontWeight: 600,
-                  background: T.card, border: `1px solid ${T.border}`, color: T.cyan,
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  transition: 'border-color 0.15s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = T.cyan}
-                onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
+                className="w-full px-2 py-1.5 rounded-[5px] cursor-pointer font-mono text-[9px] font-semibold bg-revos-card border border-revos-border text-revos-cyan flex items-center gap-1.5 transition-[border-color] duration-150 hover:border-revos-cyan"
               >
-                <span style={{ fontSize: '12px' }}>📂</span>
+                <span className="text-xs">📂</span>
                 {dataDir ? 'Change Data Folder' : 'Select Data Folder'}
               </button>
               {dataDir && !showDirPicker && (
-                <div style={{ fontFamily: FONT_MONO, fontSize: '8px', color: T.textDim, marginTop: '3px', wordBreak: 'break-all' }}>
+                <div className="font-mono text-[8px] text-revos-text-dim mt-[3px] break-all">
                   {dataDir}
                 </div>
               )}
               {showDirPicker && (
-                <div style={{ marginTop: '6px', padding: '8px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: '6px' }}>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '8px', color: T.textDim, marginBottom: '4px' }}>
+                <div className="mt-1.5 p-2 bg-revos-surface border border-revos-border rounded-md">
+                  <div className="font-mono text-[8px] text-revos-text-dim mb-1">
                     Paste the full path to your data folder:
                   </div>
                   <input
@@ -701,38 +719,24 @@ export default function App() {
                     onChange={(e) => setDirInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSetDir()}
                     placeholder="C:\Users\...\data"
-                    style={{
-                      width: '100%', padding: '5px 6px', fontFamily: FONT_MONO, fontSize: '9px',
-                      background: T.card, border: `1px solid ${T.border}`, borderRadius: '4px',
-                      color: T.text, outline: 'none', marginBottom: '4px',
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = T.cyan}
-                    onBlur={(e) => e.target.style.borderColor = T.border}
+                    className="w-full px-1.5 py-[5px] font-mono text-[9px] bg-revos-card border border-revos-border rounded-[4px] text-revos-text outline-none mb-1 focus:border-revos-cyan"
                     autoFocus
                   />
                   {dirError && (
-                    <div style={{ fontFamily: FONT_MONO, fontSize: '8px', color: T.red, marginBottom: '4px' }}>
+                    <div className="font-mono text-[8px] text-revos-red mb-1">
                       {dirError}
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div className="flex gap-1">
                     <button
                       onClick={handleSetDir}
-                      style={{
-                        flex: 1, padding: '4px', borderRadius: '4px', cursor: 'pointer',
-                        fontFamily: FONT_MONO, fontSize: '9px', fontWeight: 600,
-                        background: `${T.cyan}18`, border: `1px solid ${T.cyan}`, color: T.cyan,
-                      }}
+                      className="flex-1 py-1 rounded-[4px] cursor-pointer font-mono text-[9px] font-semibold bg-revos-cyan/10 border border-revos-cyan text-revos-cyan"
                     >
                       Load
                     </button>
                     <button
                       onClick={() => { setShowDirPicker(false); setDirError('') }}
-                      style={{
-                        padding: '4px 8px', borderRadius: '4px', cursor: 'pointer',
-                        fontFamily: FONT_MONO, fontSize: '9px',
-                        background: 'transparent', border: `1px solid ${T.border}`, color: T.textDim,
-                      }}
+                      className="px-2 py-1 rounded-[4px] cursor-pointer font-mono text-[9px] bg-transparent border border-revos-border text-revos-text-dim"
                     >
                       Cancel
                     </button>
@@ -742,32 +746,22 @@ export default function App() {
             </div>
             {/* Show local file status if files exist in data/ */}
             {localFiles.length > 0 && (
-              <div style={{
-                padding: '6px 8px',
-                background: `${T.green}08`,
-                border: `1px solid ${T.green}22`,
-                borderRadius: '6px',
-                marginBottom: '6px',
-                fontFamily: FONT_MONO,
-                fontSize: '9px',
-              }}>
-                <div style={{ color: T.green, marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="px-2 py-1.5 rounded-md mb-1.5 font-mono text-[9px] bg-revos-green/[0.03] border border-revos-green/[0.13]">
+                <div className="text-revos-green mb-[3px] flex justify-between items-center">
                   <span>{localFiles.length} FILES LOADED</span>
                   <button
                     onClick={() => refresh()}
                     disabled={localLoading}
-                    style={{
-                      padding: '2px 6px', borderRadius: '3px', cursor: localLoading ? 'default' : 'pointer',
-                      fontFamily: FONT_MONO, fontSize: '8px', fontWeight: 600,
-                      background: 'transparent', border: `1px solid ${T.cyan}44`, color: T.cyan,
-                      opacity: localLoading ? 0.5 : 1,
-                    }}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded-[3px] font-mono text-[8px] font-semibold bg-transparent text-revos-cyan border border-revos-cyan/[0.27]",
+                      localLoading ? "cursor-default opacity-50" : "cursor-pointer"
+                    )}
                   >
                     {localLoading ? 'LOADING...' : 'REFRESH'}
                   </button>
                 </div>
                 {localFiles.map((f) => (
-                  <div key={f.name} style={{ color: T.textDim, fontSize: '8px' }}>
+                  <div key={f.name} className="text-revos-text-dim text-[8px]">
                     {f.name} ({(f.size / 1024).toFixed(0)}KB)
                   </div>
                 ))}
@@ -780,22 +774,17 @@ export default function App() {
             />
           </div>
           {/* Manager filter */}
-          <div style={{ padding: '8px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '4px' }}><Tip label="MANAGER">MANAGER</Tip></div>
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          <div className="p-2 border-b border-revos-border shrink-0">
+            <div className="font-sans text-[9px] text-revos-text-dim tracking-[0.04em] mb-1"><Tip label="MANAGER">MANAGER</Tip></div>
+            <div className="flex gap-1 flex-wrap">
               <button
                 onClick={() => { setManagerFilter('all'); setSelAcct(0) }}
-                style={{
-                  padding: '3px 8px',
-                  fontSize: '10px',
-                  fontFamily: FONT_MONO,
-                  border: 'none',
-                  borderRadius: '4px',
-                  background: managerFilter === 'all' ? `${T.cyan}15` : T.surface,
-                  boxShadow: managerFilter === 'all' ? `0 0 0 1px ${T.cyan}30` : 'none',
-                  color: managerFilter === 'all' ? T.cyan : T.textDim,
-                  cursor: 'pointer',
-                }}
+                className={cn(
+                  "px-2 py-[3px] text-[10px] font-mono border-none rounded-[4px] cursor-pointer",
+                  managerFilter === 'all'
+                    ? "bg-revos-cyan/[0.08] shadow-[0_0_0_1px_rgba(110,200,228,0.19)] text-revos-cyan"
+                    : "bg-revos-surface text-revos-text-dim"
+                )}
               >
                 ALL
               </button>
@@ -803,17 +792,12 @@ export default function App() {
                 <button
                   key={m}
                   onClick={() => { setManagerFilter(m); setSelAcct(0) }}
-                  style={{
-                    padding: '3px 8px',
-                    fontSize: '10px',
-                    fontFamily: FONT_MONO,
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: managerFilter === m ? `${T.cyan}15` : T.surface,
-                    boxShadow: managerFilter === m ? `0 0 0 1px ${T.cyan}30` : 'none',
-                    color: managerFilter === m ? T.cyan : T.textDim,
-                    cursor: 'pointer',
-                  }}
+                  className={cn(
+                    "px-2 py-[3px] text-[10px] font-mono border-none rounded-[4px] cursor-pointer",
+                    managerFilter === m
+                      ? "bg-revos-cyan/[0.08] shadow-[0_0_0_1px_rgba(110,200,228,0.19)] text-revos-cyan"
+                      : "bg-revos-surface text-revos-text-dim"
+                  )}
                 >
                   {m.toUpperCase()}
                 </button>
@@ -822,26 +806,19 @@ export default function App() {
           </div>
           {/* Sales Owner filter */}
           {salesOwners.length > 0 && (
-            <div style={{ padding: '8px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '4px' }}>
+            <div className="p-2 border-b border-revos-border shrink-0">
+              <div className="font-sans text-[9px] text-revos-text-dim tracking-[0.04em] mb-1">
                 <Tip label="SALES OWNER">SALES OWNER</Tip>
               </div>
               <select
                 value={ownerFilter}
                 onChange={(e) => { setOwnerFilter(e.target.value); setSelAcct(0) }}
-                style={{
-                  width: '100%',
-                  padding: '5px 6px',
-                  fontFamily: FONT_MONO,
-                  fontSize: '10px',
-                  background: T.card,
-                  border: `1px solid ${ownerFilter !== 'all' ? T.cyan : T.border}`,
-                  borderRadius: '4px',
-                  color: ownerFilter !== 'all' ? T.cyan : T.text,
-                  outline: 'none',
-                  cursor: 'pointer',
-                  appearance: 'auto',
-                }}
+                className={cn(
+                  "w-full px-1.5 py-[5px] font-mono text-[10px] bg-revos-card rounded-[4px] outline-none cursor-pointer appearance-auto border",
+                  ownerFilter !== 'all'
+                    ? "border-revos-cyan text-revos-cyan"
+                    : "border-revos-border text-revos-text"
+                )}
               >
                 <option value="all">All Sales Owners</option>
                 {salesOwners.map(name => (
@@ -851,54 +828,38 @@ export default function App() {
             </div>
           )}
           {/* Account search */}
-          <div style={{ padding: '6px 8px', borderBottom: `1px solid ${T.border}`, flexShrink: 0, position: 'relative' }}>
+          <div className="px-2 py-1.5 border-b border-revos-border shrink-0 relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setSelAcct(0) }}
               placeholder="Search accounts..."
-              style={{
-                width: '100%',
-                padding: '5px 22px 5px 8px',
-                fontFamily: FONT_MONO,
-                fontSize: '10px',
-                background: T.card,
-                border: `1px solid ${T.border}`,
-                borderRadius: '4px',
-                color: T.text,
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-              onFocus={(e) => e.target.style.borderColor = T.cyan}
-              onBlur={(e) => e.target.style.borderColor = T.border}
+              className="w-full py-[5px] pl-2 pr-[22px] font-mono text-[10px] bg-revos-card border border-revos-border rounded-[4px] text-revos-text outline-none box-border focus:border-revos-cyan"
             />
             {searchQuery && (
               <button
                 onClick={() => { setSearchQuery(''); setSelAcct(0) }}
-                style={{
-                  position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px',
-                  fontFamily: FONT_MONO, fontSize: '12px', color: T.textDim, lineHeight: 1,
-                }}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer px-0.5 py-0 font-mono text-xs text-revos-text-dim leading-none"
               >
                 x
               </button>
             )}
           </div>
           {/* Account list */}
-          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <div className="flex-1 overflow-y-auto min-h-0">
             <Sidebar accounts={searchedAccounts} selectedIndex={selAcct} onSelect={setSelAcct} />
           </div>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
           <TopNav activePage={page} onPageChange={setPage} />
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
             {page === 'priority' ? (
               <Priority
                 accounts={searchedAccounts}
                 onSelect={(idx) => { setSelAcct(idx); setPage('overview') }}
+                backtestResults={backtestResults}
               />
             ) : page === 'engagement' ? (
               <Engagement
@@ -906,28 +867,23 @@ export default function App() {
                 onSelect={(idx) => { setSelAcct(idx); setPage('overview') }}
               />
             ) : !a ? (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: T.textDim }}>
-                <div style={{ fontFamily: FONT_MONO, fontSize: '12px', marginBottom: '8px' }}>NO ACCOUNTS FOUND</div>
-                <div style={{ fontSize: '11px' }}>No accounts match this manager filter. Check that your customers.csv has a "Sales Funnel Manager" column.</div>
+              <div className="text-center px-5 py-[60px] text-revos-text-dim">
+                <div className="font-mono text-xs mb-2">NO ACCOUNTS FOUND</div>
+                <div className="text-[11px]">No accounts match this manager filter. Check that your customers.csv has a "Sales Funnel Manager" column.</div>
               </div>
             ) : (
             <>
             {/* Page header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div className="flex justify-between items-start mb-4">
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                  <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>{a.name}</h2>
+                <div className="flex items-center gap-2 mb-[3px]">
+                  <h2 className="text-lg font-bold m-0">{a.name}</h2>
                   {a.account_id && (
                     <a
                       href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${a.account_id}/view`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        fontFamily: FONT_MONO, fontSize: '9px', fontWeight: 600,
-                        padding: '3px 8px', borderRadius: RADIUS,
-                        background: `${T.cyan}18`, border: `1px solid ${T.cyan}`,
-                        color: T.cyan, textDecoration: 'none', cursor: 'pointer',
-                      }}
+                      className="font-mono text-[9px] font-semibold px-2 py-[3px] rounded-xl text-revos-cyan no-underline cursor-pointer bg-revos-cyan/10 border border-revos-cyan"
                     >
                       SFDC ↗
                     </a>
@@ -937,7 +893,7 @@ export default function App() {
                   </Badge>
                   {a.risk_score >= 30 && <Badge color={T.red}>RISK {a.risk_score}/100</Badge>}
                 </div>
-                <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textMid }}>
+                <div className="font-mono text-[10px] text-revos-text-mid">
                   {a.vertical} · {a.rep} · {a.tenure_mo}mo tenure · NRR: {pc(a.nrr)} · {a.products.join(', ')}
                 </div>
               </div>
@@ -952,11 +908,11 @@ export default function App() {
             {/* Page content */}
             {page === 'overview' && <Overview a={a} />}
             {page === 'locations' && <Locations a={a} />}
-            {page === 'predict' && <Predictions a={a} />}
+            {page === 'predict' && <Predictions a={a} backtestResults={backtestResults} />}
             {page === 'deals' && <Deals a={a} />}
             {page === 'signals' && <Signals a={a} />}
             {page === 'losses' && <Losses a={a} />}
-            {page === 'backtest' && <Backtest a={a} />}
+            {page === 'backtest' && <Backtest a={a} backtestResults={backtestResults} />}
             {page === 'learning' && <Learning a={a} />}
             </>
             )}

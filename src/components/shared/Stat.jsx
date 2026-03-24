@@ -1,43 +1,28 @@
-import { FONT_MONO, FONT_SANS, T, RADIUS, CARD_SHADOW } from '../../lib/constants'
 import Tip from './Tip'
+import { cn } from '@/lib/utils'
 
-export default function Stat({ label, value, sub, color = T.cyan, small }) {
-  return (
-    <div style={{
-      padding: small ? '8px' : '10px 12px',
-      background: T.card,
-      borderRadius: RADIUS,
-      boxShadow: CARD_SHADOW,
-    }}>
-      <div style={{
-        fontFamily: FONT_SANS,
-        fontSize: '8px',
-        color: T.textDim,
-        letterSpacing: '0.04em',
-        marginBottom: '4px',
-        textTransform: 'uppercase',
-      }}>
+export default function Stat({ label, value, sub, color = 'text-revos-cyan', small, bare }) {
+  const inner = (
+    <>
+      <div className="font-sans text-[8px] text-revos-text-dim tracking-wider mb-1 uppercase">
         <Tip label={label}>{label}</Tip>
       </div>
-      <div style={{
-        fontFamily: FONT_MONO,
-        fontSize: small ? '14px' : '18px',
-        fontWeight: 700,
-        color,
-        lineHeight: 1,
-      }}>
+      <div className={cn('font-mono font-bold leading-none', color, small ? 'text-sm' : 'text-lg')}>
         {value}
       </div>
       {sub && (
-        <div style={{
-          fontFamily: FONT_SANS,
-          fontSize: '9px',
-          color: T.textDim,
-          marginTop: '3px',
-        }}>
+        <div className="font-sans text-[9px] text-revos-text-dim mt-0.5">
           {sub}
         </div>
       )}
+    </>
+  )
+
+  if (bare) return <div>{inner}</div>
+
+  return (
+    <div className={cn('bg-revos-card rounded-lg shadow-card', small ? 'p-2' : 'px-3 py-2.5')}>
+      {inner}
     </div>
   )
 }

@@ -1,10 +1,16 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import { ThemeProvider } from './components/ThemeProvider'
+import { ModelingProvider } from './lib/ModelingContext'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ThemeProvider defaultTheme="dark">
+      <ModelingProvider>
+        <App />
+      </ModelingProvider>
+    </ThemeProvider>
   </React.StrictMode>
 )

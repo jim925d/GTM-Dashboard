@@ -2,7 +2,10 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { request as httpsRequest } from 'https'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Plugin: serves CSV files from the local data/ folder and watches for changes
 function localDataPlugin() {
@@ -122,7 +125,7 @@ function localDataPlugin() {
         res.end(fs.readFileSync(jsonPath, 'utf-8'))
       })
 
-      // GET /local-data/file?name=xxx.csv — returns the raw CSV content
+      // GET/POST /local-data/file?name=xxx — read or write files in data dir
       server.middlewares.use('/local-data/file', (req, res) => {
         const url = new URL(req.url, 'http://localhost')
         const fileName = url.searchParams.get('name')
@@ -134,6 +137,26 @@ function localDataPlugin() {
           return
         }
 
+        // POST — save file to data directory
+        if (req.method === 'POST') {
+          let body = ''
+          req.on('data', chunk => body += chunk)
+          req.on('end', () => {
+            try {
+              const filePath = path.join(dataDir, fileName)
+              fs.writeFileSync(filePath, body, 'utf-8')
+              console.log(`[RevOS] Saved ${fileName} (${body.length} bytes)`)
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true, file: fileName }))
+            } catch (e) {
+              res.statusCode = 500
+              res.end(JSON.stringify({ error: e.message }))
+            }
+          })
+          return
+        }
+
+        // GET — read file from data directory
         // Check for geocoded variant first
         const geocodedName = fileName.replace('.csv', '_geocoded.csv')
         const geocodedPath = path.join(dataDir, geocodedName)
@@ -249,13 +272,17 @@ function analyzePlugin() {
 
 export default defineConfig({
   plugins: [react(), localDataPlugin(), analyzePlugin()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
       '/api/engine': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/engine/, '/api'),
       },
     },
   },

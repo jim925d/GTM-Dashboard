@@ -1,5 +1,9 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import * as XLSX from 'xlsx';
+import { cn } from '@/lib/utils';
+
+// ─── Chart Colors (hex values for Recharts props) ────────────────────────────
+const COLORS = { cyan: '#60a5fa', green: '#34d399', red: '#f87171', yellow: '#fbbf24', orange: '#f0883e', purple: '#a78bfa', blue: '#60a5fa', text: '#e6edf3', textDim: '#8b949e', card: '#161B22', border: '#21262D' };
 
 // ─── Math Utilities ───────────────────────────────────────────────────────────
 const sigmoid = x => 1 / (1 + Math.exp(-Math.max(-500, Math.min(500, x))));
@@ -52,21 +56,6 @@ function auc(preds, actuals) {
 }
 
 // ─── Data Processing ──────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split('\n').filter(l => l.trim());
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
-  const rows = lines.slice(1).map(line => {
-    const vals = []; let cur = '', inQ = false;
-    for (const ch of line) {
-      if (ch === '"') inQ = !inQ;
-      else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
-      else cur += ch;
-    }
-    vals.push(cur.trim());
-    return Object.fromEntries(headers.map((h, i) => [h, (vals[i] || '').replace(/^"|"$/g, '')]));
-  });
-  return { headers, rows };
-}
 
 function autoDetect(headers) {
   const map = { outcome: '', product: '', segment: '', deal_value: '', created_date: '', close_date: '' };
@@ -85,7 +74,7 @@ function autoDetect(headers) {
   return map;
 }
 
-const WON_VALUES = new Set(['won', 'closed won', '1', 'true', 'yes', 'win', 'closed-won', 'closedwon', 'closed']);
+const WON_VALUES = new Set(['won', 'closed won', 'accepted', '5 - accepted', '1', 'true', 'yes', 'win', 'closed-won', 'closedwon', 'closed']);
 
 function normalizeDeals(rows, mapping) {
   return rows.map((row, i) => {
@@ -210,30 +199,21 @@ function runBacktest(deals, trainPct) {
   };
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const C = {
-  bg: '#06080F', card: '#161B22', deep: '#0D1117', border: '#21262D',
-  text: '#F0F6FC', muted: '#6B7280', dim: '#4B5563',
-  blue: '#3B82F6', green: '#10B981', amber: '#F59E0B',
-  purple: '#A855F7', red: '#EF4444',
-  mono: 'SF Mono, Consolas, monospace',
-};
-const card = (extra = {}) => ({ background: C.card, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px', ...extra });
-const lbl = () => ({ fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em', color: C.dim, textTransform: 'uppercase', fontFamily: C.mono, marginBottom: '8px', display: 'block' });
-
 // ─── Main App ─────────────────────────────────────────────────────────────────
-export default function BacktestEngine() {
-  const [step, setStep] = useState('upload');
+export default function BacktestEngine({ onResults, savedResults }) {
+  const [step, setStep] = useState(savedResults ? 'results' : 'upload');
   const [rows, setRows] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [mapping, setMapping] = useState({ outcome: '', product: '', segment: '', deal_value: '', created_date: '', close_date: '' });
   const [trainPct, setTrainPct] = useState(80);
-  const [results, setResults] = useState(null);
+  const [results, setResults] = useState(savedResults || null);
   const [running, setRunning] = useState(false);
   const [drag, setDrag] = useState(false);
   const [sheets, setSheets] = useState(null); // { sheetNames, sheetData } for multi-sheet Excel
   const [wonSheet, setWonSheet] = useState('');
   const [lostSheet, setLostSheet] = useState('');
+  const [wonFile, setWonFile] = useState(null); // { name, headers, rows } for two-CSV upload
+  const [lostFile, setLostFile] = useState(null);
 
   // Parse a worksheet rows array into {headers, rows}
   const parseSheetRows = (sheetRows) => {
@@ -244,6 +224,58 @@ export default function BacktestEngine() {
     );
     return { headers, rows };
   };
+
+  // Parse CSV text into {headers, rows}
+  const parseCsvText = (text) => {
+    const lines = text.trim().split('\n').filter(l => l.trim());
+    if (lines.length < 2) return { headers: [], rows: [] };
+    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+    const rows = lines.slice(1).map(line => {
+      const vals = []; let cur = '', inQ = false;
+      for (const ch of line) {
+        if (ch === '"') inQ = !inQ;
+        else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      vals.push(cur.trim());
+      return Object.fromEntries(headers.map((h, i) => [h, (vals[i] || '').replace(/^"|"$/g, '')]));
+    });
+    return { headers, rows };
+  };
+
+  // Handle a file dropped/selected for the two-file flow
+  const handleTypedFile = useCallback((file, type) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const { headers: h, rows: r } = parseCsvText(e.target.result);
+      const parsed = { name: file.name, headers: h, rows: r };
+      if (type === 'won') setWonFile(parsed);
+      else setLostFile(parsed);
+    };
+    reader.readAsText(file);
+  }, []);
+
+  // Combine two CSV files and proceed to mapping
+  // historicals.csv = all won deals (churn is NOT a loss, excluded from loss classification)
+  // close_lost.csv = the only source of lost deals
+  const handleCombineFiles = useCallback(() => {
+    if (!wonFile) return;
+
+    // historicals.csv = all Won deals (churn rows are excluded, not treated as losses)
+    // close_lost.csv = the only source of Lost deals
+    const combined = [
+      ...wonFile.rows.map(r => ({ ...r, _outcome: 'Won' })),
+      ...(lostFile ? lostFile.rows.map(r => ({ ...r, _outcome: 'Closed Lost' })) : []),
+    ];
+
+    const allHeaders = [...wonFile.headers, '_outcome'];
+    setHeaders(allHeaders);
+    setRows(combined);
+    const detected = autoDetect(allHeaders);
+    if (!detected.outcome) detected.outcome = '_outcome';
+    setMapping(detected);
+    setStep('map');
+  }, [wonFile, lostFile]);
 
   const handleFile = useCallback((file) => {
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
@@ -331,13 +363,14 @@ export default function BacktestEngine() {
         const wins = deals.filter(d => d.won === 1).length;
         const losses = deals.filter(d => d.won === 0).length;
         if (deals.length < 50) { setRunning(false); setRunStatus(''); alert('Need at least 50 deals.'); return; }
-        if (wins === 0) { setRunning(false); setRunStatus(''); alert('No won deals detected. Check your Outcome column mapping. Recognized values: won, closed won, closed, 1, true, yes, win.'); return; }
+        if (wins === 0) { setRunning(false); setRunStatus(''); alert('No won deals detected. Check your Outcome column mapping. Recognized values: won, closed won, accepted, 5 - accepted, closed, 1, true, yes, win.'); return; }
         if (losses === 0) { setRunning(false); setRunStatus(''); alert('No lost deals detected. You need both won and lost deals.'); return; }
         setRunStatus(`Found ${wins.toLocaleString()} wins · ${losses.toLocaleString()} losses — training models...`);
         setTimeout(() => {
           try {
             const r = runBacktest(deals, trainPct);
             setResults(r);
+            if (onResults) onResults(r);
             setRunStatus('');
             setRunning(false);
             setStep('results');
@@ -359,37 +392,111 @@ export default function BacktestEngine() {
 
   // ── Upload ──────────────────────────────────────────────────────────────────
   const Upload = () => (
-    <div style={{ maxWidth: '480px', margin: '0 auto' }}>
-      <span style={lbl()}>REVOS · BACKTEST ENGINE</span>
-      <h2 style={{ fontSize: '22px', fontWeight: '700', color: C.text, margin: '0 0 6px', letterSpacing: '-0.03em' }}>Upload Deal History</h2>
-      <p style={{ fontSize: '13px', color: C.muted, margin: '0 0 24px' }}>CSV of closed won/lost deals. 1,000+ recommended — you have enough to make this meaningful.</p>
+    <div className="max-w-[560px] mx-auto">
+      <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">REVOS · BACKTEST ENGINE</span>
+      <h2 className="text-[22px] font-bold text-revos-text m-0 mb-1.5 tracking-tight">Upload Deal History</h2>
+      <p className="text-[13px] text-revos-text-mid m-0 mb-6">
+        Upload <strong className="text-revos-text">historicals.csv</strong> (won deals + churn) and <strong className="text-revos-text">close_lost.csv</strong> — or a single Excel file with both sheets.
+      </p>
 
+      {/* Two-file CSV upload */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* Won file */}
+        <div
+          onDragOver={e => { e.preventDefault(); }}
+          onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleTypedFile(f, 'won'); }}
+          onClick={() => document.getElementById('fi-won').click()}
+          className={cn(
+            'border-2 border-dashed rounded-xl py-7 px-4 text-center cursor-pointer transition-all duration-200',
+            wonFile ? 'border-revos-green/40 bg-revos-green/[0.03]' : 'border-revos-border bg-transparent'
+          )}
+        >
+          <div className="text-[28px] mb-2">{wonFile ? '✓' : '📂'}</div>
+          <div className={cn('text-[13px] font-semibold mb-1', wonFile ? 'text-revos-green' : 'text-revos-text')}>
+            {wonFile ? wonFile.name : 'Historicals (Won + Churn)'}
+          </div>
+          {wonFile ? (
+            <div className="text-[11px] text-revos-green">{wonFile.rows.length.toLocaleString()} rows</div>
+          ) : (
+            <div className="text-[11px] text-revos-text-mid">historicals.csv — won deals & churn</div>
+          )}
+          <input id="fi-won" type="file" accept=".csv" className="hidden" onChange={e => { if (e.target.files[0]) handleTypedFile(e.target.files[0], 'won'); }} />
+        </div>
+
+        {/* Lost file */}
+        <div
+          onDragOver={e => { e.preventDefault(); }}
+          onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleTypedFile(f, 'lost'); }}
+          onClick={() => document.getElementById('fi-lost').click()}
+          className={cn(
+            'border-2 border-dashed rounded-xl py-7 px-4 text-center cursor-pointer transition-all duration-200',
+            lostFile ? 'border-revos-red/40 bg-revos-red/[0.03]' : 'border-revos-border bg-transparent'
+          )}
+        >
+          <div className="text-[28px] mb-2">{lostFile ? '✓' : '📂'}</div>
+          <div className={cn('text-[13px] font-semibold mb-1', lostFile ? 'text-revos-red' : 'text-revos-text')}>
+            {lostFile ? lostFile.name : 'Closed Lost Deals'}
+          </div>
+          {lostFile ? (
+            <div className="text-[11px] text-revos-red">{lostFile.rows.length.toLocaleString()} rows</div>
+          ) : (
+            <div className="text-[11px] text-revos-text-mid">close_lost.csv — all closed lost deals</div>
+          )}
+          <input id="fi-lost" type="file" accept=".csv" className="hidden" onChange={e => { if (e.target.files[0]) handleTypedFile(e.target.files[0], 'lost'); }} />
+        </div>
+      </div>
+
+      {/* Combine button */}
+      {wonFile && (
+        <button onClick={handleCombineFiles}
+          className={cn(
+            'w-full text-white border-none rounded-lg px-3 py-3 text-sm font-semibold cursor-pointer mb-4',
+            lostFile ? 'bg-revos-purple' : 'bg-revos-yellow/50'
+          )}
+        >
+          {lostFile
+            ? `Combine ${wonFile.rows.length.toLocaleString()} historicals + ${lostFile.rows.length.toLocaleString()} close lost → Continue`
+            : `Continue with ${wonFile.rows.length.toLocaleString()} historicals only (add close_lost for better results)`}
+        </button>
+      )}
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 my-2 mb-4">
+        <div className="flex-1 h-px bg-revos-border" />
+        <span className="text-[11px] text-revos-text-dim font-mono">OR UPLOAD A SINGLE FILE</span>
+        <div className="flex-1 h-px bg-revos-border" />
+      </div>
+
+      {/* Single file upload (Excel or combined CSV) */}
       <div
         onDragOver={e => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         onClick={() => document.getElementById('fi').click()}
-        style={{ border: `2px dashed ${drag ? C.blue : C.border}`, borderRadius: '12px', padding: '48px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: drag ? `${C.blue}08` : 'transparent' }}
+        className={cn(
+          'border-2 border-dashed rounded-xl py-7 px-4 text-center cursor-pointer transition-all duration-200',
+          drag ? 'border-revos-blue bg-revos-blue/[0.03]' : 'border-revos-border bg-transparent'
+        )}
       >
-        <div style={{ fontSize: '36px', marginBottom: '12px' }}>📂</div>
-        <div style={{ fontSize: '14px', color: C.text, marginBottom: '4px' }}>Drop CSV or Excel file (.xlsx) or click to browse</div>
-        <div style={{ fontSize: '12px', color: C.muted }}>Supports .csv and .xlsx with multiple sheets</div>
-        <input id="fi" type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }} />
+        <div className="text-[28px] mb-2">📋</div>
+        <div className="text-[13px] text-revos-text mb-1">Single CSV or Excel (.xlsx) with both won & lost</div>
+        <div className="text-[11px] text-revos-text-mid">Must have an outcome column, or use separate sheets for won/lost</div>
+        <input id="fi" type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }} />
       </div>
 
-      <div style={{ ...card({ marginTop: '16px' }) }}>
-        <span style={lbl()}>FIELDS NEEDED IN YOUR DATA</span>
-        {[['Outcome', 'Won / Lost per deal — any format'], ['Product / Service', 'What was sold'], ['Segment / Vertical', 'Account classification — used as grouping key'], ['Deal Value', 'MRR or TCV — numeric']].map(([f, d]) => (
-          <div key={f} style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ color: C.green, fontSize: '12px' }}>✓</span>
-            <span style={{ fontSize: '12px', color: C.text, fontWeight: '500', minWidth: '140px' }}>{f}</span>
-            <span style={{ fontSize: '12px', color: C.muted }}>{d}</span>
+      <div className="bg-revos-card border border-revos-border rounded-xl p-4 mt-4">
+        <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">FIELDS NEEDED IN YOUR DATA</span>
+        {[['Outcome', 'Won / Lost per deal — auto-tagged when using two files'], ['Product / Service', 'What was sold'], ['Segment / Vertical', 'Account classification — used as grouping key'], ['Deal Value', 'MRR or TCV — numeric']].map(([f, d]) => (
+          <div key={f} className="flex gap-2.5 items-center mb-2">
+            <span className="text-revos-green text-xs">✓</span>
+            <span className="text-xs text-revos-text font-medium min-w-[140px]">{f}</span>
+            <span className="text-xs text-revos-text-mid">{d}</span>
           </div>
         ))}
       </div>
 
-      <div style={{ ...card({ marginTop: '10px', background: `${C.amber}08`, border: `1px solid ${C.amber}25` }) }}>
-        <p style={{ fontSize: '12px', color: C.amber, margin: 0 }}>
+      <div className="bg-revos-yellow/[0.03] border border-revos-yellow/15 rounded-xl p-4 mt-2.5">
+        <p className="text-xs text-revos-yellow m-0">
           💡 <strong>Segment / Vertical</strong> is the primary grouping key — Option B trains a separate model per segment. The more consistent your segment labels, the better the per-vertical models perform.
         </p>
       </div>
@@ -403,53 +510,62 @@ export default function BacktestEngine() {
     const wonCount = wonSheet ? (sheetData[wonSheet]?.length - 1 || 0) : 0;
     const lostCount = lostSheet ? (sheetData[lostSheet]?.length - 1 || 0) : 0;
     return (
-      <div style={{ maxWidth: '520px', margin: '0 auto' }}>
-        <span style={lbl()}>STEP 2 OF 4 — EXCEL DETECTED</span>
-        <h2 style={{ fontSize: '22px', fontWeight: '700', color: C.text, margin: '0 0 4px', letterSpacing: '-0.03em' }}>Assign Your Sheets</h2>
-        <p style={{ fontSize: '13px', color: C.muted, margin: '0 0 20px' }}>
+      <div className="max-w-[520px] mx-auto">
+        <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">STEP 2 OF 4 — EXCEL DETECTED</span>
+        <h2 className="text-[22px] font-bold text-revos-text m-0 mb-1 tracking-tight">Assign Your Sheets</h2>
+        <p className="text-[13px] text-revos-text-mid m-0 mb-5">
           Found {sheetNames.length} sheets — tell the model which contains won deals and which contains lost deals.
         </p>
 
-        <div style={card({ marginBottom: '14px' })}>
+        <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-3.5">
           {[
-            { key: 'won', label: 'Won Deals Sheet', color: C.green, val: wonSheet, set: setWonSheet, hint: 'Closed Won, Wins, Won' },
-            { key: 'lost', label: 'Lost / Closed Lost Sheet', color: C.red, val: lostSheet, set: setLostSheet, hint: 'Closed Lost, Losses — leave blank if not available' },
+            { key: 'won', label: 'Won Deals Sheet', color: 'green', val: wonSheet, set: setWonSheet, hint: 'Closed Won, Wins, Won' },
+            { key: 'lost', label: 'Lost / Closed Lost Sheet', color: 'red', val: lostSheet, set: setLostSheet, hint: 'Closed Lost, Losses — leave blank if not available' },
           ].map(f => (
-            <div key={f.key} style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', color: C.text, fontWeight: '600', marginBottom: '6px' }}>
-                <span style={{ color: f.color, marginRight: '6px' }}>●</span>{f.label}
+            <div key={f.key} className="mb-4">
+              <div className="text-xs text-revos-text font-semibold mb-1.5">
+                <span className={cn('mr-1.5', f.color === 'green' ? 'text-revos-green' : 'text-revos-red')}>●</span>{f.label}
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="flex gap-2 flex-wrap">
                 {[...(f.key === 'lost' ? ['— none —'] : []), ...sheetNames].map(name => {
                   const active = f.val === (name === '— none —' ? '' : name);
+                  const colorClass = f.color === 'green' ? 'text-revos-green' : 'text-revos-red';
                   return (
                     <button key={name} onClick={() => f.set(name === '— none —' ? '' : name)}
-                      style={{ background: active ? `${f.color}15` : C.deep, border: `1px solid ${active ? f.color + '50' : C.border}`, borderRadius: '6px', padding: '6px 14px', fontSize: '12px', color: active ? f.color : C.muted, cursor: 'pointer', fontWeight: active ? '600' : '400' }}>
+                      className={cn(
+                        'rounded-md px-3.5 py-1.5 text-xs cursor-pointer',
+                        active
+                          ? cn('font-semibold border', colorClass, f.color === 'green' ? 'bg-revos-green/[0.08] border-revos-green/30' : 'bg-revos-red/[0.08] border-revos-red/30')
+                          : 'bg-revos-surface border border-revos-border text-revos-text-mid font-normal'
+                      )}>
                       {name}
                     </button>
                   );
                 })}
               </div>
               {f.val && f.key === 'won' && (
-                <div style={{ fontSize: '11px', color: C.green, marginTop: '6px' }}>✓ {wonCount.toLocaleString()} rows detected</div>
+                <div className="text-[11px] text-revos-green mt-1.5">✓ {wonCount.toLocaleString()} rows detected</div>
               )}
               {f.val && f.key === 'lost' && (
-                <div style={{ fontSize: '11px', color: C.red, marginTop: '6px' }}>✓ {lostCount.toLocaleString()} rows detected</div>
+                <div className="text-[11px] text-revos-red mt-1.5">✓ {lostCount.toLocaleString()} rows detected</div>
               )}
             </div>
           ))}
         </div>
 
         {!lostSheet && (
-          <div style={{ ...card({ marginBottom: '14px', background: `${C.amber}08`, border: `1px solid ${C.amber}25` }) }}>
-            <p style={{ fontSize: '12px', color: C.amber, margin: 0 }}>
+          <div className="bg-revos-yellow/[0.03] border border-revos-yellow/15 rounded-xl p-4 mb-3.5">
+            <p className="text-xs text-revos-yellow m-0">
               ⚠ Without lost deals the model has nothing to compare wins against — results will be unreliable. Add your closed lost sheet for a meaningful backtest.
             </p>
           </div>
         )}
 
         <button onClick={handleCombineSheets} disabled={!wonSheet}
-          style={{ width: '100%', background: wonSheet ? C.purple : C.dim, color: '#000', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: '600', cursor: wonSheet ? 'pointer' : 'not-allowed' }}>
+          className={cn(
+            'w-full text-black border-none rounded-lg px-3 py-3 text-sm font-semibold',
+            wonSheet ? 'bg-revos-purple cursor-pointer' : 'bg-revos-text-dim cursor-not-allowed'
+          )}>
           Combine Sheets & Continue →
         </button>
       </div>
@@ -470,20 +586,23 @@ export default function BacktestEngine() {
     const canContinue = ['outcome', 'product', 'segment', 'deal_value'].every(k => mapping[k]);
 
     return (
-      <div style={{ maxWidth: '580px', margin: '0 auto' }}>
-        <span style={lbl()}>STEP 2 OF 3</span>
-        <h2 style={{ fontSize: '22px', fontWeight: '700', color: C.text, margin: '0 0 4px', letterSpacing: '-0.03em' }}>Map Your Columns</h2>
-        <p style={{ fontSize: '13px', color: C.muted, margin: '0 0 20px' }}>{rows.length.toLocaleString()} rows · {headers.length} columns detected · auto-mapped where matched</p>
+      <div className="max-w-[580px] mx-auto">
+        <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">STEP 2 OF 3</span>
+        <h2 className="text-[22px] font-bold text-revos-text m-0 mb-1 tracking-tight">Map Your Columns</h2>
+        <p className="text-[13px] text-revos-text-mid m-0 mb-5">{rows.length.toLocaleString()} rows · {headers.length} columns detected · auto-mapped where matched</p>
 
-        <div style={card({ marginBottom: '14px' })}>
+        <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-3.5">
           {fields.map(f => (
-            <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-              <div style={{ minWidth: '160px', flexShrink: 0 }}>
-                <span style={{ fontSize: '12px', color: C.text, fontWeight: '500' }}>{f.label} {f.req && <span style={{ color: C.red }}>*</span>}</span>
-                <div style={{ fontSize: '10px', color: C.dim }}>{f.hint}</div>
+            <div key={f.key} className="flex items-center gap-3 mb-2.5">
+              <div className="min-w-[160px] shrink-0">
+                <span className="text-xs text-revos-text font-medium">{f.label} {f.req && <span className="text-revos-red">*</span>}</span>
+                <div className="text-[10px] text-revos-text-dim">{f.hint}</div>
               </div>
               <select value={mapping[f.key]} onChange={e => setMapping(m => ({ ...m, [f.key]: e.target.value }))}
-                style={{ flex: 1, background: '#0D1117', border: `1px solid ${mapping[f.key] ? C.green + '50' : C.border}`, borderRadius: '6px', padding: '6px 10px', fontSize: '12px', color: C.text, outline: 'none', cursor: 'pointer' }}>
+                className={cn(
+                  'flex-1 bg-revos-surface rounded-md px-2.5 py-1.5 text-xs text-revos-text outline-none cursor-pointer border',
+                  mapping[f.key] ? 'border-revos-green/30' : 'border-revos-border'
+                )}>
                 <option value="">— not mapped —</option>
                 {headers.map(h => <option key={h} value={h}>{h}</option>)}
               </select>
@@ -492,20 +611,28 @@ export default function BacktestEngine() {
         </div>
 
         {mapping.outcome && wonSample.length > 0 && (
-          <div style={card({ marginBottom: '14px', background: `${C.blue}08`, border: `1px solid ${C.blue}20` })}>
-            <span style={lbl()}>OUTCOME VALUES DETECTED — auto-classified</span>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <div className="bg-revos-blue/[0.03] border border-revos-blue/[0.12] rounded-xl p-4 mb-3.5">
+            <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">OUTCOME VALUES DETECTED — auto-classified</span>
+            <div className="flex gap-1.5 flex-wrap">
               {wonSample.map(v => {
                 const isWon = WON_VALUES.has(v.toLowerCase().trim());
-                return <span key={v} style={{ fontSize: '11px', fontFamily: C.mono, background: isWon ? `${C.green}15` : `${C.red}15`, border: `1px solid ${isWon ? C.green : C.red}40`, color: isWon ? C.green : C.red, borderRadius: '4px', padding: '2px 8px' }}>{v} → {isWon ? 'WON' : 'LOST'}</span>;
+                return (
+                  <span key={v} className={cn(
+                    'text-[11px] font-mono rounded px-2 py-0.5 border',
+                    isWon ? 'bg-revos-green/[0.08] border-revos-green/25 text-revos-green' : 'bg-revos-red/[0.08] border-revos-red/25 text-revos-red'
+                  )}>{v} → {isWon ? 'WON' : 'LOST'}</span>
+                );
               })}
             </div>
-            <p style={{ fontSize: '11px', color: C.dim, margin: '8px 0 0' }}>Won values: won, closed won, 1, true, yes, win — everything else = lost</p>
+            <p className="text-[11px] text-revos-text-dim mt-2 mb-0">Won values: won, closed won, accepted, 5 - accepted, 1, true, yes, win — everything else = lost</p>
           </div>
         )}
 
         <button onClick={() => setStep('configure')} disabled={!canContinue}
-          style={{ width: '100%', background: canContinue ? C.purple : C.dim, color: '#000', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '14px', fontWeight: '600', cursor: canContinue ? 'pointer' : 'not-allowed' }}>
+          className={cn(
+            'w-full text-black border-none rounded-lg px-3 py-3 text-sm font-semibold',
+            canContinue ? 'bg-revos-purple cursor-pointer' : 'bg-revos-text-dim cursor-not-allowed'
+          )}>
           Continue to Configure →
         </button>
       </div>
@@ -517,60 +644,66 @@ export default function BacktestEngine() {
     const trainCount = Math.floor(rows.length * trainPct / 100);
     const testCount = rows.length - trainCount;
     return (
-      <div style={{ maxWidth: '520px', margin: '0 auto' }}>
-        <span style={lbl()}>STEP 3 OF 3</span>
-        <h2 style={{ fontSize: '22px', fontWeight: '700', color: C.text, margin: '0 0 4px', letterSpacing: '-0.03em' }}>Configure Backtest</h2>
-        <p style={{ fontSize: '13px', color: C.muted, margin: '0 0 20px' }}>{rows.length.toLocaleString()} deals ready to model</p>
+      <div className="max-w-[520px] mx-auto">
+        <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">STEP 3 OF 3</span>
+        <h2 className="text-[22px] font-bold text-revos-text m-0 mb-1 tracking-tight">Configure Backtest</h2>
+        <p className="text-[13px] text-revos-text-mid m-0 mb-5">{rows.length.toLocaleString()} deals ready to model</p>
 
-        <div style={card({ marginBottom: '14px' })}>
-          <span style={lbl()}>TRAIN / TEST SPLIT</span>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '6px' }}>
-            <input type="range" min={60} max={90} step={5} value={trainPct} onChange={e => setTrainPct(+e.target.value)} style={{ flex: 1, accentColor: C.purple }} />
-            <span style={{ fontFamily: C.mono, color: C.purple, fontSize: '16px', fontWeight: '700', minWidth: '40px' }}>{trainPct}%</span>
+        <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-3.5">
+          <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">TRAIN / TEST SPLIT</span>
+          <div className="flex gap-4 items-center mb-1.5">
+            <input type="range" min={60} max={90} step={5} value={trainPct} onChange={e => setTrainPct(+e.target.value)} className="flex-1" style={{ accentColor: COLORS.purple }} />
+            <span className="font-mono text-revos-purple text-base font-bold min-w-[40px]">{trainPct}%</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: C.dim }}>
+          <div className="flex justify-between text-[11px] text-revos-text-dim">
             <span>Train on {trainCount.toLocaleString()} deals</span>
             <span>Test on {testCount.toLocaleString()} deals</span>
           </div>
         </div>
 
-        <div style={card({ marginBottom: '14px' })}>
-          <span style={lbl()}>WHAT EACH MODEL DOES</span>
+        <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-3.5">
+          <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">WHAT EACH MODEL DOES</span>
           {[
-            { label: 'Option A', color: C.blue, desc: 'Fixed 4 signals, one global logistic regression model', detail: 'Vertical win rate · Product win rate · Deal size percentile · Days open' },
-            { label: 'Option B', color: C.green, desc: 'Dynamic 5 signals, separate model per vertical', detail: 'All 4 above + 1 interaction feature (vertical×product) — trained independently for each vertical with enough deals (≥10)' },
+            { label: 'Option A', color: 'blue', desc: 'Fixed 4 signals, one global logistic regression model', detail: 'Vertical win rate · Product win rate · Deal size percentile · Days open' },
+            { label: 'Option B', color: 'green', desc: 'Dynamic 5 signals, separate model per vertical', detail: 'All 4 above + 1 interaction feature (vertical×product) — trained independently for each vertical with enough deals (≥10)' },
           ].map(m => (
-            <div key={m.label} style={{ background: C.deep, borderRadius: '8px', padding: '12px', marginBottom: '10px', borderLeft: `3px solid ${m.color}` }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: m.color, fontFamily: C.mono }}>{m.label}</span>
-                <span style={{ fontSize: '12px', color: C.text }}>{m.desc}</span>
+            <div key={m.label} className={cn(
+              'bg-revos-surface rounded-lg px-3 py-3 mb-2.5 border-l-[3px]',
+              m.color === 'blue' ? 'border-l-revos-blue' : 'border-l-revos-green'
+            )}>
+              <div className="flex gap-2 mb-1">
+                <span className={cn('text-xs font-bold font-mono', m.color === 'blue' ? 'text-revos-blue' : 'text-revos-green')}>{m.label}</span>
+                <span className="text-xs text-revos-text">{m.desc}</span>
               </div>
-              <div style={{ fontSize: '11px', color: C.dim, lineHeight: '1.5' }}>{m.detail}</div>
+              <div className="text-[11px] text-revos-text-dim leading-relaxed">{m.detail}</div>
             </div>
           ))}
         </div>
 
-        <div style={card({ marginBottom: '14px' })}>
-          <span style={lbl()}>OUTPUT METRICS</span>
+        <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-3.5">
+          <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">OUTPUT METRICS</span>
           {[
             ['Brier Score', 'Prediction accuracy. Lower = better. 0 = perfect, 0.25 = random coin flip.'],
             ['AUC', 'How well the model ranks wins above losses. 1.0 = perfect, 0.5 = random.'],
             ['Accuracy', '% of deals correctly called as win or loss at the 0.5 threshold.'],
             ['By Mega Vertical', 'All three metrics broken out per vertical — shows where each model wins.'],
           ].map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '11px', color: C.purple, fontFamily: C.mono, minWidth: '110px', flexShrink: 0 }}>{k}</span>
-              <span style={{ fontSize: '11px', color: C.muted, lineHeight: '1.5' }}>{v}</span>
+            <div key={k} className="flex gap-2.5 mb-2">
+              <span className="text-[11px] text-revos-purple font-mono min-w-[110px] shrink-0">{k}</span>
+              <span className="text-[11px] text-revos-text-mid leading-relaxed">{v}</span>
             </div>
           ))}
         </div>
 
         <button onClick={handleRun} disabled={running}
-          style={{ width: '100%', background: running ? C.dim : C.purple, color: '#000', border: 'none', borderRadius: '8px', padding: '13px', fontSize: '14px', fontWeight: '600', cursor: running ? 'not-allowed' : 'pointer' }}>
+          className={cn(
+            'w-full text-black border-none rounded-lg px-3 py-3.5 text-sm font-semibold',
+            running ? 'bg-revos-text-dim cursor-not-allowed' : 'bg-revos-purple cursor-pointer'
+          )}>
           {running ? '⏳ Running backtest...' : `Run Backtest on ${rows.length.toLocaleString()} Deals →`}
         </button>
         {runStatus && (
-          <div style={{ marginTop: '10px', padding: '10px 14px', background: `${C.purple}10`, border: `1px solid ${C.purple}30`, borderRadius: '8px', fontSize: '12px', color: C.purple, fontFamily: C.mono, textAlign: 'center' }}>
+          <div className="mt-2.5 px-3.5 py-2.5 bg-revos-purple/[0.06] border border-revos-purple/20 rounded-lg text-xs text-revos-purple font-mono text-center">
             {runStatus}
           </div>
         )}
@@ -584,28 +717,31 @@ export default function BacktestEngine() {
     const { A, B, byVertical, featureImportance, calibration, trainSize, testSize, overallWinRate, verticalModelCount } = results;
     const winner = B.brier < A.brier ? 'B' : 'A';
     const brierImprovement = Math.abs((A.brier - B.brier) / A.brier * 100);
-    const wColor = winner === 'B' ? C.green : C.blue;
+    const wColor = winner === 'B' ? 'green' : 'blue';
     const maxImportance = Math.max(...featureImportance.map(f => f.importance));
 
     return (
-      <div style={{ maxWidth: '720px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+      <div className="max-w-[720px] mx-auto">
+        <div className="flex justify-between items-start mb-5">
           <div>
-            <span style={lbl()}>BACKTEST RESULTS</span>
-            <h2 style={{ fontSize: '22px', fontWeight: '700', color: C.text, margin: '0 0 4px', letterSpacing: '-0.03em' }}>
+            <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">BACKTEST RESULTS</span>
+            <h2 className="text-[22px] font-bold text-revos-text m-0 mb-1 tracking-tight">
               Option {winner} wins — {brierImprovement.toFixed(1)}% better Brier score
             </h2>
-            <p style={{ fontSize: '13px', color: C.muted, margin: 0 }}>
+            <p className="text-[13px] text-revos-text-mid m-0">
               Train: {trainSize.toLocaleString()} · Test: {testSize.toLocaleString()} · Win rate: {(overallWinRate * 100).toFixed(1)}% · Option B used {verticalModelCount} vertical models
             </p>
           </div>
-          <button onClick={() => setStep('configure')} style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 12px', fontSize: '12px', color: C.muted, cursor: 'pointer' }}>← Re-run</button>
+          <button onClick={() => setStep('configure')} className="bg-transparent border border-revos-border rounded-md px-3 py-1.5 text-xs text-revos-text-mid cursor-pointer">← Re-run</button>
         </div>
 
         {/* Summary */}
-        <div style={{ ...card({ marginBottom: '16px', borderLeft: `4px solid ${wColor}`, background: `${wColor}08`, border: `1px solid ${wColor}30` }) }}>
-          <p style={{ fontSize: '13px', color: C.text, lineHeight: '1.7', margin: 0 }}>
-            <strong style={{ color: wColor }}>Option {winner} ({winner === 'B' ? 'Dynamic per-vertical model' : 'Fixed global model'})</strong> outperformed on the holdout test set.{' '}
+        <div className={cn(
+          'rounded-xl p-4 mb-4 border-l-4',
+          wColor === 'green' ? 'bg-revos-green/[0.03] border border-revos-green/20 border-l-revos-green' : 'bg-revos-blue/[0.03] border border-revos-blue/20 border-l-revos-blue'
+        )}>
+          <p className="text-[13px] text-revos-text leading-[1.7] m-0">
+            <strong className={wColor === 'green' ? 'text-revos-green' : 'text-revos-blue'}>Option {winner} ({winner === 'B' ? 'Dynamic per-vertical model' : 'Fixed global model'})</strong> outperformed on the holdout test set.{' '}
             {winner === 'B'
               ? `Training a separate model per vertical is capturing buying patterns your global model misses. With ${verticalModelCount} vertical-specific models, Option B has enough data per segment to find signal.`
               : `Your win patterns are consistent enough across verticals that the added complexity of per-vertical training doesn't help — and may be overfitting to small vertical sample sizes.`}
@@ -613,7 +749,7 @@ export default function BacktestEngine() {
         </div>
 
         {/* Metric comparison */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+        <div className="grid grid-cols-3 gap-2.5 mb-4">
           {[
             { label: 'Brier Score', a: A.brier.toFixed(4), b: B.brier.toFixed(4), lowerBetter: true },
             { label: 'AUC', a: (A.auc * 100).toFixed(1) + '%', b: (B.auc * 100).toFixed(1) + '%', lowerBetter: false },
@@ -621,14 +757,22 @@ export default function BacktestEngine() {
           ].map(m => {
             const aWins = m.lowerBetter ? parseFloat(m.a) <= parseFloat(m.b) : parseFloat(m.a) >= parseFloat(m.b);
             return (
-              <div key={m.label} style={card()}>
-                <span style={lbl()}>{m.label}</span>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {[{ val: m.a, opt: 'A', color: C.blue, wins: aWins }, { val: m.b, opt: 'B', color: C.green, wins: !aWins }].map(({ val, opt, color, wins }) => (
-                    <div key={opt} style={{ flex: 1, textAlign: 'center', padding: '8px', background: wins ? `${color}10` : C.deep, borderRadius: '6px', border: `1px solid ${wins ? color + '30' : C.border}` }}>
-                      <div style={{ fontSize: '9px', color: C.dim, fontFamily: C.mono, marginBottom: '3px', letterSpacing: '0.1em' }}>OPT {opt}</div>
-                      <div style={{ fontSize: '17px', fontWeight: '700', fontFamily: C.mono, color: wins ? color : C.muted }}>{val}</div>
-                      {wins && <div style={{ fontSize: '9px', color, fontWeight: '700', marginTop: '2px' }}>WINNER</div>}
+              <div key={m.label} className="bg-revos-card border border-revos-border rounded-xl p-4">
+                <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">{m.label}</span>
+                <div className="flex gap-1.5">
+                  {[{ val: m.a, opt: 'A', colorName: 'blue', wins: aWins }, { val: m.b, opt: 'B', colorName: 'green', wins: !aWins }].map(({ val, opt, colorName, wins }) => (
+                    <div key={opt} className={cn(
+                      'flex-1 text-center p-2 rounded-md border',
+                      wins
+                        ? (colorName === 'blue' ? 'bg-revos-blue/[0.06] border-revos-blue/20' : 'bg-revos-green/[0.06] border-revos-green/20')
+                        : 'bg-revos-surface border-revos-border'
+                    )}>
+                      <div className="text-[9px] text-revos-text-dim font-mono mb-0.5 tracking-[0.1em]">OPT {opt}</div>
+                      <div className={cn(
+                        'text-[17px] font-bold font-mono',
+                        wins ? (colorName === 'blue' ? 'text-revos-blue' : 'text-revos-green') : 'text-revos-text-mid'
+                      )}>{val}</div>
+                      {wins && <div className={cn('text-[9px] font-bold mt-0.5', colorName === 'blue' ? 'text-revos-blue' : 'text-revos-green')}>WINNER</div>}
                     </div>
                   ))}
                 </div>
@@ -639,27 +783,32 @@ export default function BacktestEngine() {
 
         {/* By vertical */}
         {byVertical.length > 0 && (
-          <div style={card({ marginBottom: '16px' })}>
-            <span style={lbl()}>ACCURACY BY MEGA VERTICAL</span>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+          <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-4">
+            <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">ACCURACY BY MEGA VERTICAL</span>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr>{['Vertical', 'Deals', 'Win Rate', 'Brier A', 'Brier B', 'AUC A', 'AUC B', 'Winner'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontSize: '10px', color: C.dim, fontFamily: C.mono, letterSpacing: '0.08em', textTransform: 'uppercase', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                    <th key={h} className="text-left px-2 py-1.5 text-[10px] text-revos-text-dim font-mono tracking-wide uppercase border-b border-revos-border">{h}</th>
                   ))}</tr>
                 </thead>
                 <tbody>
                   {byVertical.map(v => (
-                    <tr key={v.vertical} style={{ borderBottom: `1px solid ${C.border}20` }}>
-                      <td style={{ padding: '8px', color: C.text, fontWeight: '500' }}>{v.vertical}</td>
-                      <td style={{ padding: '8px', color: C.muted, fontFamily: C.mono }}>{v.count}</td>
-                      <td style={{ padding: '8px', color: C.muted, fontFamily: C.mono }}>{(v.winRate * 100).toFixed(0)}%</td>
-                      <td style={{ padding: '8px', fontFamily: C.mono, color: v.winner === 'A' ? C.blue : C.muted, fontWeight: v.winner === 'A' ? '700' : '400' }}>{v.brierA.toFixed(4)}</td>
-                      <td style={{ padding: '8px', fontFamily: C.mono, color: v.winner === 'B' ? C.green : C.muted, fontWeight: v.winner === 'B' ? '700' : '400' }}>{v.brierB.toFixed(4)}</td>
-                      <td style={{ padding: '8px', fontFamily: C.mono, color: C.muted }}>{(v.aucA * 100).toFixed(0)}%</td>
-                      <td style={{ padding: '8px', fontFamily: C.mono, color: C.muted }}>{(v.aucB * 100).toFixed(0)}%</td>
-                      <td style={{ padding: '8px' }}>
-                        <span style={{ fontSize: '10px', fontFamily: C.mono, fontWeight: '700', color: v.winner === 'B' ? C.green : C.blue, background: v.winner === 'B' ? `${C.green}15` : `${C.blue}15`, border: `1px solid ${v.winner === 'B' ? C.green : C.blue}40`, borderRadius: '4px', padding: '2px 6px' }}>
+                    <tr key={v.vertical} className="border-b border-revos-border/[0.12]">
+                      <td className="p-2 text-revos-text font-medium">{v.vertical}</td>
+                      <td className="p-2 text-revos-text-mid font-mono">{v.count}</td>
+                      <td className="p-2 text-revos-text-mid font-mono">{(v.winRate * 100).toFixed(0)}%</td>
+                      <td className={cn('p-2 font-mono', v.winner === 'A' ? 'text-revos-blue font-bold' : 'text-revos-text-mid')}>{v.brierA.toFixed(4)}</td>
+                      <td className={cn('p-2 font-mono', v.winner === 'B' ? 'text-revos-green font-bold' : 'text-revos-text-mid')}>{v.brierB.toFixed(4)}</td>
+                      <td className="p-2 font-mono text-revos-text-mid">{(v.aucA * 100).toFixed(0)}%</td>
+                      <td className="p-2 font-mono text-revos-text-mid">{(v.aucB * 100).toFixed(0)}%</td>
+                      <td className="p-2">
+                        <span className={cn(
+                          'text-[10px] font-mono font-bold rounded px-1.5 py-0.5 border',
+                          v.winner === 'B'
+                            ? 'text-revos-green bg-revos-green/[0.08] border-revos-green/25'
+                            : 'text-revos-blue bg-revos-blue/[0.08] border-revos-blue/25'
+                        )}>
                           OPT {v.winner}
                         </span>
                       </td>
@@ -668,36 +817,36 @@ export default function BacktestEngine() {
                 </tbody>
               </table>
             </div>
-            <p style={{ fontSize: '11px', color: C.dim, margin: '8px 0 0' }}>Lower Brier = more accurate probability prediction for that vertical</p>
+            <p className="text-[11px] text-revos-text-dim mt-2 mb-0">Lower Brier = more accurate probability prediction for that vertical</p>
           </div>
         )}
 
         {/* Feature importance */}
-        <div style={card({ marginBottom: '16px' })}>
-          <span style={lbl()}>FEATURE IMPORTANCE — correlation with win outcome (global)</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-4">
+          <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">FEATURE IMPORTANCE — correlation with win outcome (global)</span>
+          <div className="flex flex-col gap-2">
             {featureImportance.map(f => (
-              <div key={f.name} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: C.muted, minWidth: '160px', flexShrink: 0 }}>{f.name}</span>
-                <div style={{ flex: 1, height: '4px', background: C.border, borderRadius: '2px' }}>
-                  <div style={{ width: `${(f.importance / maxImportance) * 100}%`, height: '100%', background: C.purple, borderRadius: '2px', opacity: 0.8 }} />
+              <div key={f.name} className="flex gap-2.5 items-center">
+                <span className="text-[11px] text-revos-text-mid min-w-[160px] shrink-0">{f.name}</span>
+                <div className="flex-1 h-1 bg-revos-border rounded-sm">
+                  <div className="h-full bg-revos-purple rounded-sm opacity-80" style={{ width: `${(f.importance / maxImportance) * 100}%` }} />
                 </div>
-                <span style={{ fontSize: '11px', color: C.purple, fontFamily: C.mono, minWidth: '36px', textAlign: 'right' }}>{(f.importance * 100).toFixed(1)}%</span>
+                <span className="text-[11px] text-revos-purple font-mono min-w-[36px] text-right">{(f.importance * 100).toFixed(1)}%</span>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: '11px', color: C.dim, margin: '10px 0 0' }}>The two interaction features (Vertical×Product, Rep×Vertical) are unique to Option B — their importance here shows how much signal Option A leaves on the table.</p>
+          <p className="text-[11px] text-revos-text-dim mt-2.5 mb-0">The interaction feature (Vertical×Product) is unique to Option B — its importance here shows how much signal Option A leaves on the table.</p>
         </div>
 
         {/* Calibration */}
         {calibration.length > 0 && (
-          <div style={card({ marginBottom: '16px' })}>
-            <span style={lbl()}>CALIBRATION — does predicted % match actual win rate?</span>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+          <div className="bg-revos-card border border-revos-border rounded-xl p-4 mb-4">
+            <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">CALIBRATION — does predicted % match actual win rate?</span>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr>{['Predicted Range', 'Deals', 'Pred A', 'Pred B', 'Actual Win Rate'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontSize: '10px', color: C.dim, fontFamily: C.mono, letterSpacing: '0.08em', textTransform: 'uppercase', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                    <th key={h} className="text-left px-2 py-1.5 text-[10px] text-revos-text-dim font-mono tracking-wide uppercase border-b border-revos-border">{h}</th>
                   ))}</tr>
                 </thead>
                 <tbody>
@@ -705,34 +854,34 @@ export default function BacktestEngine() {
                     const diffA = Math.abs(c.predA - c.actual);
                     const diffB = Math.abs(c.predB - c.actual);
                     return (
-                      <tr key={c.bucket} style={{ borderBottom: `1px solid ${C.border}20` }}>
-                        <td style={{ padding: '7px 8px', color: C.muted, fontFamily: C.mono }}>{c.bucket}</td>
-                        <td style={{ padding: '7px 8px', color: C.dim, fontFamily: C.mono }}>{c.n}</td>
-                        <td style={{ padding: '7px 8px', fontFamily: C.mono, color: diffA < diffB ? C.blue : C.muted }}>{(c.predA * 100).toFixed(0)}%</td>
-                        <td style={{ padding: '7px 8px', fontFamily: C.mono, color: diffB < diffA ? C.green : C.muted }}>{(c.predB * 100).toFixed(0)}%</td>
-                        <td style={{ padding: '7px 8px', fontFamily: C.mono, color: C.text, fontWeight: '600' }}>{(c.actual * 100).toFixed(0)}%</td>
+                      <tr key={c.bucket} className="border-b border-revos-border/[0.12]">
+                        <td className="px-2 py-[7px] text-revos-text-mid font-mono">{c.bucket}</td>
+                        <td className="px-2 py-[7px] text-revos-text-dim font-mono">{c.n}</td>
+                        <td className={cn('px-2 py-[7px] font-mono', diffA < diffB ? 'text-revos-blue' : 'text-revos-text-mid')}>{(c.predA * 100).toFixed(0)}%</td>
+                        <td className={cn('px-2 py-[7px] font-mono', diffB < diffA ? 'text-revos-green' : 'text-revos-text-mid')}>{(c.predB * 100).toFixed(0)}%</td>
+                        <td className="px-2 py-[7px] font-mono text-revos-text font-semibold">{(c.actual * 100).toFixed(0)}%</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <p style={{ fontSize: '11px', color: C.dim, margin: '8px 0 0' }}>A well-calibrated model's predictions in each bucket should match the actual win rate. Closer = better.</p>
+            <p className="text-[11px] text-revos-text-dim mt-2 mb-0">A well-calibrated model's predictions in each bucket should match the actual win rate. Closer = better.</p>
           </div>
         )}
 
         {/* Recommendation */}
-        <div style={{ ...card({ marginBottom: '16px', background: C.deep, borderLeft: `3px solid ${C.purple}` }) }}>
-          <span style={lbl()}>RECOMMENDATION</span>
-          <p style={{ fontSize: '13px', color: C.text, lineHeight: '1.8', margin: 0 }}>
+        <div className="bg-revos-surface border border-revos-border rounded-xl p-4 mb-4 border-l-[3px] border-l-revos-purple">
+          <span className="text-[10px] font-bold tracking-[0.1em] text-revos-text-dim uppercase font-mono mb-2 block">RECOMMENDATION</span>
+          <p className="text-[13px] text-revos-text leading-[1.8] m-0">
             {winner === 'B'
               ? `Ship Option B as your primary model. The ${brierImprovement.toFixed(1)}% Brier improvement compounds across your full book of business — that's materially fewer mis-scored deals. For verticals where Option A still wins in the table above, consider a hybrid: use Option B for any vertical with 50+ historical deals, and fall back to Option A elsewhere.`
               : `Use Option A as your primary model. Your verticals share enough buying behavior that a global model outperforms per-vertical training. Revisit Option B as you accumulate more per-vertical deal history — the crossover point is typically when each vertical has 80–100 closed deals.`}
           </p>
         </div>
 
-        <button onClick={() => { setStep('upload'); setResults(null); setRows([]); setHeaders([]); }}
-          style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px', fontSize: '13px', color: C.muted, cursor: 'pointer' }}>
+        <button onClick={() => { setStep('upload'); setResults(null); setRows([]); setHeaders([]); setWonFile(null); setLostFile(null); }}
+          className="w-full bg-transparent border border-revos-border rounded-lg px-2.5 py-2.5 text-[13px] text-revos-text-mid cursor-pointer">
           ← Start over with new data
         </button>
       </div>
@@ -744,32 +893,30 @@ export default function BacktestEngine() {
     setMapping({ outcome: '', product: '', segment: '', deal_value: '', created_date: '', close_date: '' });
     setResults(null); setRunning(false); setDrag(false);
     setSheets(null); setWonSheet(''); setLostSheet('');
+    setWonFile(null); setLostFile(null);
   };
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', padding: '28px 20px', fontFamily: 'Inter, -apple-system, sans-serif' }}>
+    <div className="bg-revos-bg min-h-screen py-7 px-5 font-sans">
       {/* Reset button — always visible except on upload screen */}
       {step !== 'upload' && (
-        <button onClick={handleReset} style={{
-          position: 'fixed', top: '16px', right: '16px', zIndex: 999,
-          background: C.card, border: `1px solid ${C.border}`, borderRadius: '6px',
-          padding: '6px 12px', fontSize: '11px', color: C.muted,
-          cursor: 'pointer', fontFamily: C.mono, letterSpacing: '0.06em',
-          display: 'flex', alignItems: 'center', gap: '6px',
-        }}>
+        <button onClick={handleReset} className="fixed top-4 right-4 z-[999] bg-revos-card border border-revos-border rounded-md px-3 py-1.5 text-[11px] text-revos-text-mid cursor-pointer font-mono tracking-wide flex items-center gap-1.5">
           ↺ RESET
         </button>
       )}
       {/* Progress — hide 'sheets' step unless we're on it */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: '36px' }}>
+      <div className="flex justify-center gap-1.5 mb-9">
         {[['upload', '1', 'Upload'], ...(step === 'sheets' ? [['sheets', '2', 'Sheets']] : []), ['map', step === 'sheets' ? '3' : '2', 'Map'], ['configure', step === 'sheets' ? '4' : '3', 'Configure'], ['results', '✓', 'Results']].map(([s, n, label_]) => {
           const idx = STEPS.indexOf(step), thisIdx = STEPS.indexOf(s);
           const done = idx > thisIdx, active = idx === thisIdx;
           return (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', fontFamily: C.mono, background: active ? C.purple : done ? C.green : C.border, color: active || done ? '#000' : C.dim, flexShrink: 0 }}>{done ? '✓' : n}</div>
-              <span style={{ fontSize: '11px', color: active ? C.text : C.dim }}>{label_}</span>
-              {s !== 'results' && <span style={{ color: C.border, fontSize: '12px', marginLeft: '2px' }}>›</span>}
+            <div key={s} className="flex items-center gap-1.5">
+              <div className={cn(
+                'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold font-mono shrink-0',
+                active ? 'bg-revos-purple text-black' : done ? 'bg-revos-green text-black' : 'bg-revos-border text-revos-text-dim'
+              )}>{done ? '✓' : n}</div>
+              <span className={cn('text-[11px]', active ? 'text-revos-text' : 'text-revos-text-dim')}>{label_}</span>
+              {s !== 'results' && <span className="text-revos-border text-xs ml-0.5">›</span>}
             </div>
           );
         })}

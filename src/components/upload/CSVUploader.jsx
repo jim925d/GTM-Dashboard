@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { FONT_MONO, T } from '../../lib/constants'
+import { T } from '../../lib/constants'
 import Badge from '../shared/Badge'
 
 const TAB_TYPES = [
@@ -54,30 +54,16 @@ export default function CSVUploader({ onUpload, onUploadMulti, onClear, rawData 
     : []
 
   return (
-    <div style={{ marginBottom: '12px' }}>
+    <div className="mb-3">
       {/* Toggle button */}
       <button
         onClick={() => setExpanded(!expanded)}
-        style={{
-          padding: '6px 12px',
-          borderRadius: '6px',
-          border: `1px solid ${T.border}`,
-          background: T.card,
-          color: T.textMid,
-          fontFamily: FONT_MONO,
-          fontSize: '10px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          width: '100%',
-          justifyContent: 'space-between',
-        }}
+        className="px-3 py-1.5 rounded-md border border-revos-border bg-revos-card text-revos-text-mid font-mono text-[10px] cursor-pointer flex items-center gap-1.5 w-full justify-between"
       >
         <span>
           {expanded ? '▾' : '▸'} UPLOAD DATA
           {loadedCounts.length > 0 && (
-            <span style={{ color: T.green, marginLeft: '8px' }}>
+            <span className="text-revos-green ml-2">
               ({loadedCounts.join(' · ')})
             </span>
           )}
@@ -86,42 +72,36 @@ export default function CSVUploader({ onUpload, onUploadMulti, onClear, rawData 
       </button>
 
       {expanded && (
-        <div style={{ marginTop: '8px', padding: '12px', background: T.card, borderRadius: '8px', border: `1px solid ${T.border}` }}>
+        <div className="mt-2 p-3 bg-revos-card rounded-lg border border-revos-border">
           {/* Privacy notice */}
-          <div style={{
-            padding: '8px 10px',
-            background: `${T.green}08`,
-            border: `1px solid ${T.green}22`,
-            borderRadius: '6px',
-            marginBottom: '10px',
-            fontFamily: FONT_MONO,
-            fontSize: '9px',
-            color: T.green,
-          }}>
+          <div
+            className="px-2.5 py-2 rounded-md mb-2.5 font-mono text-[9px]"
+            style={{
+              background: `${T.green}08`,
+              border: `1px solid ${T.green}22`,
+              color: T.green,
+            }}
+          >
             YOUR DATA NEVER LEAVES YOUR COMPUTER. Files are read by your browser and stored in memory only. Nothing is uploaded to any server. Close the tab = data is gone.
           </div>
 
           {/* Tab type selector */}
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', flexWrap: 'wrap' }}>
+          <div className="flex gap-1 mb-2.5 flex-wrap">
             {TAB_TYPES.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setSelectedTab(t.key)}
+                className="px-2.5 py-1 rounded font-mono text-[9px] cursor-pointer"
                 style={{
-                  padding: '4px 10px',
-                  borderRadius: '4px',
                   border: `1px solid ${selectedTab === t.key ? T.cyan + '50' : T.border}`,
                   background: selectedTab === t.key ? T.cardHover : 'transparent',
                   color: selectedTab === t.key ? T.text : T.textDim,
-                  fontFamily: FONT_MONO,
-                  fontSize: '9px',
-                  cursor: 'pointer',
                 }}
                 title={t.desc}
               >
                 {t.label}
                 {rawData && rawData[t.key]?.length > 0 && (
-                  <span style={{ color: T.green, marginLeft: '4px' }}>({rawData[t.key].length})</span>
+                  <span className="text-revos-green ml-1">({rawData[t.key].length})</span>
                 )}
               </button>
             ))}
@@ -133,20 +113,16 @@ export default function CSVUploader({ onUpload, onUploadMulti, onClear, rawData 
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}
             onClick={() => fileRef.current?.click()}
+            className="p-4 rounded-lg cursor-pointer text-center transition-all duration-200"
             style={{
-              padding: '16px',
               border: `2px dashed ${isDragging ? T.cyan : T.border}`,
-              borderRadius: '8px',
               background: isDragging ? `${T.cyan}08` : T.surface,
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.2s',
             }}
           >
-            <div style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textMid, marginBottom: '4px' }}>
+            <div className="font-mono text-[11px] text-revos-text-mid mb-1">
               Drop CSV here or click to select
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>
+            <div className="font-mono text-[9px] text-revos-text-dim">
               {selectedTab === 'auto'
                 ? 'Auto-detects: Funnel, Close Lost, Customers, Quotes, Services, Locations'
                 : `Loading as: ${TAB_TYPES.find((t) => t.key === selectedTab)?.desc}`}
@@ -155,23 +131,21 @@ export default function CSVUploader({ onUpload, onUploadMulti, onClear, rawData 
               ref={fileRef}
               type="file"
               accept=".csv,.txt"
-              style={{ display: 'none' }}
+              className="hidden"
               onChange={(e) => { handleFile(e.target.files[0]); e.target.value = '' }}
             />
           </div>
 
           {/* Status */}
           {status && (
-            <div style={{
-              marginTop: '8px',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              fontFamily: FONT_MONO,
-              fontSize: '10px',
-              background: status.type === 'error' ? `${T.red}18` : status.type === 'success' ? `${T.green}18` : `${T.cyan}18`,
-              color: status.type === 'error' ? T.red : status.type === 'success' ? T.green : T.cyan,
-              border: `1px solid ${status.type === 'error' ? T.red : status.type === 'success' ? T.green : T.cyan}30`,
-            }}>
+            <div
+              className="mt-2 px-3 py-2 rounded-md font-mono text-[10px]"
+              style={{
+                background: status.type === 'error' ? `${T.red}18` : status.type === 'success' ? `${T.green}18` : `${T.cyan}18`,
+                color: status.type === 'error' ? T.red : status.type === 'success' ? T.green : T.cyan,
+                border: `1px solid ${status.type === 'error' ? T.red : status.type === 'success' ? T.green : T.cyan}30`,
+              }}
+            >
               {status.message}
             </div>
           )}
@@ -180,16 +154,10 @@ export default function CSVUploader({ onUpload, onUploadMulti, onClear, rawData 
           {loadedCounts.length > 0 && (
             <button
               onClick={() => { onClear(); setStatus(null) }}
+              className="mt-2 px-2.5 py-1 rounded bg-transparent font-mono text-[9px] cursor-pointer"
               style={{
-                marginTop: '8px',
-                padding: '4px 10px',
-                borderRadius: '4px',
                 border: `1px solid ${T.red}30`,
-                background: 'transparent',
                 color: T.red,
-                fontFamily: FONT_MONO,
-                fontSize: '9px',
-                cursor: 'pointer',
               }}
             >
               Clear all data & return to demo

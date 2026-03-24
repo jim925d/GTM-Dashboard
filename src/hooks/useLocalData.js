@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { parseCSV } from '../lib/normalize'
-import { buildAccountState, buildBacktestData, buildLearningData, buildCalibration } from '../lib/accountBuilder'
+import { buildAccountState, buildBacktestData, buildLearningData, buildCalibration, normalizeStage } from '../lib/accountBuilder'
 
 /**
  * Auto-loads CSV files from the local data/ folder.
@@ -266,7 +266,7 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       name,
       account_id: state.account_id,
       vertical: state.mega_vertical,
-      arr: state.total_arr,
+      tmr: state.total_tmr,
       mrr: state.total_mrr,
       pipeline_mrr: state.active_pipeline_mrr,
       pipeline_count: state.active_pipeline_count,
@@ -340,7 +340,7 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
           }))
         : (state.historical_deals || []),
       churn_deals_list: jsonHistorical.length > 0
-        ? jsonHistorical.filter(d => d.s === 'Closed Won' && (d.m || 0) < 0).map(d => ({
+        ? jsonHistorical.filter(d => normalizeStage(d.s || '') === 'closed won' && (d.m || 0) < 0).map(d => ({
             product: d.p || 'Unknown', mrr: d.m || 0, stage: d.s || '', close: d.c || '',
           }))
         : (state.historical_deals || []).filter(d => d.mrr < 0),
@@ -406,7 +406,7 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
     })
   }
 
-  built.sort((a, b) => b.arr - a.arr)
+  built.sort((a, b) => b.tmr - a.tmr)
   return built
 }
 
@@ -455,10 +455,10 @@ function buildRevenueTL(jsonHistorical) {
     if (!quarters[q]) quarters[q] = { new: 0, rr_up: 0, lost: 0 }
 
     const mrr = d.m || 0
-    const stage = (d.s || '').toLowerCase()
+    const stage = normalizeStage(d.s || '')
     const type = (d.t || '').toLowerCase()
 
-    if (stage.includes('closed won') || stage === 'closed won') {
+    if (stage === 'closed won') {
       if (mrr < 0) {
         // Negative re-rate / churn
         quarters[q].lost += mrr
@@ -467,7 +467,7 @@ function buildRevenueTL(jsonHistorical) {
       } else {
         quarters[q].new += mrr
       }
-    } else if (stage.includes('closed lost')) {
+    } else if (stage === 'closed lost') {
       // Don't add to revenue timeline (these weren't won)
     }
   }

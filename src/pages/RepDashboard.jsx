@@ -1,14 +1,19 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Line, Area, ReferenceLine,
 } from 'recharts'
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, STAGE_COLORS, STAGE_WIN_PROB, STAGE_ORDER, stageProb } from '../lib/constants'
+import { T, STAGE_COLORS, STAGE_WIN_PROB, STAGE_ORDER, stageProb } from '../lib/constants'
+import { cn } from '@/lib/utils'
 import Badge from '../components/shared/Badge'
 import Stat from '../components/shared/Stat'
 import ProbBar from '../components/shared/ProbBar'
 import Tip from '../components/shared/Tip'
 import { chartTheme, $, $k, pc } from '../components/shared/ChartTheme'
+import {
+  SpotlightCard, AnimatedBorderCard,
+  Sparkline, GlowBadge,
+} from '../components/effects'
 
 // --- Helpers ---
 
@@ -60,6 +65,12 @@ function paceColor(pct) {
   return T.red
 }
 
+function paceColorClass(pct) {
+  if (pct >= 1.0) return 'text-revos-green'
+  if (pct >= 0.75) return 'text-revos-yellow'
+  return 'text-revos-red'
+}
+
 function qLabel(d) {
   return `Q${Math.floor(d.getMonth() / 3) + 1}`
 }
@@ -74,19 +85,16 @@ function AttainmentRing({ value, quota, size = 140, label }) {
   const color = paceColor(displayPct)
 
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={T.border} strokeWidth={8} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={8}
           strokeDasharray={circumference} strokeDashoffset={offset}
-          strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+          strokeLinecap="round" className="transition-[stroke-dashoffset] duration-[800ms] ease-out" />
       </svg>
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-      }}>
-        <div style={{ fontFamily: FONT_MONO, fontSize: '22px', fontWeight: 700, color }}>{pc(displayPct)}</div>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim }}>{label}</div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="font-mono text-[22px] font-bold" style={{ color }}>{pc(displayPct)}</div>
+        <div className="font-sans text-[9px] text-revos-text-dim">{label}</div>
       </div>
     </div>
   )
@@ -100,26 +108,21 @@ function PaceBar({ actual, expected, quota, periodMode, currentQ, currentMonthNa
   const paceRatio = pctExpected > 0 ? pctActual / pctExpected : 0
 
   return (
-    <div style={{ background: T.surface, borderRadius: '6px', padding: '8px 12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+    <div className="bg-revos-surface rounded-md px-3 py-2">
+      <div className="flex justify-between mb-1">
         <Tip label={`PACE TO QUOTA\n\nFormula: ${periodMode === 'month' ? 'MTD' : 'QTD'} Bookings ÷ Expected Bookings at this point in the ${periodMode === 'month' ? 'month' : 'quarter'}\n\nActual: ${$k(actual)}\nExpected: ${$k(expected)} (pro-rated based on day ${Math.floor((Date.now() - (periodMode === 'month' ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date(new Date().getFullYear(), Math.floor(new Date().getMonth() / 3) * 3, 1)).getTime()) / 86400000) + 1} of ${periodMode === 'month' ? 'month' : 'quarter'})\nQuota: ${$k(quota)}\n\nPace: ${(paceRatio * 100).toFixed(0)}% of expected\n\nThe white marker shows where you should be. The colored bar shows where you are.\n• Green: ≥100% of pace\n• Yellow: 75–99% of pace\n• Red: <75% of pace`}>
-          <span style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim }}>Pace to Quota</span>
+          <span className="font-sans text-[9px] text-revos-text-dim">Pace to Quota</span>
         </Tip>
-        <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color }}>
+        <span className="font-mono text-[9px]" style={{ color }}>
           {$k(actual)} of {$k(expected)} expected
         </span>
       </div>
-      <div style={{ position: 'relative', height: '6px', background: T.border, borderRadius: '3px' }}>
-        <div style={{
-          position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px',
-          width: `${Math.min(pctActual * 100, 100)}%`, background: color,
-          transition: 'width 0.8s ease',
-        }} />
+      <div className="relative h-1.5 rounded-sm" style={{ background: T.border }}>
+        <div className="absolute left-0 top-0 h-full rounded-sm transition-[width] duration-[800ms] ease-out"
+          style={{ width: `${Math.min(pctActual * 100, 100)}%`, background: color }} />
         {/* Expected pace marker */}
-        <div style={{
-          position: 'absolute', top: '-2px', height: '10px', width: '2px', background: T.text,
-          left: `${Math.min(pctExpected * 100, 100)}%`, borderRadius: '1px',
-        }} />
+        <div className="absolute -top-0.5 h-2.5 w-0.5 rounded-sm"
+          style={{ background: T.text, left: `${Math.min(pctExpected * 100, 100)}%` }} />
       </div>
     </div>
   )
@@ -128,13 +131,10 @@ function PaceBar({ actual, expected, quota, periodMode, currentQ, currentMonthNa
 // --- Tab Button ---
 function TabBtn({ active, label, color = T.cyan, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      padding: '7px 16px', borderRadius: RADIUS, cursor: 'pointer',
-      fontFamily: FONT_SANS, fontSize: '11px', fontWeight: active ? 600 : 400,
-      border: 'none', background: active ? T.card : 'transparent',
-      color: active ? T.text : T.textDim,
-      boxShadow: active ? CARD_SHADOW : 'none', transition: 'all 0.15s',
-    }}>
+    <button onClick={onClick} className={cn(
+      'px-4 py-[7px] rounded-xl cursor-pointer font-sans text-[11px] border-none transition-all duration-150',
+      active ? 'bg-revos-card text-revos-text font-semibold shadow-card' : 'bg-transparent text-revos-text-dim font-normal'
+    )}>
       {label}
     </button>
   )
@@ -143,15 +143,106 @@ function TabBtn({ active, label, color = T.cyan, onClick }) {
 // --- Filter Pill ---
 function Pill({ active, label, count, color = T.cyan, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      padding: '4px 10px', borderRadius: '16px', cursor: 'pointer',
-      fontFamily: FONT_SANS, fontSize: '9px', fontWeight: active ? 600 : 400,
-      border: 'none', background: active ? `${color}15` : T.surface,
-      boxShadow: active ? `0 0 0 1px ${color}30` : 'none',
-      color: active ? color : T.textDim, transition: 'all 0.15s',
-    }}>
+    <button onClick={onClick}
+      className={cn(
+        'px-2.5 py-1 rounded-2xl cursor-pointer font-sans text-[9px] border-none transition-all duration-150',
+        !active && 'bg-revos-surface'
+      )}
+      style={{
+        fontWeight: active ? 600 : 400,
+        background: active ? `${color}15` : undefined,
+        boxShadow: active ? `0 0 0 1px ${color}30, 0 0 12px ${color}15` : 'none',
+        color: active ? color : T.textDim,
+      }}
+    >
       {label}{count != null ? ` (${count})` : ''}
     </button>
+  )
+}
+
+// --- Collapsible Section ---
+function Section({ title, color = T.textDim, count, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const contentRef = useRef(null)
+  const [height, setHeight] = useState(defaultOpen ? 'auto' : 0)
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setHeight(open ? contentRef.current.scrollHeight : 0)
+    }
+  }, [open, children])
+
+  return (
+    <div className="mt-2">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        className="flex items-center gap-1.5 bg-transparent border-none cursor-pointer p-0 w-full"
+        style={{ paddingTop: 4, paddingBottom: 4 }}>
+        <svg width={10} height={10} style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s ease', flexShrink: 0 }}>
+          <path d="M3 1.5 L7.5 5 L3 8.5" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="font-sans uppercase" style={{ fontSize: 9, fontWeight: 600, color, letterSpacing: '0.1em' }}>{title}</span>
+        {count != null && <span className="font-mono" style={{ fontSize: 8, color: T.tertiary }}>({count})</span>}
+        <div className="flex-1" style={{ height: 1, background: `${color}18`, marginLeft: 4 }} />
+      </button>
+      <div style={{ overflow: 'hidden', transition: 'height 0.3s cubic-bezier(0.16,1,0.3,1)', height: height === 'auto' ? 'auto' : height }}>
+        <div ref={contentRef} style={{ paddingTop: 6 }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Risk Bar ---
+function RiskBar({ score }) {
+  const color = score >= 50 ? T.red : score >= 30 ? T.orange : T.green
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="overflow-hidden" style={{ width: 40, height: 3, borderRadius: 2, background: T.border }}>
+        <div style={{ width: `${Math.min(score, 100)}%`, height: '100%', borderRadius: 2, background: color, transition: 'width 0.8s ease' }} />
+      </div>
+      <span className="font-mono" style={{ fontSize: 9, fontWeight: 600, color }}>{score}</span>
+    </div>
+  )
+}
+
+// --- Deal Row ---
+function DealRow({ d, winProb }) {
+  const [hover, setHover] = useState(false)
+  const probColor = winProb > 0.6 ? T.green : winProb > 0.35 ? T.yellow : T.orange
+  const stageColor = STAGE_COLORS[d.stage] || T.textDim
+
+  return (
+    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      className="items-center"
+      style={{ display: 'grid', gridTemplateColumns: '38px 1fr auto auto auto', gap: 10, padding: '8px 12px', borderRadius: 10, background: hover ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.2s', cursor: 'default' }}
+      onClick={e => e.stopPropagation()}>
+      <span className="font-mono" style={{ fontSize: 13, fontWeight: 700, color: probColor, textShadow: `0 0 12px ${probColor}35` }}>{pc(winProb)}</span>
+      <div>
+        <div className="font-semibold" style={{ fontSize: 12, color: T.text }}>{d.product || 'Unknown'}</div>
+        <div className="flex gap-1.5 mt-0.5">
+          <GlowBadge color={stageColor} className="text-[9px] px-1.5 py-0">{d.stage}</GlowBadge>
+        </div>
+      </div>
+      <span className="font-mono" style={{ fontSize: 12, fontWeight: 600, color: T.cyan }}>{$k(d.mrr || 0)}/mo</span>
+      <span className="font-mono" style={{ fontSize: 9, color: T.tertiary }}>{$k((d.mrr || 0) * 12)}/yr</span>
+      <div className="flex gap-1">
+        {d.opportunity_id && (
+          <a href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.opportunity_id}/view`}
+            target="_blank" rel="noopener noreferrer"
+            className="font-mono no-underline" style={{ fontSize: 8, padding: '3px 8px', borderRadius: 6, color: T.cyan, background: `${T.cyan}10`, border: `1px solid ${T.cyan}20` }}>
+            SFDC ↗
+          </a>
+        )}
+        {d.icb_id && (
+          <a href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.icb_id}/view`}
+            target="_blank" rel="noopener noreferrer"
+            className="font-mono no-underline" style={{ fontSize: 8, padding: '3px 8px', borderRadius: 6, color: T.purple, background: `${T.purple}10`, border: `1px solid ${T.purple}20` }}>
+            ICB ↗
+          </a>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -375,90 +466,67 @@ export default function RepDashboard({ accounts, rawData }) {
   // Pipeline coverage: weighted pipeline MRR vs remaining MRR target (same units)
   const pipelineCoverage = targetRemaining > 0 ? weightedPipeline / targetRemaining : 999
 
-  // Book of business ARR
-  const bookARR = repAccounts.reduce((s, a) => s + (a.arr || 0), 0)
+  // Book of business TMR
+  const bookTMR = repAccounts.reduce((s, a) => s + (a.tmr || 0), 0)
 
   return (
     <div>
       {/* Rep Selector + Target + Period Toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <div className="font-sans text-[10px] text-revos-text-dim tracking-wide">
           Seller
         </div>
         <select
           value={rep}
           onChange={(e) => setSelectedRep(e.target.value)}
-          style={{
-            padding: '6px 10px', fontFamily: FONT_MONO, fontSize: '11px',
-            background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS,
-            color: T.text, outline: 'none', cursor: 'pointer', minWidth: '180px',
-          }}
+          className="px-2.5 py-1.5 font-mono text-[11px] bg-revos-card border border-revos-border rounded-xl text-revos-text outline-none cursor-pointer min-w-[180px]"
         >
           {allReps.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
 
-        <div style={{ width: '1px', height: '20px', background: T.border }} />
+        <div className="w-px h-5 bg-revos-border" />
 
         {/* Target Input — always annual, divided by 4 or 12 for period */}
-        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim }}>Annual Target</div>
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim }}>$</span>
+        <div className="font-sans text-[10px] text-revos-text-dim">Annual Target</div>
+        <div className="relative">
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 font-mono text-[11px] text-revos-text-dim">$</span>
           <input
             type="text"
             value={userTarget}
             onChange={e => setUserTarget(e.target.value)}
             placeholder="65000"
-            style={{
-              padding: '6px 10px 6px 18px', fontFamily: FONT_MONO, fontSize: '11px',
-              background: T.card, border: `1px solid ${userTarget ? T.cyan : T.border}`, borderRadius: RADIUS,
-              color: T.text, outline: 'none', width: '100px',
-            }}
+            className="py-1.5 pr-2.5 pl-[18px] font-mono text-[11px] bg-revos-card rounded-xl text-revos-text outline-none w-[100px]"
+            style={{ border: `1px solid ${userTarget ? T.cyan : T.border}` }}
             onFocus={e => e.target.style.borderColor = T.cyan}
             onBlur={e => { if (!userTarget) e.target.style.borderColor = T.border }}
           />
         </div>
 
-        <div style={{ width: '1px', height: '20px', background: T.border }} />
+        <div className="w-px h-5 bg-revos-border" />
 
         {/* Month / Quarter Toggle */}
-        <div style={{ display: 'flex', gap: '2px', background: T.surface, borderRadius: RADIUS, padding: '2px' }}>
-          <button onClick={() => setPeriodMode('month')} style={{
-            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-            background: periodMode === 'month' ? T.card : 'transparent',
-            color: periodMode === 'month' ? T.cyan : T.textDim,
-            boxShadow: periodMode === 'month' ? CARD_SHADOW : 'none',
-          }}>Month</button>
-          <button onClick={() => setPeriodMode('quarter')} style={{
-            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-            background: periodMode === 'quarter' ? T.card : 'transparent',
-            color: periodMode === 'quarter' ? T.cyan : T.textDim,
-            boxShadow: periodMode === 'quarter' ? CARD_SHADOW : 'none',
-          }}>Quarter</button>
-          <button onClick={() => setPeriodMode('annual')} style={{
-            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-            background: periodMode === 'annual' ? T.card : 'transparent',
-            color: periodMode === 'annual' ? T.cyan : T.textDim,
-            boxShadow: periodMode === 'annual' ? CARD_SHADOW : 'none',
-          }}>Annual</button>
+        <div className="flex gap-0.5 bg-revos-surface rounded-xl p-0.5">
+          {['month', 'quarter', 'annual'].map(mode => (
+            <button key={mode} onClick={() => setPeriodMode(mode)} className={cn(
+              'px-3 py-1 rounded-[10px] border-none cursor-pointer font-mono text-[10px] font-semibold',
+              periodMode === mode ? 'bg-revos-card shadow-card' : 'bg-transparent'
+            )} style={{ color: periodMode === mode ? T.cyan : T.textDim }}>
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </button>
+          ))}
         </div>
 
-        <div style={{ flex: 1 }} />
-        <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>
+        <div className="flex-1" />
+        <div className="font-mono text-[10px] text-revos-text-dim">
           {repAccounts.length} accounts · {allActiveDeals.length} deals
         </div>
       </div>
 
       {/* Internal Tabs */}
-      <div style={{
-        display: 'flex', gap: '4px', marginBottom: '16px', padding: '4px',
-        background: T.surface, borderRadius: RADIUS, width: 'fit-content',
-      }}>
+      <div className="flex gap-1 mb-4 p-1 bg-revos-surface rounded-xl w-fit">
         <TabBtn active={tab === 'accounts'} label="My Accounts" onClick={() => setTab('accounts')} />
         <TabBtn active={tab === 'pipeline'} label="My Pipeline" onClick={() => setTab('pipeline')} />
-        <TabBtn active={tab === 'pipeline-gap'} label={<span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Pipeline Gap <span style={{ width: 7, height: 7, borderRadius: '50%', background: pipelineCoverage >= 3 ? T.green : pipelineCoverage >= 1.5 ? T.yellow : pipelineCoverage >= 1 ? T.orange : T.red }} /></span>} onClick={() => setTab('pipeline-gap')} />
+        <TabBtn active={tab === 'pipeline-gap'} label={<span className="inline-flex items-center gap-1.5">Pipeline Gap <span className="w-[7px] h-[7px] rounded-full" style={{ background: pipelineCoverage >= 3 ? T.green : pipelineCoverage >= 1.5 ? T.yellow : pipelineCoverage >= 1 ? T.orange : T.red }} /></span>} onClick={() => setTab('pipeline-gap')} />
         <TabBtn active={tab === 'kpi'} label="KPI Scorecard" onClick={() => setTab('kpi')} />
       </div>
 
@@ -467,7 +535,7 @@ export default function RepDashboard({ accounts, rawData }) {
         repAccounts={repAccounts} rep={rep} repProfile={repProfile}
         periodBookings={periodBookings} ytdBookings={ytdBookings} periodQuota={periodQuota}
         annualQuota={annualQuota} expectedPeriod={expectedPeriod} pipelineCoverage={pipelineCoverage}
-        bookARR={bookARR} showFilter={showFilter} setShowFilter={setShowFilter}
+        bookTMR={bookTMR} showFilter={showFilter} setShowFilter={setShowFilter}
         sortBy={sortBy} setSortBy={setSortBy} periodMode={periodMode} currentQ={currentQ}
         currentMonthName={currentMonthName}
         accountSearch={accountSearch} setAccountSearch={setAccountSearch}
@@ -510,17 +578,20 @@ export default function RepDashboard({ accounts, rawData }) {
 }
 
 // =======================================================================
-// TAB 1: MY ACCOUNTS
+// TAB 1: MY ACCOUNTS (Progressive Disclosure)
 // =======================================================================
 
 function MyAccountsTab({
   repAccounts, rep, repProfile, periodBookings, ytdBookings, periodQuota,
-  annualQuota, expectedPeriod, pipelineCoverage, bookARR, showFilter, setShowFilter,
+  annualQuota, expectedPeriod, pipelineCoverage, bookTMR, showFilter, setShowFilter,
   sortBy, setSortBy, periodMode, currentQ, currentMonthName,
   accountSearch, setAccountSearch, weightedPipeline, targetRemaining,
   signalsData, signalsAge, aiSignals, aiLoading, refreshAI,
 }) {
-  // Filter + search
+  const [expandedCard, setExpandedCard] = useState(null)
+  const [kpiExpanded, setKpiExpanded] = useState(false)
+
+  // Filter + search (same logic as before)
   const filtered = useMemo(() => {
     let list = repAccounts
     if (accountSearch) list = list.filter(a => a.name.toLowerCase().includes(accountSearch.toLowerCase()))
@@ -532,11 +603,10 @@ function MyAccountsTab({
     return list
   }, [repAccounts, showFilter, accountSearch])
 
-  // Sort
   const sorted = useMemo(() => {
     const s = [...filtered]
     if (sortBy === 'risk') s.sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
-    if (sortBy === 'revenue') s.sort((a, b) => (b.arr || 0) - (a.arr || 0))
+    if (sortBy === 'revenue') s.sort((a, b) => (b.tmr || 0) - (a.tmr || 0))
     if (sortBy === 'pipeline') s.sort((a, b) => (b.pipeline_mrr || 0) - (a.pipeline_mrr || 0))
     if (sortBy === 'name') s.sort((a, b) => a.name.localeCompare(b.name))
     if (sortBy === 'activity') s.sort((a, b) => daysSince(a.engagement?.lastDate) - daysSince(b.engagement?.lastDate))
@@ -553,281 +623,302 @@ function MyAccountsTab({
     risk: repAccounts.filter(a => (a.risk_score || 0) >= 30).length,
   }), [repAccounts])
 
+  const periodLabel = periodMode === 'month' ? currentMonthName : periodMode === 'annual' ? `${new Date().getFullYear()}` : `Q${currentQ}`
+  const paceRatio = periodQuota > 0 && expectedPeriod > 0 ? periodBookings / expectedPeriod : 1
+
   return (
-    <div>
-      {/* Top row: Ring + Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '16px', marginBottom: '16px' }}>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }}>
-          <AttainmentRing value={periodBookings} quota={periodQuota} label={periodMode === 'month' ? `${currentMonthName} Attainment` : periodMode === 'annual' ? `${now.getFullYear()} Attainment` : `Q${currentQ} Attainment`} />
+    <div className="relative">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full opacity-[0.03]"
+        style={{ background: 'radial-gradient(circle, #7c5aff 0%, transparent 70%)' }} />
+
+      {/* ── KPI STRIP (collapsible) ── */}
+      <SpotlightCard className="mb-4 opacity-0 animate-fade-slide-in" style={{ animationDelay: '0ms', animationFillMode: 'forwards' }}>
+        <div className="cursor-pointer" style={{ padding: '14px 20px' }} onClick={() => setKpiExpanded(!kpiExpanded)}>
+          {/* Always visible: compact KPI row */}
+          <div className="flex items-center gap-6">
+            <AttainmentRing value={periodBookings} quota={periodQuota} size={64}
+              label={`${periodLabel} Att.`} />
+
+            <div className="flex-1 grid grid-cols-4 gap-4">
+              {[
+                { label: `${periodMode === 'month' ? 'MTD' : periodMode === 'annual' ? 'YTD' : 'QTD'} BOOKINGS`, value: $k(periodBookings), sub: `of ${$k(periodQuota)}`, color: paceColor(paceRatio) },
+                { label: 'PIPELINE COVERAGE', value: `${pipelineCoverage.toFixed(1)}x`, sub: `${$k(weightedPipeline)} weighted`, color: pipelineCoverage >= 3 ? T.green : pipelineCoverage >= 1.5 ? T.yellow : T.red },
+                { label: 'TOTAL MONTHLY REVENUE', value: $(bookTMR), sub: `${repAccounts.length} accounts`, color: T.teal },
+                { label: 'AT RISK', value: `${filterCounts.risk}`, sub: `of ${filterCounts.all} accounts`, color: T.red },
+              ].map((kpi, i) => (
+                <div key={i}>
+                  <div className="font-sans uppercase" style={{ fontSize: 8, fontWeight: 600, color: T.textDim, letterSpacing: '0.1em', marginBottom: 4 }}>{kpi.label}</div>
+                  <div className="font-mono leading-none" style={{ fontSize: 20, fontWeight: 700, color: kpi.color }}>{kpi.value}</div>
+                  <div className="font-sans" style={{ fontSize: 9, color: T.tertiary, marginTop: 3 }}>{kpi.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <svg width={16} height={16} style={{ transform: kpiExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease', flexShrink: 0, opacity: 0.4 }}>
+              <path d="M3 6 L8 11 L13 6" fill="none" stroke={T.textDim} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+
+          {/* Expanded: pace bar + sparklines */}
+          {kpiExpanded && (
+            <div className="mt-4 pt-3.5" style={{ borderTop: `1px solid ${T.border}` }}>
+              {periodQuota > 0 && (
+                <div className="mb-3.5">
+                  <div className="flex justify-between mb-1">
+                    <Tip label={`Pace to Quota — ${periodLabel}`}>
+                      <span className="font-sans" style={{ fontSize: 9, color: T.textDim }}>Pace to Quota</span>
+                    </Tip>
+                    <span className="font-mono" style={{ fontSize: 9, color: paceColor(paceRatio) }}>
+                      {$k(periodBookings)} of {$k(expectedPeriod)} expected
+                    </span>
+                  </div>
+                  <div className="overflow-hidden" style={{ height: 4, borderRadius: 2, background: T.border }}>
+                    <div style={{ width: `${Math.min((periodBookings / periodQuota) * 100, 100)}%`, height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${paceColor(paceRatio)}, ${T.orange})`, transition: 'width 1s ease' }} />
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: `${periodMode === 'month' ? 'MTD' : 'QTD'} Bookings Trend`, color: paceColor(paceRatio) },
+                  { label: `YTD: ${$k(ytdBookings)} of ${$k(annualQuota)} annual`, color: T.cyan },
+                  { label: 'Coverage Trend', color: pipelineCoverage >= 1.5 ? T.yellow : T.red },
+                  { label: 'TMR Trend', color: T.teal },
+                ].map((s, i) => (
+                  <div key={i} className="rounded-lg" style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.015)' }}>
+                    <div className="font-sans" style={{ fontSize: 8, color: T.textDim, marginBottom: 6 }}>{s.label}</div>
+                    <Sparkline data={[0.2, 0.35, 0.5, 0.6, 0.55, 0.7, 0.85, 1].map(v => v * (i === 0 ? periodBookings : i === 1 ? ytdBookings : i === 2 ? pipelineCoverage : bookTMR))}
+                      width={120} height={32} color={s.color} className="opacity-80" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-          <Stat label={<Tip label={`${periodMode === 'month' ? 'MTD' : periodMode === 'annual' ? 'YTD' : 'QTD'} BOOKINGS\n\nFormula: SUM(MRR) for deals matching all filters\n\nFilters:\n• Forecast Category = "Closed"\n• MRR > $0\n• Close Date in ${periodMode === 'month' ? currentMonthName : periodMode === 'annual' ? new Date().getFullYear() : 'Q' + currentQ} ${new Date().getFullYear()}\n• Major Project = blank\n• Opp Owner = selected seller\n\nData Source: funnel.csv only\n\nCurrent value: ${$k(periodBookings)}`}>{periodMode === 'month' ? 'MTD' : periodMode === 'annual' ? 'YTD' : 'QTD'} Bookings</Tip>} value={`${$k(periodBookings)}`} sub={periodQuota > 0 ? `of ${$k(periodQuota)} target` : 'no target set'} color={paceColor(periodQuota > 0 ? periodBookings / expectedPeriod : 1)} />
-          <Stat label={<Tip label={`YTD BOOKINGS\n\nFormula: SUM(MRR) for deals matching all filters\n\nFilters:\n• Forecast Category = "Closed"\n• MRR > $0\n• Close Date >= 1/1/${new Date().getFullYear()} and < 1/1/${new Date().getFullYear() + 1}\n• Major Project = blank\n• Opp Owner = selected seller\n\nData Source: funnel.csv only\n\nCurrent value: ${$k(ytdBookings)}`}>YTD Bookings</Tip>} value={`${$k(ytdBookings)}`} sub={annualQuota > 0 ? `of ${$k(annualQuota)} annual` : ''} color={T.cyan} />
-          <Stat label={<Tip label={`PIPELINE COVERAGE\n\nFormula: Weighted Pipeline ÷ Remaining Target\n= ${$k(weightedPipeline)} ÷ ${$k(targetRemaining)} = ${pipelineCoverage.toFixed(1)}x\n\nWeighted Pipeline: SUM(deal MRR × Stage Win Probability) for active deals where Forecast Category ≠ "Closed", MRR > $0, and Opportunity Owner = selected seller\n\nStage Win Probabilities:\n• Discover: 30.57%\n• Design Solution: 53.21%\n• Propose: 66.23%\n• Negotiate: 84.67%\n• Verbal Agreement: 92.49%\n\nRemaining Target: ${periodMode === 'month' ? 'Monthly' : 'Quarterly'} Quota − ${periodMode === 'month' ? 'MTD' : 'QTD'} Bookings\n= ${$k(periodQuota)} − ${$k(periodBookings)} = ${$k(targetRemaining)}\n\nBenchmark: 3x+ = healthy, 1.5–3x = caution, <1.5x = at risk`}>Pipeline Coverage</Tip>} value={`${pipelineCoverage.toFixed(1)}x`} sub={`${$k(weightedPipeline)} vs ${$k(targetRemaining)} gap`} color={pipelineCoverage >= 3 ? T.green : pipelineCoverage >= 1.5 ? T.yellow : T.red} />
-          <Stat label={<Tip label={`BOOK OF BUSINESS\n\nFormula: SUM(Total ARR) across all accounts where Sales Owner = selected seller\n\nSource: customers.csv "Total BRR" field\n\nAccounts: ${repAccounts.length}\nCurrent value: ${$(bookARR)}`}>Book of Business</Tip>} value={$(bookARR)} sub={`${repAccounts.length} accounts`} color={T.teal} />
+      </SpotlightCard>
+
+      {/* ── SEARCH + FILTERS (compact inline row) ── */}
+      <div className="mb-3.5 opacity-0 animate-fade-slide-in" style={{ animationDelay: '100ms', animationFillMode: 'forwards' }}>
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)}
+              placeholder="Search accounts..."
+              className="w-full font-sans text-[12px] bg-[#0d1117] text-revos-text outline-none"
+              style={{ padding: '8px 14px', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}
+              onFocus={e => e.target.style.borderColor = 'rgba(120,90,255,0.3)'}
+              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.06)'} />
+            {accountSearch && (
+              <button onClick={() => setAccountSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-revos-text-dim text-sm">×</button>
+            )}
+          </div>
+          {[
+            { id: 'all', label: 'All', color: T.cyan },
+            { id: 'engaged', label: 'Engaged', color: T.green },
+            { id: 'unengaged', label: 'Unengaged', color: T.red },
+            { id: 'deals', label: 'Active Deals', color: T.purple },
+            { id: 'no_pipeline', label: 'No Pipeline', color: T.orange },
+            { id: 'risk', label: 'At Risk', color: T.red },
+          ].map(f => (
+            <Pill key={f.id} active={showFilter === f.id} label={f.label} count={filterCounts[f.id]} color={f.color} onClick={() => setShowFilter(f.id)} />
+          ))}
+          <div className="w-px bg-revos-border" style={{ height: 18, margin: '0 4px' }} />
+          <div className="font-sans text-revos-text-dim self-center mr-0.5" style={{ fontSize: 9 }}>Sort</div>
+          {['risk', 'revenue', 'pipeline', 'name', 'activity', 'nrr'].map(s => (
+            <Pill key={s} active={sortBy === s} label={s.charAt(0).toUpperCase() + s.slice(1)} color={T.blue} onClick={() => setSortBy(s)} />
+          ))}
         </div>
       </div>
 
-      {/* Pace bar */}
-      {periodQuota > 0 && (
-        <div style={{ marginBottom: '16px' }}>
-          <PaceBar actual={periodBookings} expected={expectedPeriod} quota={periodQuota} periodMode={periodMode} currentQ={currentQ} currentMonthName={currentMonthName} />
-        </div>
-      )}
-
-      {/* Account Search */}
-      <div style={{ position: 'relative', marginBottom: '10px' }}>
-        <input
-          type="text"
-          value={accountSearch}
-          onChange={e => setAccountSearch(e.target.value)}
-          placeholder="Search accounts..."
-          style={{
-            width: '100%', padding: '8px 30px 8px 12px', fontFamily: FONT_MONO, fontSize: '11px',
-            background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS,
-            color: T.text, outline: 'none', boxSizing: 'border-box',
-          }}
-          onFocus={e => e.target.style.borderColor = T.cyan}
-          onBlur={e => e.target.style.borderColor = T.border}
-        />
-        {accountSearch && (
-          <button
-            onClick={() => setAccountSearch('')}
-            style={{
-              position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px',
-              fontFamily: FONT_MONO, fontSize: '14px', color: T.textDim, lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, alignSelf: 'center', marginRight: '4px' }}>Show</div>
-        {[
-          { id: 'all', label: 'All', color: T.cyan },
-          { id: 'engaged', label: 'Engaged', color: T.green },
-          { id: 'unengaged', label: 'Unengaged', color: T.red },
-          { id: 'deals', label: 'Active Deals', color: T.purple },
-          { id: 'no_pipeline', label: 'No Pipeline', color: T.orange },
-          { id: 'risk', label: 'At Risk', color: T.red },
-        ].map(f => (
-          <Pill key={f.id} active={showFilter === f.id} label={f.label} count={filterCounts[f.id]} color={f.color} onClick={() => setShowFilter(f.id)} />
-        ))}
-        <div style={{ width: '1px', background: T.border, margin: '0 6px' }} />
-        <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, alignSelf: 'center', marginRight: '4px' }}>Sort</div>
-        {['risk', 'revenue', 'pipeline', 'name', 'activity', 'nrr'].map(s => (
-          <Pill key={s} active={sortBy === s} label={s.charAt(0).toUpperCase() + s.slice(1)} color={T.blue} onClick={() => setSortBy(s)} />
-        ))}
-      </div>
-
-      <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, marginBottom: '10px' }}>
+      <div className="font-sans text-revos-text-dim mb-2.5" style={{ fontSize: 10 }}>
         {sorted.length} accounts
       </div>
 
-      {/* Account Cards */}
+      {/* ── ACCOUNT CARDS (progressive disclosure) ── */}
       {sorted.map((acc, i) => {
         const ds = daysSince(acc.engagement?.lastDate)
-        const riskColor = acc.risk_score >= 50 ? T.red : acc.risk_score >= 30 ? T.orange : T.green
-        const velColor = acc.velocity === 'accelerating' ? T.green : acc.velocity === 'stalled' ? T.red : T.yellow
+        const riskCol = acc.risk_score >= 50 ? T.red : acc.risk_score >= 30 ? T.orange : T.green
+        const velCol = acc.velocity === 'accelerating' ? T.green : acc.velocity === 'stalled' ? T.red : T.yellow
+        const isOpen = expandedCard === acc.name
+        const allDeals = [...(acc.active_deals || []), ...(acc.funnel_closed || [])]
+        const histWon = (acc.historical_deals || []).filter(d => normalizeStage(d.stage) === 'closed won' && (d.mrr || 0) >= 0).length
+        const histChurned = (acc.historical_deals || []).filter(d => normalizeStage(d.stage) === 'closed won' && (d.mrr || 0) < 0).length
+        const histLost = (acc.losses?.deals || []).length
+
+        // Deal predictions (Bayesian — same logic as before)
+        const prior = Math.max(0.05, Math.min(0.95, acc.win_rate || 0.5))
+        const dealPredictions = (acc.active_deals || []).map(d => {
+          const stageWinProb = stageProb(d.stage)
+          let stageLR = (stageWinProb / (1 - stageWinProb)) / (prior / (1 - prior))
+          stageLR = Math.max(0.1, Math.min(stageLR, 20))
+          const priorLO = Math.log(prior / (1 - prior))
+          const posteriorLO = priorLO + Math.log(stageLR)
+          const posterior = Math.max(0.02, Math.min(0.98, 1 / (1 + Math.exp(-posteriorLO))))
+          return { ...d, winProb: posterior }
+        }).sort((a, b) => b.winProb - a.winProb)
+
+        // NIB
+        const currentYrDeals = allDeals.filter(d => { const dt = parseDate(d.close || d.created); return dt && dt.getFullYear() === new Date().getFullYear() })
+        const positiveMRR = currentYrDeals.filter(d => (d.mrr || 0) > 0).reduce((s, d) => s + (d.mrr || 0), 0)
+        const negativeMRR = currentYrDeals.filter(d => (d.mrr || 0) < 0).reduce((s, d) => s + (d.mrr || 0), 0)
+        const netMRR = positiveMRR + negativeMRR
+
+        // Stage breakdown
+        const stageMap = {}
+        for (const d of allDeals) {
+          const s = d.stage || 'Unknown'
+          if (!stageMap[s]) stageMap[s] = { count: 0, mrr: 0 }
+          stageMap[s].count++
+          stageMap[s].mrr += d.mrr || 0
+        }
+        const orderedStages = STAGE_ORDER.filter(s => stageMap[s]).concat(
+          Object.keys(stageMap).filter(s => !STAGE_ORDER.includes(s))
+        )
+
+        // Signals
+        const acctSignals = signalsData?.[acc.name]
+        const signalRows = buildSignalRows(acctSignals)
+        const acctAI = aiSignals[acc.name] || []
+        const isLoadingAI = aiLoading[acc.name]
 
         return (
-          <div key={acc.name} style={{
-            background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW,
-            padding: '12px 14px', marginBottom: '8px',
-            borderLeft: `3px solid ${riskColor}`,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>{acc.name}</span>
-                <Badge color={riskColor}>{acc.risk_level?.toUpperCase()}</Badge>
-                {acc.velocity && <Badge color={velColor}>{acc.velocity.toUpperCase()}</Badge>}
-              </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '12px', fontWeight: 700, color: T.cyan }}>
-                {$(acc.arr)}
-              </div>
-            </div>
-            {(() => {
-              // 2026 Deals from funnel.csv (active_deals + funnel_closed)
-              const funnelDeals = [...(acc.active_deals || []), ...(acc.funnel_closed || [])]
-              const thisYear = new Date().getFullYear()
-              const currentYrDeals = funnelDeals.filter(d => { const dt = parseDate(d.close || d.created); return dt && dt.getFullYear() === thisYear })
-              const currentYr = currentYrDeals.length
-              const positiveMRR = currentYrDeals.filter(d => (d.mrr || 0) > 0).reduce((s, d) => s + (d.mrr || 0), 0)
-              const negativeMRR = currentYrDeals.filter(d => (d.mrr || 0) < 0).reduce((s, d) => s + (d.mrr || 0), 0)
-              const netMRR = positiveMRR + negativeMRR
+          <div key={acc.name} className="mb-2.5 opacity-0 animate-fade-slide-in"
+            style={{ animationDelay: `${Math.min(i, 10) * 60}ms`, animationFillMode: 'forwards' }}>
+            <div onClick={() => setExpandedCard(isOpen ? null : acc.name)}
+              className="cursor-pointer transition-all duration-300"
+              style={{
+                borderRadius: 16,
+                border: `1px solid rgba(255,255,255,${isOpen ? 0.08 : 0.04})`,
+                borderLeft: `3px solid ${riskCol}`,
+                background: T.card,
+                boxShadow: isOpen
+                  ? '0 8px 32px rgba(120,90,255,0.06), 0 0 0 1px rgba(120,90,255,0.1)'
+                  : '0 1px 3px rgba(0,0,0,0.2)',
+              }}>
 
-              // Historical deals from historical.csv — won/churned/lost breakdown
-              const histDeals = acc.historical_deals || []
-              const histWon = histDeals.filter(d => normalizeStage(d.stage) === 'closed won' && (d.mrr || 0) >= 0).length
-              const histChurned = histDeals.filter(d => normalizeStage(d.stage) === 'closed won' && (d.mrr || 0) < 0).length
-              const histLost = (acc.losses?.deals || []).length
-
-              // Build predictions for active deals using Bayesian model
-              const activeDeals = acc.active_deals || []
-              const prior = Math.max(0.05, Math.min(0.95, acc.win_rate || 0.5))
-              const dealPredictions = activeDeals.map(d => {
-                const stageWinProb = stageProb(d.stage)
-                let stageLR = (stageWinProb / (1 - stageWinProb)) / (prior / (1 - prior))
-                stageLR = Math.max(0.1, Math.min(stageLR, 20))
-                const priorLO = Math.log(prior / (1 - prior))
-                const posteriorLO = priorLO + Math.log(stageLR)
-                const posterior = Math.max(0.02, Math.min(0.98, 1 / (1 + Math.exp(-posteriorLO))))
-                return { ...d, winProb: posterior }
-              }).sort((a, b) => b.winProb - a.winProb)
-
-              return <>
-                {/* Row 1: Pipeline + Active Deals count + Prior breakdown + Last Engagement */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 2fr', gap: '8px' }}>
-                  <MiniStat label="Pipeline" value={`${$k(acc.pipeline_mrr || 0)}`} color={T.purple} />
-                  <MiniStat label={`${thisYear} Deals`} value={currentYr} color={T.cyan} />
-                  <MiniStat label="Won" value={histWon} color={T.green} />
-                  <MiniStat label="Churned" value={histChurned} color={T.red} />
-                  <MiniStat label="Close Lost" value={histLost} color={T.orange} />
-                  <div>
-                    <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim }}>
-                      <Tip label="LAST ENGAGEMENT">LAST ENGAGEMENT</Tip>
-                    </div>
-                    <div style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 600, color: ds <= 30 ? T.green : ds <= 90 ? T.yellow : T.red }}>
-                      {ds < 999 ? `${ds}d ago` : '---'}
-                    </div>
+              {/* ── COLLAPSED ROW ── */}
+              <div className="flex items-center gap-3.5" style={{ padding: '14px 18px' }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[14px]">{acc.name}</span>
+                    <GlowBadge color={riskCol} className="text-[9px] px-2 py-0">{acc.risk_level?.toUpperCase().replace('_', ' ')}</GlowBadge>
+                    {acc.velocity && <GlowBadge color={velCol} className="text-[9px] px-2 py-0">{acc.velocity.toUpperCase()}</GlowBadge>}
+                  </div>
+                  {/* One-line summary */}
+                  <div className="flex gap-3 mt-1">
+                    <span className="font-mono text-[10px]" style={{ color: T.purple }}>{$k(acc.pipeline_mrr || 0)} pipe</span>
+                    <span className="font-mono text-[10px]" style={{ color: T.cyan }}>{allDeals.length} deals</span>
+                    <span className="font-mono text-[10px]" style={{ color: ds <= 30 ? T.green : ds <= 90 ? T.yellow : T.red }}>{ds < 999 ? `${ds}d ago` : 'No contact'}</span>
+                    {(signalRows.length + acctAI.length) > 0 && (
+                      <span className="font-mono text-[10px]" style={{ color: T.purple }}>{signalRows.length + acctAI.length} signals</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Active deal predictions — win rate inline with deal info */}
-                {dealPredictions.length > 0 && (
-                  <div style={{ marginTop: '6px', padding: '6px 8px', background: `${T.cyan}08`, border: `1px solid ${T.cyan}18`, borderRadius: '6px' }}>
-                    <div style={{ fontFamily: FONT_SANS, fontSize: '7px', color: T.cyan, letterSpacing: '0.06em', marginBottom: '4px' }}>DEAL PREDICTIONS</div>
-                    {dealPredictions.map((d, idx) => {
-                      const probColor = d.winProb > 0.6 ? T.green : d.winProb > 0.35 ? T.yellow : T.orange
-                      return (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700, color: probColor, minWidth: '36px' }}>{pc(d.winProb)}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.text }}>{d.product || 'Unknown'}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>{d.stage}</span>
-                          <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.cyan }}>{$k(d.mrr || 0)}/mo</span>
-                          <div style={{ flex: 1 }} />
-                          {d.opportunity_id && (
-                            <a href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.opportunity_id}/view`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ fontFamily: FONT_MONO, fontSize: '8px', color: T.blue, textDecoration: 'none', padding: '1px 4px', background: `${T.blue}12`, borderRadius: '4px', border: `1px solid ${T.blue}25` }}>
-                              SFDC ↗
-                            </a>
-                          )}
-                          {d.icb_id && (
-                            <a href={`https://zayo.lightning.force.com/lightning/r/Opportunity/${d.icb_id}/view`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ fontFamily: FONT_MONO, fontSize: '8px', color: T.purple, textDecoration: 'none', padding: '1px 4px', background: `${T.purple}12`, borderRadius: '4px', border: `1px solid ${T.purple}25` }}>
-                              ICB ↗
-                            </a>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                <RiskBar score={acc.risk_score || 0} />
 
-                {currentYr > 0 && (
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '6px', padding: '5px 8px', background: `${T.surface}80`, borderRadius: '6px' }}>
-                    <span style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{thisYear} NIB</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.green, fontWeight: 600 }}>+{$k(positiveMRR)}</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '11px', color: negativeMRR < 0 ? T.red : T.textDim, fontWeight: 600 }}>{negativeMRR < 0 ? `${$k(negativeMRR)}` : '$0'}</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>=</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '11px', color: netMRR >= 0 ? T.cyan : T.red, fontWeight: 700 }}>Net {$k(netMRR)}</span>
-                  </div>
-                )}
-              </>
-            })()}
-            {/* WHY NOW — signal rows */}
-            {(() => {
-              const acctSignals = signalsData?.[acc.name]
-              const signalRows = buildSignalRows(acctSignals)
-              const acctAI = aiSignals[acc.name] || []
-              const isLoadingAI = aiLoading[acc.name]
-              if (signalRows.length === 0 && acctAI.length === 0) return null
-              return (
-                <div style={{ marginTop: '6px', padding: '6px 8px', background: `${T.purple}06`, border: `1px solid ${T.purple}15`, borderRadius: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <div style={{ fontFamily: FONT_SANS, fontSize: '7px', color: T.purple, letterSpacing: '0.06em' }}>
-                      WHY NOW {signalsAge && <span style={{ color: T.textDim, marginLeft: '6px' }}>updated {signalsAge}</span>}
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); refreshAI(acc.name, acctSignals?.segment, acctSignals) }}
-                      disabled={isLoadingAI}
-                      style={{
-                        background: 'none', border: `1px solid ${T.purple}30`, borderRadius: '4px',
-                        padding: '1px 6px', cursor: isLoadingAI ? 'default' : 'pointer',
-                        fontFamily: FONT_MONO, fontSize: '7px', color: T.purple,
-                        opacity: isLoadingAI ? 0.5 : 1,
-                      }}
-                    >
-                      {isLoadingAI ? 'LOADING...' : '🌐 REFRESH'}
-                    </button>
-                  </div>
-                  {signalRows.map((row, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', marginBottom: '2px' }}>
-                      <span style={{ fontSize: '10px', flexShrink: 0 }}>{row.icon}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: CAT_COLORS[row.cat] || T.text, lineHeight: 1.4 }}>
-                        {row.text}
-                      </span>
-                    </div>
-                  ))}
-                  {acctAI.map((row, idx) => (
-                    <div key={`ai-${idx}`} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', marginBottom: '2px' }}>
-                      <span style={{ fontSize: '10px', flexShrink: 0 }}>{row.icon || '🌐'}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.teal, lineHeight: 1.4 }}>
-                        {row.text}
-                      </span>
-                      <span style={{
-                        fontFamily: FONT_MONO, fontSize: '7px', color: T.teal, background: `${T.teal}15`,
-                        padding: '0 4px', borderRadius: '3px', flexShrink: 0, alignSelf: 'center',
-                      }}>LIVE</span>
-                    </div>
-                  ))}
-                </div>
-              )
-            })()}
-            {/* Deals per stage with MRR — active pipeline + funnel closed */}
-            {((acc.active_deals?.length || 0) + (acc.funnel_closed?.length || 0)) > 0 && (() => {
-              const allDeals = [...(acc.active_deals || []), ...(acc.funnel_closed || [])]
-              const stageMap = {}
-              for (const d of allDeals) {
-                const s = d.stage || 'Unknown'
-                if (!stageMap[s]) stageMap[s] = { count: 0, mrr: 0 }
-                stageMap[s].count++
-                stageMap[s].mrr += d.mrr || 0
-              }
-              const orderedStages = STAGE_ORDER.filter(s => stageMap[s]).concat(
-                Object.keys(stageMap).filter(s => !STAGE_ORDER.includes(s))
-              )
-              return (
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
-                  {orderedStages.map(stage => {
-                    const data = stageMap[stage]
-                    const color = STAGE_COLORS[stage] || T.textDim
-                    return (
-                      <div key={stage} style={{
-                        padding: '3px 8px', borderRadius: '12px',
-                        background: `${color}12`, border: `1px solid ${color}30`,
-                        fontFamily: FONT_MONO, fontSize: '9px', color,
-                      }}>
-                        {stage}: {data.count} deal{data.count > 1 ? 's' : ''} · {$k(data.mrr)}
+                <span className="font-mono text-[15px] font-bold text-revos-cyan min-w-[70px] text-right">{$(acc.tmr)}</span>
+
+                <svg width={14} height={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease', flexShrink: 0, opacity: 0.3 }}>
+                  <path d="M3 5 L7 9 L11 5" fill="none" stroke={T.textDim} strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+
+              {/* ── EXPANDED SECTIONS ── */}
+              {isOpen && (
+                <div style={{ padding: '0 18px 16px', borderTop: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
+
+                  {/* Deal Predictions */}
+                  {dealPredictions.length > 0 && (
+                    <Section title="Deal Predictions" color={T.cyan} count={dealPredictions.length} defaultOpen={true}>
+                      <div className="rounded-lg overflow-hidden" style={{ background: `${T.cyan}04`, border: `1px solid ${T.cyan}10` }}>
+                        {dealPredictions.map((d, idx) => <DealRow key={idx} d={d} winProb={d.winProb} />)}
                       </div>
-                    )
-                  })}
+                    </Section>
+                  )}
+
+                  {/* Account Health */}
+                  <Section title="Account Health" color={T.teal}>
+                    <div className="grid grid-cols-6 gap-2.5 rounded-lg" style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.015)' }}>
+                      <MiniStat label="Pipeline" value={$k(acc.pipeline_mrr || 0)} color={T.purple} />
+                      <MiniStat label={`${new Date().getFullYear()} Deals`} value={currentYrDeals.length} color={T.cyan} />
+                      <MiniStat label="Won" value={histWon} color={T.green} />
+                      <MiniStat label="Churned" value={histChurned} color={T.red} />
+                      <MiniStat label="Close Lost" value={histLost} color={T.orange} />
+                      <MiniStat label="Last Engaged" value={ds < 999 ? `${ds}d ago` : '---'} color={ds <= 30 ? T.green : ds <= 90 ? T.yellow : T.red} />
+                    </div>
+                    {currentYrDeals.length > 0 && (
+                      <div className="flex gap-3 items-center mt-2 rounded-md" style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.015)' }}>
+                        <span className="font-sans text-[9px] text-revos-text-dim uppercase tracking-wide">{new Date().getFullYear()} NIB</span>
+                        <span className="font-mono text-[11px] text-revos-green font-semibold">+{$k(positiveMRR)}</span>
+                        <span className="font-mono text-[11px] font-semibold" style={{ color: negativeMRR < 0 ? T.red : T.textDim }}>{negativeMRR < 0 ? $k(negativeMRR) : '$0'}</span>
+                        <span className="font-mono text-[9px] text-revos-text-dim">=</span>
+                        <span className="font-mono text-[11px] font-bold" style={{ color: netMRR >= 0 ? T.cyan : T.red }}>Net {$k(netMRR)}</span>
+                      </div>
+                    )}
+                  </Section>
+
+                  {/* WHY NOW */}
+                  {(signalRows.length > 0 || acctAI.length > 0) && (
+                    <Section title="Why Now — AI Signals" color={T.purple} count={signalRows.length + acctAI.length}>
+                      <AnimatedBorderCard className="" borderColor={`${T.purple}90`}>
+                        <div className="px-3 py-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="font-sans text-[7px] tracking-[0.06em]" style={{ color: T.purple }}>
+                              {signalsAge && <span className="text-revos-text-dim ml-1.5">updated {signalsAge}</span>}
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); refreshAI(acc.name, acctSignals?.segment, acctSignals) }}
+                              disabled={isLoadingAI}
+                              className="bg-transparent rounded px-1.5 py-px cursor-pointer font-mono text-[7px]"
+                              style={{ border: `1px solid ${T.purple}30`, color: T.purple, opacity: isLoadingAI ? 0.5 : 1 }}>
+                              {isLoadingAI ? 'LOADING...' : '🌐 REFRESH'}
+                            </button>
+                          </div>
+                          {signalRows.map((row, idx) => (
+                            <div key={idx} className="flex gap-1.5 items-start mb-0.5">
+                              <span className="text-[10px] shrink-0">{row.icon}</span>
+                              <span className="font-mono text-[9px] leading-[1.4]" style={{ color: CAT_COLORS[row.cat] || T.text }}>{row.text}</span>
+                            </div>
+                          ))}
+                          {acctAI.map((row, idx) => (
+                            <div key={`ai-${idx}`} className="flex gap-1.5 items-start mb-0.5">
+                              <span className="text-[10px] shrink-0">{row.icon || '🌐'}</span>
+                              <span className="font-mono text-[9px] text-revos-teal leading-[1.4]">{row.text}</span>
+                              <span className="font-mono text-[7px] text-revos-teal px-1 rounded-[3px] shrink-0 self-center" style={{ background: `${T.teal}15` }}>LIVE</span>
+                            </div>
+                          ))}
+                        </div>
+                      </AnimatedBorderCard>
+                    </Section>
+                  )}
+
+                  {/* Stage Pipeline */}
+                  {orderedStages.length > 0 && (
+                    <Section title="Stage Pipeline" color={T.textDim}>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {orderedStages.map(stage => {
+                          const data = stageMap[stage]
+                          const color = STAGE_COLORS[stage] || T.textDim
+                          return (
+                            <GlowBadge key={stage} color={color} className="font-mono text-[9px] px-2 py-[3px]">
+                              {stage}: {data.count} deal{data.count > 1 ? 's' : ''} · {$k(data.mrr)}
+                            </GlowBadge>
+                          )
+                        })}
+                      </div>
+                    </Section>
+                  )}
                 </div>
-              )
-            })()}
+              )}
+            </div>
           </div>
         )
       })}
 
       {sorted.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px', color: T.textDim }}>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '11px' }}>No accounts match this filter.</div>
+        <div className="text-center p-10 text-revos-text-dim">
+          <div className="font-mono text-[11px]">No accounts match this filter.</div>
         </div>
       )}
     </div>
@@ -837,10 +928,10 @@ function MyAccountsTab({
 function MiniStat({ label, value, color }) {
   return (
     <div>
-      <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim }}>
+      <div className="font-sans text-[8px] text-revos-text-dim">
         <Tip label={label.toUpperCase()}>{label}</Tip>
       </div>
-      <div style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 600, color }}>{value}</div>
+      <div className="font-mono text-[11px] font-semibold" style={{ color }}>{value}</div>
     </div>
   )
 }
@@ -945,7 +1036,7 @@ function MyPipelineTab({
   return (
     <div>
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '16px' }}>
+      <div className="grid grid-cols-5 gap-2.5 mb-4">
         <Stat label={<Tip label={`Total raw MRR across active deals closing in ${periodLabel}.`}>Pipeline MRR ({periodLabel})</Tip>} value={`${$k(rawTotal)}`} sub={`${periodDeals.length} deals`} color={T.purple} />
         <Stat label={<Tip label={`SUM(Deal MRR × Stage Win Probability) for deals closing in ${periodLabel}. Discover 30.6%, Design Solution 53.2%, Propose 66.2%, Negotiate 84.7%, Verbal Agreement 92.5%.`}>Prob-Adjusted ({periodLabel})</Tip>} value={`${$k(weightedTotal)}`} sub="SUM(MRR × Stage Win %)" color={T.teal} />
         <Stat label={<Tip label={`Remaining target for the current ${periodMode} after subtracting bookings already closed.`}>Target Remaining</Tip>} value={$k(targetRemaining)} color={T.orange} />
@@ -954,16 +1045,16 @@ function MyPipelineTab({
       </div>
 
       {/* Pipeline by Stage — raw vs weighted */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
+      <div className="bg-revos-card rounded-xl shadow-card p-3.5 mb-4">
+        <div className="flex justify-between items-center mb-3">
+          <div className="font-sans text-[10px] text-revos-text-dim tracking-wide">
             <Tip label={`Deals closing in ${periodLabel}. Each deal's MRR × stage win probability. Discover 30.57%, Design Solution 53.21%, Propose 66.23%, Negotiate 84.67%, Verbal Agreement 92.49%.`}>
               PIPELINE BY STAGE — {periodLabel.toUpperCase()}
             </Tip>
           </div>
-          <div style={{ display: 'flex', gap: '12px', fontFamily: FONT_MONO, fontSize: '10px' }}>
-            <span style={{ color: T.textMid }}>Raw: <span style={{ color: T.purple, fontWeight: 600 }}>{$k(rawTotal)}</span></span>
-            <span style={{ color: T.textMid }}>Weighted: <span style={{ color: T.teal, fontWeight: 700 }}>{$k(weightedTotal)}</span></span>
+          <div className="flex gap-3 font-mono text-[10px]">
+            <span className="text-revos-text-mid">Raw: <span className="text-revos-purple font-semibold">{$k(rawTotal)}</span></span>
+            <span className="text-revos-text-mid">Weighted: <span className="text-revos-teal font-bold">{$k(weightedTotal)}</span></span>
           </div>
         </div>
 
@@ -972,22 +1063,22 @@ function MyPipelineTab({
           const barPct = (s.raw / maxRaw) * 100
           const color = STAGE_COLORS[s.stage] || T.textDim
           return (
-            <div key={s.stage} style={{ marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontFamily: FONT_SANS, fontSize: '11px', fontWeight: 600, color }}>{s.stage}</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>({pc(s.prob)})</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>{s.count} deals</span>
+            <div key={s.stage} className="mb-2">
+              <div className="flex justify-between items-center mb-[3px]">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-sans text-[11px] font-semibold" style={{ color }}>{s.stage}</span>
+                  <span className="font-mono text-[9px] text-revos-text-dim">({pc(s.prob)})</span>
+                  <span className="font-mono text-[9px] text-revos-text-dim">{s.count} deals</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.purple }}>{$k(s.raw)}</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>→</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700, color: T.teal }}>{$k(s.weighted)}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] text-revos-purple">{$k(s.raw)}</span>
+                  <span className="font-mono text-[9px] text-revos-text-dim">→</span>
+                  <span className="font-mono text-[10px] font-bold text-revos-teal">{$k(s.weighted)}</span>
                 </div>
               </div>
-              <div style={{ position: 'relative', height: '6px', background: T.border, borderRadius: '3px' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px', width: `${barPct}%`, background: `${color}50`, transition: 'width 0.5s' }} />
-                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px', width: `${barPct * s.prob}%`, background: color, transition: 'width 0.5s' }} />
+              <div className="relative h-1.5 rounded-sm" style={{ background: T.border }}>
+                <div className="absolute left-0 top-0 h-full rounded-sm transition-[width] duration-500" style={{ width: `${barPct}%`, background: `${color}50` }} />
+                <div className="absolute left-0 top-0 h-full rounded-sm transition-[width] duration-500" style={{ width: `${barPct * s.prob}%`, background: color }} />
               </div>
             </div>
           )
@@ -996,23 +1087,23 @@ function MyPipelineTab({
 
       {/* Funnel MRR Build — Current Year */}
       {trajectoryData.length > 0 && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
+        <div className="bg-revos-card rounded-xl shadow-card p-3.5 mb-4">
+          <div className="flex justify-between items-center mb-3">
+            <div className="font-sans text-[10px] text-revos-text-dim tracking-wide">
               <Tip label={`Cumulative funnel MRR by close date for ${new Date().getFullYear()}.\n\nRaw Funnel (cyan line): Total MRR from all deals by their close month — no probability adjustment.\n\nWeighted (filled teal area): MRR adjusted by stage win probability. Closed Won deals count at 100%. Active deals weighted by: Discover 30.6%, Design Solution 53.2%, Propose 66.2%, Negotiate 84.7%, Verbal Agreement 92.5%.\n\nTarget line (red dashed): Annual quota for reference.`}>
                 {new Date().getFullYear()} FUNNEL MRR BUILD
               </Tip>
             </div>
-            <div style={{ display: 'flex', gap: '16px', fontFamily: FONT_MONO, fontSize: '9px' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: 12, height: 2, background: T.cyan, display: 'inline-block' }} /> Raw Funnel
+            <div className="flex gap-4 font-mono text-[9px]">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-0.5 inline-block" style={{ background: T.cyan }} /> Raw Funnel
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: 12, height: 6, background: `${T.teal}40`, display: 'inline-block', borderRadius: 1 }} /> Weighted
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-1.5 inline-block rounded-sm" style={{ background: `${T.teal}40` }} /> Weighted
               </span>
               {annualQuota > 0 && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: 12, height: 0, borderTop: `2px dashed ${T.red}`, display: 'inline-block' }} /> Target
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-0 inline-block" style={{ borderTop: `2px dashed ${T.red}` }} /> Target
                 </span>
               )}
             </div>
@@ -1020,10 +1111,10 @@ function MyPipelineTab({
           <ResponsiveContainer width="100%" height={180}>
             <ComposedChart data={trajectoryData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-              <XAxis dataKey="month" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={50} tickFormatter={v => `$${Math.round(v).toLocaleString()}`} />
+              <XAxis dataKey="month" tick={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace", fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace", fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={50} tickFormatter={v => `$${Math.round(v).toLocaleString()}`} />
               <Tooltip contentStyle={chartTheme.tooltip} formatter={(v, name) => [`$${Math.round(v).toLocaleString()}`, name === 'raw' ? 'Raw Funnel MRR' : 'Weighted MRR']} />
-              {annualQuota > 0 && <ReferenceLine y={annualQuota} stroke={T.red} strokeDasharray="6 3" strokeWidth={1.5} ifOverflow="extendDomain" label={{ value: `Target ${$k(annualQuota)}`, position: 'right', fill: T.red, fontSize: 9, fontFamily: FONT_MONO }} />}
+              {annualQuota > 0 && <ReferenceLine y={annualQuota} stroke={T.red} strokeDasharray="6 3" strokeWidth={1.5} ifOverflow="extendDomain" label={{ value: `Target ${$k(annualQuota)}`, position: 'right', fill: T.red, fontSize: 9, fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace" }} />}
               <Area type="monotone" dataKey="weighted" fill={`${T.teal}25`} stroke={T.teal} strokeWidth={1.5} name="weighted" dot={false} />
               <Line type="monotone" dataKey="raw" stroke={T.cyan} strokeWidth={2} dot={false} name="raw" />
             </ComposedChart>
@@ -1032,49 +1123,44 @@ function MyPipelineTab({
       )}
 
       {/* Deal List */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, overflow: 'hidden' }}>
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.7fr 0.7fr 1fr 0.9fr 0.7fr',
-          gap: '4px', padding: '8px 12px', background: T.surface,
-          borderBottom: `1px solid ${T.border}`,
-          fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em',
-        }}>
+      <div className="bg-revos-card rounded-xl shadow-card overflow-hidden">
+        <div className="grid gap-1 px-3 py-2 bg-revos-surface font-sans text-[9px] text-revos-text-dim tracking-wide"
+          style={{ gridTemplateColumns: '1.8fr 1fr 0.7fr 0.7fr 1fr 0.9fr 0.7fr', borderBottom: `1px solid ${T.border}` }}>
           <div>Account</div>
           <div>Product</div>
-          <div style={{ textAlign: 'right' }}>MRR</div>
-          <div style={{ textAlign: 'right' }}>Weighted</div>
+          <div className="text-right">MRR</div>
+          <div className="text-right">Weighted</div>
           <div>Stage</div>
           <div>Close</div>
           <div>Forecast</div>
         </div>
-        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        <div className="max-h-[400px] overflow-y-auto">
           {sortedDeals.map((d, i) => {
             const closeDate = parseDate(d.close)
             const isClosingSoon = closeDate && closeDate <= thirtyDaysOut && closeDate >= now
             const prob = stageProb(d.stage)
             const wMrr = (d.mrr || 0) * prob
             return (
-              <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.7fr 0.7fr 1fr 0.9fr 0.7fr',
-                gap: '4px', padding: '8px 12px', fontSize: '11px',
-                borderBottom: `1px solid ${T.border}`,
-                background: i % 2 === 0 ? 'transparent' : `${T.surface}40`,
-                alignItems: 'center',
-              }}>
-                <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div key={i} className="grid gap-1 px-3 py-2 text-[11px] items-center"
+                style={{
+                  gridTemplateColumns: '1.8fr 1fr 0.7fr 0.7fr 1fr 0.9fr 0.7fr',
+                  borderBottom: `1px solid ${T.border}`,
+                  background: i % 2 === 0 ? 'transparent' : `${T.surface}40`,
+                }}>
+                <div className="font-semibold overflow-hidden text-ellipsis whitespace-nowrap">
                   {d.accountName}
                 </div>
-                <div style={{ color: T.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.product}</div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color: T.purple }}>
+                <div className="text-revos-text-mid overflow-hidden text-ellipsis whitespace-nowrap">{d.product}</div>
+                <div className="text-right font-mono text-[10px] font-semibold text-revos-purple">
                   {$k(d.mrr)}
                 </div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color: T.teal }}>
+                <div className="text-right font-mono text-[10px] font-semibold text-revos-teal">
                   {$k(wMrr)}
                 </div>
                 <div>
                   <Badge color={STAGE_COLORS[d.stage] || T.textDim}>{d.stage}</Badge>
                 </div>
-                <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: isClosingSoon ? T.green : T.textMid }}>
+                <div className="font-mono text-[10px]" style={{ color: isClosingSoon ? T.green : T.textMid }}>
                   {d.close || '---'}
                 </div>
                 <div>
@@ -1215,59 +1301,56 @@ function PipelineGapTab({
   return (
     <div>
       {/* Section 1 — Status Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '12px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+      <div className="grid grid-cols-4 gap-2.5 mb-4">
+        <div className="bg-revos-card rounded-xl shadow-card p-3">
+          <div className="font-sans text-[9px] text-revos-text-dim uppercase tracking-wide mb-1">
             {periodMode === 'month' ? currentMonthName : `Q${currentQ}`} Target
           </div>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontFamily: FONT_MONO, fontSize: '11px', color: T.textDim }}>$</span>
+          <div className="relative">
+            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 font-mono text-[11px] text-revos-text-dim">$</span>
             <input
               type="text"
               value={customTarget}
               onChange={e => setCustomTarget(e.target.value)}
               placeholder={$k(target)}
-              style={{
-                width: '100%', padding: '6px 8px 6px 16px', fontFamily: FONT_MONO, fontSize: '14px', fontWeight: 700,
-                background: T.surface, border: `1px solid ${customTarget ? T.cyan : T.border}`, borderRadius: RADIUS,
-                color: T.text, outline: 'none', boxSizing: 'border-box',
-              }}
+              className="w-full py-1.5 pr-2 pl-4 font-mono text-sm font-bold bg-revos-surface rounded-xl text-revos-text outline-none box-border"
+              style={{ border: `1px solid ${customTarget ? T.cyan : T.border}` }}
               onFocus={e => e.target.style.borderColor = T.cyan}
               onBlur={e => { if (!customTarget) e.target.style.borderColor = T.border }}
             />
           </div>
         </div>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '12px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Weighted Pipeline</div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '22px', fontWeight: 700, color: T.purple }}>{$k(totalWeighted)}</div>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, marginTop: '2px' }}>Raw: {$k(totalRaw)}</div>
+        <div className="bg-revos-card rounded-xl shadow-card p-3">
+          <div className="font-sans text-[9px] text-revos-text-dim uppercase tracking-wide mb-1">Weighted Pipeline</div>
+          <div className="font-mono text-[22px] font-bold text-revos-purple">{$k(totalWeighted)}</div>
+          <div className="font-sans text-[9px] text-revos-text-dim mt-0.5">Raw: {$k(totalRaw)}</div>
         </div>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '12px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Gap</div>
+        <div className="bg-revos-card rounded-xl shadow-card p-3">
+          <div className="font-sans text-[9px] text-revos-text-dim uppercase tracking-wide mb-1">Gap</div>
           {gap > 0
-            ? <div style={{ fontFamily: FONT_MONO, fontSize: '22px', fontWeight: 700, color: T.red }}>{$k(gap)}</div>
-            : <div style={{ fontFamily: FONT_MONO, fontSize: '22px', fontWeight: 700, color: T.green }}>COVERED</div>
+            ? <div className="font-mono text-[22px] font-bold text-revos-red">{$k(gap)}</div>
+            : <div className="font-mono text-[22px] font-bold text-revos-green">COVERED</div>
           }
         </div>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '12px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Coverage</div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: '22px', fontWeight: 700, color: covColor }}>{pc(coverage)}</div>
-          <div style={{ height: '4px', background: T.border, borderRadius: '2px', marginTop: '6px' }}>
-            <div style={{ height: '100%', borderRadius: '2px', background: covColor, width: `${Math.min(coverage * 100, 100)}%`, transition: 'width 0.5s' }} />
+        <div className="bg-revos-card rounded-xl shadow-card p-3">
+          <div className="font-sans text-[9px] text-revos-text-dim uppercase tracking-wide mb-1">Coverage</div>
+          <div className="font-mono text-[22px] font-bold" style={{ color: covColor }}>{pc(coverage)}</div>
+          <div className="h-1 rounded-sm mt-1.5" style={{ background: T.border }}>
+            <div className="h-full rounded-sm transition-[width] duration-500" style={{ background: covColor, width: `${Math.min(coverage * 100, 100)}%` }} />
           </div>
         </div>
       </div>
 
       {/* Section 2 — Current Pipeline by Stage */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px', textTransform: 'uppercase' }}>
+      <div className="bg-revos-card rounded-xl shadow-card p-3.5 mb-4">
+        <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-2.5 uppercase">
           Current Pipeline by Stage
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               {['Stage', 'Win %', 'Deals', 'Raw MRR', '', 'Weighted MRR'].map((h, i) => (
-                <th key={i} style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textAlign: i >= 3 ? 'right' : 'left', padding: '4px 8px', borderBottom: `1px solid ${T.border}`, fontWeight: 500 }}>{h}</th>
+                <th key={i} className="font-sans text-[9px] text-revos-text-dim font-medium px-2 py-1" style={{ textAlign: i >= 3 ? 'right' : 'left', borderBottom: `1px solid ${T.border}` }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -1277,26 +1360,26 @@ function PipelineGapTab({
               const color = STAGE_COLORS[st] || T.textDim
               return (
                 <tr key={st}>
-                  <td style={{ fontFamily: FONT_MONO, fontSize: '11px', color, padding: '6px 8px', borderBottom: `1px solid ${T.border}08` }}>{st}</td>
-                  <td style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.textMid, padding: '6px 8px' }}>{(d.prob * 100).toFixed(1)}%</td>
-                  <td style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.text, padding: '6px 8px' }}>{d.deals}</td>
-                  <td style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.text, padding: '6px 8px', textAlign: 'right' }}>{$k(d.raw)}</td>
-                  <td style={{ padding: '6px 8px', width: '120px' }}>
-                    <div style={{ height: '6px', background: T.border, borderRadius: '3px' }}>
-                      <div style={{ height: '100%', borderRadius: '3px', background: color, width: `${(d.raw / maxRaw) * 100}%`, transition: 'width 0.3s' }} />
+                  <td className="font-mono text-[11px] px-2 py-1.5" style={{ color, borderBottom: `1px solid ${T.border}08` }}>{st}</td>
+                  <td className="font-mono text-[11px] text-revos-text-mid px-2 py-1.5">{(d.prob * 100).toFixed(1)}%</td>
+                  <td className="font-mono text-[11px] text-revos-text px-2 py-1.5">{d.deals}</td>
+                  <td className="font-mono text-[11px] text-revos-text px-2 py-1.5 text-right">{$k(d.raw)}</td>
+                  <td className="px-2 py-1.5 w-[120px]">
+                    <div className="h-1.5 rounded-sm" style={{ background: T.border }}>
+                      <div className="h-full rounded-sm transition-[width] duration-300" style={{ background: color, width: `${(d.raw / maxRaw) * 100}%` }} />
                     </div>
                   </td>
-                  <td style={{ fontFamily: FONT_MONO, fontSize: '11px', color: T.purple, padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{$k(d.weighted)}</td>
+                  <td className="font-mono text-[11px] text-revos-purple px-2 py-1.5 text-right font-semibold">{$k(d.weighted)}</td>
                 </tr>
               )
             })}
             <tr style={{ borderTop: `2px solid ${T.border}` }}>
-              <td style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 700, color: T.text, padding: '8px 8px' }}>Total</td>
+              <td className="font-mono text-[11px] font-bold text-revos-text px-2 py-2">Total</td>
               <td />
-              <td style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 700, color: T.text, padding: '8px 8px' }}>{pipeline.length}</td>
-              <td style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 700, color: T.text, padding: '8px 8px', textAlign: 'right' }}>{$k(totalRaw)}</td>
+              <td className="font-mono text-[11px] font-bold text-revos-text px-2 py-2">{pipeline.length}</td>
+              <td className="font-mono text-[11px] font-bold text-revos-text px-2 py-2 text-right">{$k(totalRaw)}</td>
               <td />
-              <td style={{ fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 700, color: T.purple, padding: '8px 8px', textAlign: 'right' }}>{$k(totalWeighted)}</td>
+              <td className="font-mono text-[11px] font-bold text-revos-purple px-2 py-2 text-right">{$k(totalWeighted)}</td>
             </tr>
           </tbody>
         </table>
@@ -1304,72 +1387,72 @@ function PipelineGapTab({
 
       {/* Section 4 — Blended Build Plan */}
       {gap > 0 && buildPlan && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px', textTransform: 'uppercase' }}>
+        <div className="bg-revos-card rounded-xl shadow-card p-3.5 mb-4">
+          <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-3 uppercase">
             Blended Build Plan
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '16px' }}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 280px' }}>
             {/* Left: Sliders */}
             <div>
               {STAGES.map(st => {
                 const color = STAGE_COLORS[st] || T.textDim
                 const plan = buildPlan.stages[st]
                 return (
-                  <div key={st} style={{ marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color }}>{st}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.text }}>{scenarioMix[st]}% &rarr; <span style={{ fontWeight: 700 }}>{plan.deals} deals</span> <span style={{ color: T.purple }}>(+{$k(plan.weightedVal)})</span></span>
+                  <div key={st} className="mb-2.5">
+                    <div className="flex justify-between mb-1">
+                      <span className="font-mono text-[10px]" style={{ color }}>{st}</span>
+                      <span className="font-mono text-[10px] text-revos-text">{scenarioMix[st]}% &rarr; <span className="font-bold">{plan.deals} deals</span> <span className="text-revos-purple">(+{$k(plan.weightedVal)})</span></span>
                     </div>
                     <input
                       type="range" min="0" max="50" value={scenarioMix[st]}
                       onChange={e => setScenarioMix(prev => ({ ...prev, [st]: parseInt(e.target.value) }))}
-                      style={{ width: '100%', accentColor: color, height: '4px' }}
+                      className="w-full h-1" style={{ accentColor: color }}
                     />
                   </div>
                 )
               })}
               <button
                 onClick={() => setScenarioMix({ ...DEFAULT_MIX })}
-                style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS, padding: '4px 10px', cursor: 'pointer', marginTop: '4px' }}
+                className="font-sans text-[9px] text-revos-text-dim bg-revos-surface border border-revos-border rounded-xl px-2.5 py-1 cursor-pointer mt-1"
               >Reset to defaults</button>
             </div>
             {/* Right: Summary */}
-            <div style={{ background: T.surface, borderRadius: RADIUS, padding: '12px' }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', marginBottom: '10px' }}>Plan Summary</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+            <div className="bg-revos-surface rounded-xl p-3">
+              <div className="font-sans text-[9px] text-revos-text-dim uppercase mb-2.5">Plan Summary</div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
                 <div>
-                  <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim }}>New Deals</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '18px', fontWeight: 700, color: T.text }}>{buildPlan.totalDeals}</div>
+                  <div className="font-sans text-[8px] text-revos-text-dim">New Deals</div>
+                  <div className="font-mono text-lg font-bold text-revos-text">{buildPlan.totalDeals}</div>
                 </div>
                 <div>
-                  <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim }}>They'd Add</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '18px', fontWeight: 700, color: T.purple }}>+{$k(buildPlan.totalAdded)}</div>
+                  <div className="font-sans text-[8px] text-revos-text-dim">They'd Add</div>
+                  <div className="font-mono text-lg font-bold text-revos-purple">+{$k(buildPlan.totalAdded)}</div>
                 </div>
               </div>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, marginBottom: '4px' }}>Projected Coverage</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '14px', fontWeight: 700, color: buildPlan.projectedCov >= 1 ? T.green : T.yellow, marginBottom: '4px' }}>
+              <div className="font-sans text-[9px] text-revos-text-dim mb-1">Projected Coverage</div>
+              <div className="font-mono text-sm font-bold mb-1" style={{ color: buildPlan.projectedCov >= 1 ? T.green : T.yellow }}>
                 {pc(buildPlan.projectedCov)}
               </div>
-              <div style={{ height: '6px', background: T.border, borderRadius: '3px', marginBottom: '12px' }}>
-                <div style={{ height: '100%', borderRadius: '3px', background: T.purple, width: `${Math.min((totalWeighted / (target || 1)) * 100, 100)}%`, position: 'relative' }}>
-                  <div style={{ position: 'absolute', right: 0, top: '-1px', width: '2px', height: '8px', background: T.text, borderRadius: '1px' }} />
+              <div className="h-1.5 rounded-sm mb-3" style={{ background: T.border }}>
+                <div className="h-full rounded-sm relative" style={{ background: T.purple, width: `${Math.min((totalWeighted / (target || 1)) * 100, 100)}%` }}>
+                  <div className="absolute right-0 -top-px w-0.5 h-2 rounded-sm" style={{ background: T.text }} />
                 </div>
-                <div style={{ height: '6px', borderRadius: '3px', background: `${T.purple}40`, width: `${Math.min(buildPlan.projectedCov * 100, 100)}%`, marginTop: '-6px' }} />
+                <div className="h-1.5 rounded-sm -mt-1.5" style={{ background: `${T.purple}40`, width: `${Math.min(buildPlan.projectedCov * 100, 100)}%` }} />
               </div>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, marginBottom: '4px' }}>Funnel Shape</div>
+              <div className="font-sans text-[9px] text-revos-text-dim mb-1">Funnel Shape</div>
               {STAGES.map(st => {
                 const current = byStage[st]?.deals || 0
                 const needed = buildPlan.stages[st]?.deals || 0
                 const color = STAGE_COLORS[st] || T.textDim
                 const maxDeals = Math.max(...STAGES.map(s => (byStage[s]?.deals || 0) + (buildPlan.stages[s]?.deals || 0)), 1)
                 return (
-                  <div key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '8px', color: T.textDim, width: '18px', textAlign: 'right' }}>{current + needed}</span>
-                    <div style={{ flex: 1, height: '8px', background: T.border, borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                  <div key={st} className="flex items-center gap-1.5 mb-[3px]">
+                    <span className="font-mono text-[8px] text-revos-text-dim w-[18px] text-right">{current + needed}</span>
+                    <div className="flex-1 h-2 rounded overflow-hidden flex" style={{ background: T.border }}>
                       <div style={{ height: '100%', background: color, width: `${(current / maxDeals) * 100}%` }} />
                       {needed > 0 && <div style={{ height: '100%', background: `${color}50`, width: `${(needed / maxDeals) * 100}%` }} />}
                     </div>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '8px', color, width: '50px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{st.split(' ')[0]}</span>
+                    <span className="font-mono text-[8px] w-[50px] overflow-hidden text-ellipsis whitespace-nowrap" style={{ color }}>{st.split(' ')[0]}</span>
                   </div>
                 )
               })}
@@ -1379,17 +1462,17 @@ function PipelineGapTab({
       )}
 
       {/* Section 5 — What-If Simulator */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+      <div className="bg-revos-card rounded-xl shadow-card p-3.5 mb-4">
+        <div className="flex justify-between items-center mb-3">
+          <div className="font-sans text-[10px] text-revos-text-dim tracking-wide uppercase">
             What-If Simulator
           </div>
           <button
             onClick={() => setSimAdds({ Discover: { count: 0, mrr: '' }, 'Design Solution': { count: 0, mrr: '' }, Propose: { count: 0, mrr: '' }, Negotiate: { count: 0, mrr: '' }, 'Verbal Agreement': { count: 0, mrr: '' } })}
-            style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS, padding: '3px 8px', cursor: 'pointer' }}
+            className="font-sans text-[9px] text-revos-text-dim bg-revos-surface border border-revos-border rounded-xl px-2 py-[3px] cursor-pointer"
           >Reset</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '16px' }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 200px' }}>
           <div>
             {STAGES.map(st => {
               const stageAvg = byStage[st]?.avg || historicalAvgDeal
@@ -1400,49 +1483,46 @@ function PipelineGapTab({
               const contrib = count * dealMrr * stageProb(st)
               const color = STAGE_COLORS[st] || T.textDim
               return (
-                <div key={st} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', padding: '6px 8px', background: count > 0 ? `${color}08` : 'transparent', borderRadius: RADIUS }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color, width: '110px' }}>{st}</span>
-                  <button onClick={() => setSimAdds(p => ({ ...p, [st]: { ...p[st], count: Math.max(0, (p[st]?.count || 0) - 1) } }))} style={{ width: '24px', height: '24px', borderRadius: '4px', border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&minus;</button>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '14px', fontWeight: 700, color: T.text, width: '24px', textAlign: 'center' }}>{count}</span>
-                  <button onClick={() => setSimAdds(p => ({ ...p, [st]: { ...p[st], count: (p[st]?.count || 0) + 1 } }))} style={{ width: '24px', height: '24px', borderRadius: '4px', border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: 'pointer', fontFamily: FONT_MONO, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                  <div style={{ position: 'relative', width: '80px' }}>
-                    <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>$</span>
+                <div key={st} className={cn('flex items-center gap-1.5 mb-2 px-2 py-1.5 rounded-xl', count > 0 ? '' : 'bg-transparent')} style={{ background: count > 0 ? `${color}08` : undefined }}>
+                  <span className="font-mono text-[10px] w-[110px]" style={{ color }}>{st}</span>
+                  <button onClick={() => setSimAdds(p => ({ ...p, [st]: { ...p[st], count: Math.max(0, (p[st]?.count || 0) - 1) } }))} className="w-6 h-6 rounded border border-revos-border bg-revos-surface text-revos-text cursor-pointer font-mono text-sm flex items-center justify-center">&minus;</button>
+                  <span className="font-mono text-sm font-bold text-revos-text w-6 text-center">{count}</span>
+                  <button onClick={() => setSimAdds(p => ({ ...p, [st]: { ...p[st], count: (p[st]?.count || 0) + 1 } }))} className="w-6 h-6 rounded border border-revos-border bg-revos-surface text-revos-text cursor-pointer font-mono text-sm flex items-center justify-center">+</button>
+                  <div className="relative w-20">
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 font-mono text-[9px] text-revos-text-dim">$</span>
                     <input
                       type="text"
                       value={entry.mrr}
                       onChange={e => setSimAdds(p => ({ ...p, [st]: { ...p[st], mrr: e.target.value } }))}
                       placeholder={$k(stageAvg)}
-                      style={{
-                        width: '100%', padding: '3px 6px 3px 14px', fontFamily: FONT_MONO, fontSize: '10px',
-                        background: T.surface, border: `1px solid ${entry.mrr ? T.cyan : T.border}`, borderRadius: '4px',
-                        color: T.text, outline: 'none', boxSizing: 'border-box',
-                      }}
+                      className="w-full py-[3px] pr-1.5 pl-3.5 font-mono text-[10px] bg-revos-surface rounded text-revos-text outline-none box-border"
+                      style={{ border: `1px solid ${entry.mrr ? T.cyan : T.border}` }}
                       onFocus={e => e.target.style.borderColor = T.cyan}
                       onBlur={e => { if (!entry.mrr) e.target.style.borderColor = T.border }}
                     />
                   </div>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>x {(stageProb(st) * 100).toFixed(1)}%</span>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '11px', color: contrib > 0 ? T.purple : T.textDim, fontWeight: contrib > 0 ? 600 : 400, minWidth: '70px', textAlign: 'right' }}>
+                  <span className="font-mono text-[9px] text-revos-text-dim">x {(stageProb(st) * 100).toFixed(1)}%</span>
+                  <span className="font-mono text-[11px] min-w-[70px] text-right" style={{ color: contrib > 0 ? T.purple : T.textDim, fontWeight: contrib > 0 ? 600 : 400 }}>
                     {contrib > 0 ? `+${$k(contrib)}` : '---'}
                   </span>
                 </div>
               )
             })}
           </div>
-          <div style={{ background: T.surface, borderRadius: RADIUS, padding: '12px' }}>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, textTransform: 'uppercase', marginBottom: '8px' }}>Simulated Result</div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim, marginBottom: '2px' }}>Current</div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '14px', fontWeight: 600, color: T.purple, marginBottom: '6px' }}>{$k(totalWeighted)}</div>
+          <div className="bg-revos-surface rounded-xl p-3">
+            <div className="font-sans text-[9px] text-revos-text-dim uppercase mb-2">Simulated Result</div>
+            <div className="font-sans text-[8px] text-revos-text-dim mb-0.5">Current</div>
+            <div className="font-mono text-sm font-semibold text-revos-purple mb-1.5">{$k(totalWeighted)}</div>
             {simWeighted > 0 && <>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim, marginBottom: '2px' }}>+ New Deals</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '14px', fontWeight: 600, color: T.green, marginBottom: '6px' }}>+{$k(simWeighted)}</div>
+              <div className="font-sans text-[8px] text-revos-text-dim mb-0.5">+ New Deals</div>
+              <div className="font-mono text-sm font-semibold text-revos-green mb-1.5">+{$k(simWeighted)}</div>
             </>}
-            <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim, marginBottom: '2px' }}>Projected</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '18px', fontWeight: 700, color: simCovColor }}>{$k(simTotal)}</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '12px', fontWeight: 600, color: simCovColor, marginTop: '4px' }}>{pc(simCoverage)} coverage</div>
-              <div style={{ height: '6px', background: T.border, borderRadius: '3px', marginTop: '6px' }}>
-                <div style={{ height: '100%', borderRadius: '3px', background: simCovColor, width: `${Math.min(simCoverage * 100, 100)}%`, transition: 'width 0.3s' }} />
+            <div className="pt-1.5 mt-1" style={{ borderTop: `1px solid ${T.border}` }}>
+              <div className="font-sans text-[8px] text-revos-text-dim mb-0.5">Projected</div>
+              <div className="font-mono text-lg font-bold" style={{ color: simCovColor }}>{$k(simTotal)}</div>
+              <div className="font-mono text-xs font-semibold mt-1" style={{ color: simCovColor }}>{pc(simCoverage)} coverage</div>
+              <div className="h-1.5 rounded-sm mt-1.5" style={{ background: T.border }}>
+                <div className="h-full rounded-sm transition-[width] duration-300" style={{ background: simCovColor, width: `${Math.min(simCoverage * 100, 100)}%` }} />
               </div>
             </div>
           </div>
@@ -1450,41 +1530,41 @@ function PipelineGapTab({
       </div>
 
       {/* Section 6 — Model Reference */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px', textTransform: 'uppercase' }}>
+      <div className="bg-revos-card rounded-xl shadow-card p-3.5">
+        <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-2.5 uppercase">
           Model Reference
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, marginBottom: '6px', textTransform: 'uppercase' }}>Formulas</div>
+            <div className="font-sans text-[9px] text-revos-text-dim mb-1.5 uppercase">Formulas</div>
             {[
               ['Weighted Pipeline', 'SUM(Deal MRR x Stage Win %)'],
               ['Gap', 'Target - Weighted Pipeline'],
               ['Coverage', 'Weighted Pipeline / Target'],
               ['Deals Needed', 'Gap / (Avg Deal MRR x Stage Win %)'],
             ].map(([name, formula]) => (
-              <div key={name} style={{ marginBottom: '6px' }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.text, fontWeight: 600 }}>{name}</span>
-                <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}> = {formula}</span>
+              <div key={name} className="mb-1.5">
+                <span className="font-mono text-[10px] text-revos-text font-semibold">{name}</span>
+                <span className="font-mono text-[10px] text-revos-text-dim"> = {formula}</span>
               </div>
             ))}
           </div>
           <div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, marginBottom: '6px', textTransform: 'uppercase' }}>Stage Win Probabilities</div>
+            <div className="font-sans text-[9px] text-revos-text-dim mb-1.5 uppercase">Stage Win Probabilities</div>
             {STAGES.map(st => {
               const prob = stageProb(st)
               const color = STAGE_COLORS[st] || T.textDim
               return (
-                <div key={st} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color, width: '120px' }}>{st}</span>
-                  <div style={{ flex: 1, height: '6px', background: T.border, borderRadius: '3px' }}>
-                    <div style={{ height: '100%', borderRadius: '3px', background: color, width: `${prob * 100}%` }} />
+                <div key={st} className="flex items-center gap-2 mb-1">
+                  <span className="font-mono text-[10px] w-[120px]" style={{ color }}>{st}</span>
+                  <div className="flex-1 h-1.5 rounded-sm" style={{ background: T.border }}>
+                    <div className="h-full rounded-sm" style={{ background: color, width: `${prob * 100}%` }} />
                   </div>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.text, width: '45px', textAlign: 'right' }}>{(prob * 100).toFixed(1)}%</span>
+                  <span className="font-mono text-[10px] text-revos-text w-[45px] text-right">{(prob * 100).toFixed(1)}%</span>
                 </div>
               )
             })}
-            <div style={{ fontFamily: FONT_SANS, fontSize: '8px', color: T.textDim, marginTop: '6px', fontStyle: 'italic' }}>Win probabilities from historical close rates</div>
+            <div className="font-sans text-[8px] text-revos-text-dim mt-1.5 italic">Win probabilities from historical close rates</div>
           </div>
         </div>
       </div>
@@ -1544,8 +1624,8 @@ function KPITab({
       Object.values(stages).filter(s => !STAGE_ORDER.includes(s.stage))
     )
   }, [allActiveDeals])
-  const totalWeightedARR = stagePipeBreakdown.reduce((s, d) => s + d.weighted, 0)
-  const totalRawARR = stagePipeBreakdown.reduce((s, d) => s + d.raw, 0)
+  const totalWeightedTMR = stagePipeBreakdown.reduce((s, d) => s + d.weighted, 0)
+  const totalRawTMR = stagePipeBreakdown.reduce((s, d) => s + d.raw, 0)
 
   // Quarterly bookings by type
   const bookingsByType = useMemo(() => {
@@ -1593,7 +1673,7 @@ function KPITab({
   return (
     <div>
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+      <div className="grid grid-cols-3 gap-2.5 mb-4">
         <KPICard label={<Tip label={`YTD Bookings ÷ Annual Quota = ${$k(ytdBookings)} ÷ ${$k(annualQuota)} = ${annualQuota > 0 ? pc(ytdBookings / annualQuota) : '---'}. Bookings: Forecast Category = Closed, MRR > 0, Major Project = blank, Close Date in ${now.getFullYear()}.`}>Annual Attainment</Tip>} value={annualQuota > 0 ? pc(ytdBookings / annualQuota) : '---'} sub={`${$k(ytdBookings)} of ${$k(annualQuota)}`} pace={annualPace} />
         <KPICard label={<Tip label={`Period Bookings ÷ Period Quota = ${$k(periodBookings)} ÷ ${$k(periodQuota)} = ${periodQuota > 0 ? pc(periodBookings / periodQuota) : '---'}. Bookings: Forecast Category = Closed, MRR > 0, Major Project = blank, Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ}.`}>{periodMode === 'month' ? `${currentMonthName} Attainment` : `Q${currentQ} Attainment`}</Tip>} value={periodQuota > 0 ? pc(periodBookings / periodQuota) : '---'} sub={`${$k(periodBookings)} of ${$k(periodQuota)}`} pace={periodPace} />
         <KPICard label={<Tip label={`Won ÷ (Won + Lost) = ${totalWon} ÷ (${totalWon} + ${totalLost}) = ${pc(winRate)}. ${now.getFullYear()} closed deals only. Source: funnel.csv`}>Win Rate</Tip>} value={pc(winRate)} sub={`${totalWon}W / ${totalLost}L`} pace={winRate >= 0.5 ? 1.1 : winRate >= 0.3 ? 0.85 : 0.5} />
@@ -1603,11 +1683,11 @@ function KPITab({
       </div>
 
       {/* Stage Win Probability Reference Card */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div className="bg-revos-card rounded-xl shadow-card p-3.5 mb-4">
+        <div className="grid grid-cols-2 gap-4">
           {/* Left: Stage probability table */}
           <div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
+            <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-2.5">
               <Tip label="Stage win probabilities from validated 2026 funnel model historical win rates.">
                 STAGE WIN PROBABILITIES
               </Tip>
@@ -1617,16 +1697,16 @@ function KPITab({
               const color = STAGE_COLORS[stage] || T.textDim
               const pipeData = stagePipeBreakdown.find(s => s.stage === stage)
               return (
-                <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <div style={{ width: '110px', fontFamily: FONT_SANS, fontSize: '10px', color, fontWeight: 600 }}>{stage}</div>
-                  <div style={{ flex: 1, position: 'relative', height: '8px', background: T.border, borderRadius: '4px' }}>
-                    <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '4px', width: `${prob * 100}%`, background: `${color}60`, transition: 'width 0.5s' }} />
+                <div key={stage} className="flex items-center gap-2 mb-1.5">
+                  <div className="w-[110px] font-sans text-[10px] font-semibold" style={{ color }}>{stage}</div>
+                  <div className="flex-1 relative h-2 rounded" style={{ background: T.border }}>
+                    <div className="absolute left-0 top-0 h-full rounded transition-[width] duration-500" style={{ width: `${prob * 100}%`, background: `${color}60` }} />
                   </div>
-                  <div style={{ width: '40px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color, textAlign: 'right' }}>
+                  <div className="w-10 font-mono text-[10px] font-semibold text-right" style={{ color }}>
                     {(prob * 100).toFixed(1)}%
                   </div>
                   {pipeData && (
-                    <div style={{ width: '80px', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, textAlign: 'right' }}>
+                    <div className="w-20 font-mono text-[9px] text-revos-text-dim text-right">
                       {$k(pipeData.raw)} → {$k(pipeData.weighted)}
                     </div>
                   )}
@@ -1637,19 +1717,16 @@ function KPITab({
 
           {/* Right: Weighted total + formula + breakdown */}
           <div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
+            <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-2.5">
               <Tip>WEIGHTED PIPELINE SUMMARY</Tip>
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '28px', fontWeight: 700, color: T.teal, marginBottom: '4px' }}>
-              {$k(totalWeightedARR)}
+            <div className="font-mono text-[28px] font-bold text-revos-teal mb-1">
+              {$k(totalWeightedTMR)}
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, marginBottom: '12px' }}>
-              Probability-Adjusted ARR
+            <div className="font-mono text-[9px] text-revos-text-dim mb-3">
+              Probability-Adjusted TMR
             </div>
-            <div style={{
-              fontFamily: FONT_MONO, fontSize: '9px', color: T.textMid, padding: '8px',
-              background: T.surface, borderRadius: '6px', marginBottom: '12px',
-            }}>
+            <div className="font-mono text-[9px] text-revos-text-mid p-2 bg-revos-surface rounded-md mb-3">
               SUM( Deal MRR × Stage Win % ) × 12
             </div>
 
@@ -1657,25 +1734,22 @@ function KPITab({
             {stagePipeBreakdown.map(s => {
               const color = STAGE_COLORS[s.stage] || T.textDim
               return (
-                <div key={s.stage} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '4px 0', borderBottom: `1px solid ${T.border}`,
-                  fontFamily: FONT_MONO, fontSize: '10px',
-                }}>
+                <div key={s.stage} className="flex justify-between items-center py-1 font-mono text-[10px]"
+                  style={{ borderBottom: `1px solid ${T.border}` }}>
                   <span style={{ color }}>{s.stage} ({s.count})</span>
-                  <span style={{ color: T.textMid }}>
-                    {$k(s.raw)} × {(s.prob * 100).toFixed(1)}% = <span style={{ color: T.teal, fontWeight: 600 }}>{$k(s.weighted)}</span>
+                  <span className="text-revos-text-mid">
+                    {$k(s.raw)} × {(s.prob * 100).toFixed(1)}% = <span className="text-revos-teal font-semibold">{$k(s.weighted)}</span>
                   </span>
                 </div>
               )
             })}
             {stagePipeBreakdown.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700 }}>
-                <span style={{ color: T.text }}>Total</span>
+              <div className="flex justify-between py-1.5 font-mono text-[10px] font-bold">
+                <span className="text-revos-text">Total</span>
                 <span>
-                  <span style={{ color: T.purple }}>{$k(totalRawARR)}</span>
-                  <span style={{ color: T.textDim }}> → </span>
-                  <span style={{ color: T.teal }}>{$k(totalWeightedARR)}</span>
+                  <span className="text-revos-purple">{$k(totalRawTMR)}</span>
+                  <span className="text-revos-text-dim"> → </span>
+                  <span className="text-revos-teal">{$k(totalWeightedTMR)}</span>
                 </span>
               </div>
             )}
@@ -1683,36 +1757,36 @@ function KPITab({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+      <div className="grid grid-cols-2 gap-4 mb-4">
         {/* Bookings by type */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
+        <div className="bg-revos-card rounded-xl shadow-card p-3.5">
+          <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-3">
             <Tip>BOOKINGS BY TYPE</Tip>
           </div>
           {bookingsByType.length > 0 ? (
             <ResponsiveContainer width="100%" height={140}>
               <BarChart data={bookingsByType} layout="vertical" margin={{ left: 60, right: 10 }}>
-                <XAxis type="number" tick={{ fontFamily: FONT_MONO, fontSize: 9, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontFamily: FONT_SANS, fontSize: 10, fill: T.textMid }} axisLine={false} tickLine={false} width={55} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'ARR']} />
+                <XAxis type="number" tick={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace", fontSize: 9, fill: T.textDim }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 10, fill: T.textMid }} axisLine={false} tickLine={false} width={55} />
+                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'TMR']} />
                 <Bar dataKey="value" fill={T.teal} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ textAlign: 'center', padding: '30px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No bookings data</div>
+            <div className="text-center p-[30px] font-mono text-[10px] text-revos-text-dim">No bookings data</div>
           )}
         </div>
 
         {/* Monthly bookings chart */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
+        <div className="bg-revos-card rounded-xl shadow-card p-3.5">
+          <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-3">
             <Tip label="Monthly bookings for the current quarter from closed-won deals.">{periodMode === 'month' ? `${currentMonthName} Bookings` : `Q${currentQ} Monthly Bookings`}</Tip>
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={monthlyBookings} margin={{ left: 10, right: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-              <XAxis dataKey="month" tick={{ fontFamily: FONT_SANS, fontSize: 10, fill: T.textMid }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 9, fill: T.textDim }} axisLine={false} tickLine={false} width={40} />
+              <XAxis dataKey="month" tick={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 10, fill: T.textMid }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace", fontSize: 9, fill: T.textDim }} axisLine={false} tickLine={false} width={40} />
               <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'Booked']} />
               <Bar dataKey="bookings" fill={T.green} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -1722,20 +1796,17 @@ function KPITab({
 
       {/* YTD Losses */}
       {ytdLosses.length > 0 && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.red, letterSpacing: '0.04em', marginBottom: '10px' }}>
+        <div className="bg-revos-card rounded-xl shadow-card p-3.5">
+          <div className="font-sans text-[10px] text-revos-red tracking-wide mb-2.5">
             <Tip label="Deals lost year-to-date by this seller. Includes competitive losses, no-decisions, and churn.">YTD Losses ({ytdLosses.length})</Tip>
           </div>
           {ytdLosses.map((d, i) => (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '2fr 1.5fr 0.8fr 1fr',
-              gap: '4px', padding: '6px 8px', fontSize: '11px',
-              background: i % 2 ? T.surface : 'transparent', borderRadius: '4px',
-            }}>
-              <div style={{ fontWeight: 600 }}>{d.accountName}</div>
-              <div style={{ color: T.textMid }}>{d.product}</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.red }}>-{$(Math.abs(d.mrr))}</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>{d.date}</div>
+            <div key={i} className="grid gap-1 px-2 py-1.5 text-[11px] rounded"
+              style={{ gridTemplateColumns: '2fr 1.5fr 0.8fr 1fr', background: i % 2 ? T.surface : 'transparent' }}>
+              <div className="font-semibold">{d.accountName}</div>
+              <div className="text-revos-text-mid">{d.product}</div>
+              <div className="font-mono text-[10px] text-revos-red">-{$(Math.abs(d.mrr))}</div>
+              <div className="font-mono text-[10px] text-revos-text-dim">{d.date}</div>
             </div>
           ))}
         </div>
@@ -1747,17 +1818,15 @@ function KPITab({
 function KPICard({ label, value, sub, pace }) {
   const color = paceColor(pace)
   return (
-    <div style={{
-      background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW,
-      padding: '14px', borderLeft: `3px solid ${color}`,
-    }}>
-      <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '6px', textTransform: 'uppercase' }}>
+    <div className="bg-revos-card rounded-xl shadow-card p-3.5"
+      style={{ borderLeft: `3px solid ${color}` }}>
+      <div className="font-sans text-[9px] text-revos-text-dim tracking-wide mb-1.5 uppercase">
         {label}
       </div>
-      <div style={{ fontFamily: FONT_MONO, fontSize: '20px', fontWeight: 700, color, lineHeight: 1 }}>
+      <div className="font-mono text-xl font-bold leading-none" style={{ color }}>
         {value}
       </div>
-      {sub && <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textMid, marginTop: '4px' }}>{sub}</div>}
+      {sub && <div className="font-sans text-[9px] text-revos-text-mid mt-1">{sub}</div>}
     </div>
   )
 }

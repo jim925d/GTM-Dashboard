@@ -1,7 +1,7 @@
-import { FONT_MONO, FONT_SANS, T } from '../../lib/constants'
-import Badge from '../shared/Badge'
+import { Badge as UiBadge } from '@/components/ui/badge'
 import Tip from '../shared/Tip'
 import { $ } from '../shared/ChartTheme'
+import { cn } from '@/lib/utils'
 
 const RISK_TIPS = {
   low: 'Low Risk — Stable account with healthy engagement, strong win rate, and minimal churn signals.',
@@ -11,66 +11,54 @@ const RISK_TIPS = {
   at_risk: 'At Risk — Account health score indicates significant exposure: declining revenue, active churn, or stalled deals.',
 }
 
+const riskColor = (score) =>
+  score >= 50 ? 'text-revos-red bg-revos-red/10 border-revos-red/15'
+    : score >= 30 ? 'text-revos-orange bg-revos-orange/10 border-revos-orange/15'
+    : 'text-revos-green bg-revos-green/10 border-revos-green/15'
+
+const velocityIcon = (v) =>
+  v === 'accelerating' ? '▲' : v === 'stalled' ? '▼' : '●'
+
+const velocityColor = (v) =>
+  v === 'accelerating' ? 'text-revos-green' : v === 'stalled' ? 'text-revos-red' : 'text-revos-yellow'
+
 export default function Sidebar({ accounts, selectedIndex, onSelect }) {
   return (
     <div>
-      <div
-        style={{
-          padding: '10px 12px',
-          fontFamily: FONT_SANS,
-          fontSize: '9px',
-          color: T.textDim,
-          letterSpacing: '0.04em',
-          borderBottom: `1px solid ${T.border}`,
-          textTransform: 'uppercase',
-        }}
-      >
+      <div className="px-3 py-2.5 font-sans text-[9px] text-revos-text-dim tracking-wider border-b border-border uppercase">
         Accounts ({accounts.length})
       </div>
       {accounts.map((acc, i) => {
         const isSel = i === selectedIndex
-        const rc = acc.risk_score >= 50 ? T.red : acc.risk_score >= 30 ? T.orange : T.green
         const riskKey = (acc.risk_level || 'low').toLowerCase().replace(/[\s_-]/g, '_')
         const riskTip = RISK_TIPS[riskKey] || RISK_TIPS['moderate']
         return (
           <div
             key={acc.id || acc.name}
             onClick={() => onSelect(i)}
-            style={{
-              padding: '10px 12px',
-              cursor: 'pointer',
-              borderBottom: `1px solid ${T.border}`,
-              borderLeft: `3px solid ${isSel ? T.cyan : 'transparent'}`,
-              background: isSel ? T.card : 'transparent',
-              transition: 'all 0.15s',
-            }}
+            className={cn(
+              'px-3 py-2.5 cursor-pointer border-b border-border transition-all duration-150',
+              isSel ? 'border-l-[3px] border-l-revos-cyan bg-revos-card' : 'border-l-[3px] border-l-transparent'
+            )}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-              <span style={{ fontWeight: 600, fontSize: '12px' }}>{acc.name}</span>
+            <div className="flex justify-between mb-0.5">
+              <span className="font-semibold text-xs">{acc.name}</span>
               <Tip tip={riskTip} style={{ borderBottom: 'none' }}>
-                <Badge color={rc} size="sm">
+                <span className={cn('inline-flex px-2 py-0.5 rounded-full font-mono text-[9px] font-semibold tracking-wide border', riskColor(acc.risk_score))}>
                   {acc.risk_level.toUpperCase()}
-                </Badge>
+                </span>
               </Tip>
             </div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textMid, marginBottom: '3px' }}>
+            <div className="font-sans text-[9px] text-revos-text-mid mb-0.5">
               {acc.vertical}
             </div>
-            <div style={{ display: 'flex', gap: '6px', fontFamily: FONT_MONO, fontSize: '9px', flexWrap: 'wrap' }}>
-              <span style={{ color: T.cyan }}>{$(acc.arr)}</span>
-              {acc.lost > 0 && <span style={{ color: T.red }}>{acc.lost}L</span>}
-              {acc.disconnects > 0 && <span style={{ color: T.orange }}>{acc.disconnects}D</span>}
+            <div className="flex gap-1.5 font-mono text-[9px] flex-wrap">
+              <span className="text-revos-cyan">{$(acc.tmr)}</span>
+              {acc.lost > 0 && <span className="text-revos-red">{acc.lost}L</span>}
+              {acc.disconnects > 0 && <span className="text-revos-orange">{acc.disconnects}D</span>}
             </div>
-            <div
-              style={{
-                fontFamily: FONT_MONO,
-                fontSize: '8px',
-                color: acc.velocity === 'accelerating' ? T.green : acc.velocity === 'stalled' ? T.red : T.yellow,
-                marginTop: '2px',
-              }}
-            >
-              {acc.velocity === 'accelerating' ? '▲' : acc.velocity === 'stalled' ? '▼' : '●'} {acc.velocity} ·{' '}
-              {acc.days_silent}d
+            <div className={cn('font-mono text-[8px] mt-0.5', velocityColor(acc.velocity))}>
+              {velocityIcon(acc.velocity)} {acc.velocity} · {acc.days_silent}d
             </div>
           </div>
         )

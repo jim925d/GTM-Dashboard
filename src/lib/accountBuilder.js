@@ -2,7 +2,7 @@
  * Client-side account state builder — mirrors backend logic for demo mode.
  */
 
-function normalizeStage(raw) {
+export function normalizeStage(raw) {
   if (!raw) return ''
   const s = raw.toLowerCase().trim()
   // Closed Won — match "closed won", "closed-won", "accepted", "5 - accepted"
@@ -31,9 +31,9 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
   const activeServices = services.filter(s => (s.service_status || '').toLowerCase() === 'active')
   const servicesMRR = activeServices.reduce((sum, s) => sum + (parseFloat(s.mrr) || 0), 0)
 
-  // ARR: exclusively from Total BRR in customers.csv (summed across rows for same account)
+  // TMR: Total Monthly Recurring — from Total BRR in customers.csv (summed across rows for same account)
   const customerBRR = parseFloat(String(customer?.total_brr || '').replace(/[$,\s]/g, '')) || 0
-  const totalARR = customerBRR
+  const totalTMR = customerBRR
   const totalMRR = customerBRR / 12
 
   const disconnects = services.filter(s => (s.service_status || '').toLowerCase() === 'disconnected')
@@ -63,6 +63,7 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
   // Won/Lost — separate positive wins from churn/negative re-rates
   // No isRealDeal filter — same-day created/closed deals are legitimate (renewals, re-rates, Accepted stage)
   const closedWon = funnel.filter(d => normalizeStage(d.stage) === 'closed won')
+  const funnelClosedLost = funnel.filter(d => normalizeStage(d.stage) === 'closed lost')
   const wonDeals = closedWon.filter(d => (parseFloat(d.mrr) || 0) >= 0)
   const churnDeals = closedWon.filter(d => (parseFloat(d.mrr) || 0) < 0)
   const churnMRR = Math.abs(churnDeals.reduce((sum, d) => sum + (parseFloat(d.mrr) || 0), 0))
@@ -180,7 +181,7 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
     primary_rep: customer?.primary_rep || '',
     account_manager: customer?.account_manager || '',
     sales_owner: customer?.sales_owner || '',
-    total_arr: Math.round(totalARR * 100) / 100,
+    total_tmr: Math.round(totalTMR * 100) / 100,
     total_mrr: Math.round(totalMRR * 100) / 100,
     active_pipeline_mrr: Math.round(pipelineMRR * 100) / 100,
     active_pipeline_count: activePipeline.length,
@@ -210,7 +211,7 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
     locations,
     competitor_landscape: [...competitors],
     funnel_deals: activePipeline,
-    // funnel_closed: closed deals from funnel.csv — used for bookings & forecast
+    // funnel_closed: closed deals from funnel.csv ONLY — used for Deals dashboard, bookings & forecast
     funnel_closed: [
       ...closedWon.map(d => ({
         product: d.product_group || d.product || 'Unknown',
@@ -225,11 +226,11 @@ export function buildAccountState(customer, funnel, closeLost, quotes, services,
         forecast_category: d.forecast_category || '',
         major_project: d.major_project || '',
       })),
-      ...filteredCloseLost.map(d => ({
+      ...funnelClosedLost.map(d => ({
         product: d.product_group || d.product || 'Unknown',
         mrr: parseFloat(d.mrr) || 0,
         stage: 'closed lost',
-        type: d.type || d.loss_reason || 'Lost',
+        type: d.type || 'Lost',
         close: d.close_date,
         rep: d.rep || '',
         opportunity_id: d.opportunity_id || '',

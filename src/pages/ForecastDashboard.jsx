@@ -1,14 +1,11 @@
-import { useState, useMemo } from 'react'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ComposedChart, Line, ReferenceLine,
-  LineChart, Cell,
-} from 'recharts'
-import { T, FONT_MONO, FONT_SANS, RADIUS, CARD_SHADOW, STAGE_COLORS, STAGE_WIN_PROB, STAGE_ORDER, stageProb } from '../lib/constants'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { T, STAGE_COLORS, STAGE_WIN_PROB, STAGE_ORDER, stageProb } from '../lib/constants'
+import { cn } from '@/lib/utils'
 import Badge from '../components/shared/Badge'
-import Stat from '../components/shared/Stat'
 import Tip from '../components/shared/Tip'
-import { chartTheme, $, $k, pc } from '../components/shared/ChartTheme'
+import { $, $k, pc } from '../components/shared/ChartTheme'
+import { SpotlightCard, GlowBadge, AnimatedBorderCard, Sparkline, ProgressRing } from '../components/effects'
+import { useAnimatedCounter } from '../components/effects/use-animated-counter'
 
 // --- Helpers ---
 
@@ -42,28 +39,6 @@ function isPremier(d) {
   return ch === 'premier'
 }
 
-function paceColor(pct) {
-  if (pct >= 1.0) return T.green
-  if (pct >= 0.75) return T.yellow
-  return T.red
-}
-
-// --- Tab Button ---
-function TabBtn({ active, label, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: '7px 16px', borderRadius: RADIUS, cursor: 'pointer',
-      fontFamily: FONT_SANS, fontSize: '11px', fontWeight: active ? 600 : 400,
-      border: 'none', background: active ? T.card : 'transparent',
-      color: active ? T.text : T.textDim,
-      boxShadow: active ? CARD_SHADOW : 'none', transition: 'all 0.15s',
-    }}>
-      {label}
-    </button>
-  )
-}
-
-// Forecast category ordering
 const FORECAST_ORDER = ['Closed', 'Commit', 'Best Case', 'Longshot', 'Not In Forecast']
 function normalizeForecast(f) {
   if (!f) return 'Not In Forecast'
@@ -75,98 +50,318 @@ function normalizeForecast(f) {
   return 'Not In Forecast'
 }
 
+// --- Smooth curve ---
+function smoothPath(points, tension = 0.3) {
+  if (points.length < 2) return ''
+  if (points.length === 2) return `M${points[0].x},${points[0].y} L${points[1].x},${points[1].y}`
+  let d = `M${points[0].x},${points[0].y}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(i - 1, 0)]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[Math.min(i + 2, points.length - 1)]
+    const cp1x = p1.x + (p2.x - p0.x) * tension
+    const cp1y = p1.y + (p2.y - p0.y) * tension
+    const cp2x = p2.x - (p3.x - p1.x) * tension
+    const cp2y = p2.y - (p3.y - p1.y) * tension
+    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`
+  }
+  return d
+}
+
+// --- Section (progressive disclosure) ---
+function Section({ title, badge, children, defaultOpen = false, color = T.cyan }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const bodyRef = useRef(null)
+  const [h, setH] = useState(0)
+  useEffect(() => {
+    if (bodyRef.current) setH(bodyRef.current.scrollHeight)
+  }, [open, children])
+  return (
+    <div className="bg-revos-card rounded-xl shadow-card mb-3 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-transparent border-none cursor-pointer text-left"
+      >
+        <span
+          className="text-[10px] transition-transform duration-200"
+          style={{ color, transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
+        >▶</span>
+        <span className="font-sans text-[11px] font-semibold text-revos-text flex-1">{title}</span>
+        {badge && <span className="font-mono text-[10px] text-revos-text-dim">{badge}</span>}
+      </button>
+      <div
+        style={{ maxHeight: open ? h : 0, opacity: open ? 1 : 0 }}
+        className="transition-all duration-300 ease-out overflow-hidden"
+      >
+        <div ref={bodyRef} className="px-4 pb-4">
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Sparkline placeholder data ---
+const SPARK_BOOK = [10, 15, 12, 20, 25, 22, 30, 28, 35, 40, 38, 45]
+const SPARK_PIPE = [30, 35, 25, 40, 38, 45, 50, 48, 55, 60, 58, 65]
+const SPARK_WIN  = [55, 60, 58, 65, 70, 68, 72, 75, 78, 80, 82, 85]
+const SPARK_CHURN = [8, 6, 10, 5, 7, 4, 6, 3, 5, 4, 3, 2]
+
+// --- Animated KPI value ---
+function AnimatedKPI({ value, prefix = '', suffix = '', color }) {
+  const num = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^0-9.]/g, '')) || 0
+  const display = useAnimatedCounter(num)
+  return <span style={{ color }}>{prefix}{display}{suffix}</span>
+}
+
+// --- Forecast Chart (SVG with tooltip) ---
+function ForecastChart({ data, periodMode }) {
+  const svgRef = useRef(null)
+  const [hover, setHover] = useState(null)
+  const [dims, setDims] = useState({ w: 600, h: 200 })
+
+  useEffect(() => {
+    const el = svgRef.current?.parentElement
+    if (!el) return
+    const obs = new ResizeObserver(([e]) => {
+      const { width } = e.contentRect
+      if (width > 0) setDims({ w: width, h: 200 })
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  if (!data || data.length === 0) {
+    return <div className="text-center py-10 font-mono text-[10px] text-revos-text-dim">No data for this period</div>
+  }
+
+  const pad = { t: 20, r: 20, b: 30, l: 55 }
+  const cw = dims.w - pad.l - pad.r
+  const ch = dims.h - pad.t - pad.b
+
+  const maxVal = Math.max(...data.map(d => Math.max(d.bookings, d.churn, Math.abs(d.net))), 1)
+  const yScale = (v) => pad.t + ch - (v / maxVal) * ch
+  const xScale = (i) => pad.l + (data.length === 1 ? cw / 2 : (i / (data.length - 1)) * cw)
+
+  const bookPts = data.map((d, i) => ({ x: xScale(i), y: yScale(d.bookings) }))
+  const churnPts = data.map((d, i) => ({ x: xScale(i), y: yScale(d.churn) }))
+  const netPts = data.map((d, i) => ({ x: xScale(i), y: yScale(Math.max(d.net, 0)) }))
+
+  const bookArea = data.length > 1
+    ? smoothPath(bookPts) + ` L${bookPts[bookPts.length - 1].x},${yScale(0)} L${bookPts[0].x},${yScale(0)} Z`
+    : ''
+  const churnArea = data.length > 1
+    ? smoothPath(churnPts) + ` L${churnPts[churnPts.length - 1].x},${yScale(0)} L${churnPts[0].x},${yScale(0)} Z`
+    : ''
+
+  // Y-axis ticks
+  const yTicks = []
+  const step = maxVal > 0 ? Math.pow(10, Math.floor(Math.log10(maxVal))) : 1
+  let tickStep = step
+  if (maxVal / step < 3) tickStep = step / 2
+  for (let v = 0; v <= maxVal; v += tickStep) {
+    yTicks.push(v)
+  }
+
+  const handleMouse = (e) => {
+    const rect = svgRef.current?.getBoundingClientRect()
+    if (!rect || data.length === 0) return
+    const mx = e.clientX - rect.left
+    let closest = 0
+    let minDist = Infinity
+    for (let i = 0; i < data.length; i++) {
+      const dist = Math.abs(xScale(i) - mx)
+      if (dist < minDist) { minDist = dist; closest = i }
+    }
+    if (minDist < 40) setHover(closest)
+    else setHover(null)
+  }
+
+  const hd = hover !== null ? data[hover] : null
+  const hx = hover !== null ? xScale(hover) : 0
+  const flipLeft = hx > dims.w * 0.65
+
+  return (
+    <div className="relative" style={{ width: '100%' }}>
+      <svg
+        ref={svgRef}
+        width={dims.w}
+        height={dims.h}
+        className="block"
+        onMouseMove={handleMouse}
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id="fc-book-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={T.green} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={T.green} stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="fc-churn-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={T.red} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={T.red} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        {/* Grid */}
+        {yTicks.map(v => (
+          <g key={v}>
+            <line x1={pad.l} x2={dims.w - pad.r} y1={yScale(v)} y2={yScale(v)} stroke={T.border} strokeDasharray="3 3" />
+            <text x={pad.l - 8} y={yScale(v) + 3} textAnchor="end" fill={T.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">
+              {$k(v)}
+            </text>
+          </g>
+        ))}
+
+        {/* X labels */}
+        {data.map((d, i) => (
+          <text key={i} x={xScale(i)} y={dims.h - 6} textAnchor="middle" fill={T.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">
+            {d.label}
+          </text>
+        ))}
+
+        {/* Areas */}
+        {bookArea && <path d={bookArea} fill="url(#fc-book-grad)" />}
+        {churnArea && <path d={churnArea} fill="url(#fc-churn-grad)" />}
+
+        {/* Lines */}
+        {data.length > 1 && (
+          <>
+            <path d={smoothPath(bookPts)} fill="none" stroke={T.green} strokeWidth={2} />
+            <path d={smoothPath(churnPts)} fill="none" stroke={T.red} strokeWidth={2} />
+            <path d={smoothPath(netPts)} fill="none" stroke={T.teal} strokeWidth={1.5} strokeDasharray="5 3" />
+          </>
+        )}
+
+        {/* Dots */}
+        {bookPts.map((p, i) => (
+          <circle key={`b${i}`} cx={p.x} cy={p.y} r={hover === i ? 5 : 3} fill={T.green} opacity={hover === i ? 1 : 0.8} />
+        ))}
+        {churnPts.map((p, i) => (
+          <circle key={`c${i}`} cx={p.x} cy={p.y} r={hover === i ? 5 : 3} fill={T.red} opacity={hover === i ? 1 : 0.8} />
+        ))}
+        {netPts.map((p, i) => (
+          <circle key={`n${i}`} cx={p.x} cy={p.y} r={hover === i ? 4 : 2.5} fill={T.teal} opacity={hover === i ? 1 : 0.7} />
+        ))}
+
+        {/* Crosshair */}
+        {hover !== null && (
+          <line x1={hx} x2={hx} y1={pad.t} y2={dims.h - pad.b} stroke={T.textDim} strokeDasharray="3 3" strokeWidth={0.5} />
+        )}
+      </svg>
+
+      {/* Tooltip */}
+      {hd && (
+        <div
+          className="absolute pointer-events-none bg-revos-card border border-revos-border rounded-lg shadow-card px-3 py-2 z-10"
+          style={{
+            top: 10,
+            ...(flipLeft ? { right: dims.w - hx + 12 } : { left: hx + 12 }),
+          }}
+        >
+          <div className="font-sans text-[10px] font-bold text-revos-text mb-1">{hd.label}</div>
+          <div className="font-mono text-[9px] text-revos-green">↑ Bookings: {$k(hd.bookings)}/mo</div>
+          <div className="font-mono text-[9px] text-revos-red">↓ Churn: {$k(hd.churn)}/mo</div>
+          <div className="font-mono text-[9px] text-revos-teal">= Net: {$k(hd.net)}/mo</div>
+          <div className="font-mono text-[9px] text-revos-cyan">♟ Deals: {hd.deals}</div>
+          {hd.winRate !== undefined && (
+            <div className="font-mono text-[9px] text-revos-text-mid">Win: {pc(hd.winRate)}</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // =======================================================================
 // FORECAST DASHBOARD
 // =======================================================================
 
 export default function ForecastDashboard({ accounts, rawData }) {
-  const [tab, setTab] = useState('overview')
   const [periodMode, setPeriodMode] = useState('quarter')
+  const [ownerView, setOwnerView] = useState('rep')
+  const [selectedOwner, setSelectedOwner] = useState(null)
 
   const now = new Date()
   const yearStart = new Date(now.getFullYear(), 0, 1)
+  const yearEnd = new Date(now.getFullYear() + 1, 0, 1)
   const currentQ = Math.floor(now.getMonth() / 3) + 1
   const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-  const qEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 1) // 1st of next quarter
+  const qEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 1)
   const mStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const mEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1) // 1st of next month
+  const mEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const currentMonthName = now.toLocaleString('default', { month: 'long' })
 
-  // All active deals — ONLY Premier channel
+  // --- Owner pills ---
+  const reps = useMemo(() => {
+    const set = new Set()
+    accounts.forEach(a => { if (a.sales_owner) set.add(a.sales_owner) })
+    return [...set].sort()
+  }, [accounts])
+
+  const managers = useMemo(() => {
+    const set = new Set()
+    accounts.forEach(a => { if (a.manager) set.add(a.manager) })
+    return [...set].sort()
+  }, [accounts])
+
+  const ownerPills = ownerView === 'rep' ? reps : managers
+
+  // --- Filter accounts by selected owner ---
+  const filteredAccounts = useMemo(() => {
+    if (!selectedOwner) return accounts
+    if (ownerView === 'rep') return accounts.filter(a => a.sales_owner === selectedOwner)
+    return accounts.filter(a => a.manager === selectedOwner)
+  }, [accounts, selectedOwner, ownerView])
+
+  // --- Data pipelines (preserved logic, now using filteredAccounts) ---
+
   const allActiveDeals = useMemo(() =>
-    accounts.flatMap(acc =>
+    filteredAccounts.flatMap(acc =>
       (acc.active_deals || [])
         .filter(d => isPremier(d))
         .map(d => ({ ...d, accountName: acc.name, sales_owner: acc.sales_owner }))
-    ), [accounts])
+    ), [filteredAccounts])
 
-  // Funnel closed deals: from funnel.csv ONLY — used for bookings & forecast
-  // historical_deals (from historical.csv/JSON) is for modeling/predictions only
   const funnelClosed = useMemo(() =>
-    accounts.flatMap(acc =>
+    filteredAccounts.flatMap(acc =>
       (acc.funnel_closed || [])
         .filter(d => isPremier(d))
         .map(d => ({ ...d, accountName: acc.name, sales_owner: acc.sales_owner }))
-    ), [accounts])
+    ), [filteredAccounts])
 
-  // Historical deals — for modeling/predictions only (NOT bookings)
   const allHistorical = useMemo(() =>
-    accounts.flatMap(acc =>
+    filteredAccounts.flatMap(acc =>
       (acc.historical_deals || [])
         .filter(d => isPremier(d))
         .map(d => ({ ...d, accountName: acc.name, sales_owner: acc.sales_owner }))
-    ), [accounts])
+    ), [filteredAccounts])
 
-  // Closed won deals (positive MRR) — from funnel.csv, Premier only
   const closedWonDeals = useMemo(() =>
     funnelClosed.filter(d => {
       const s = normalizeStage(d.stage)
       return s === 'closed won' && (d.mrr || 0) > 0
     }), [funnelClosed])
 
-  // Churn deals (negative MRR) — from funnel.csv
   const churnDeals = useMemo(() =>
     funnelClosed.filter(d => (d.mrr || 0) < 0),
     [funnelClosed])
 
-  // ---- Key Metrics ----
-
-  const periodStart = periodMode === 'month' ? mStart : qStart
-  const periodEnd = periodMode === 'month' ? mEnd : qEnd // full month/quarter boundary
-
-  // All funnel deals for bookings: active pipeline + funnel closed (NOT historical.csv)
   const allFunnelDeals = useMemo(() => [...allActiveDeals, ...funnelClosed], [allActiveDeals, funnelClosed])
 
-  // 1. Total MRR: total positive MRR in funnel where close date is in the selected period
-  const totalMRR = useMemo(() =>
-    allFunnelDeals
-      .filter(d => {
-        if ((d.mrr || 0) <= 0) return false
-        const dt = parseDate(d.close)
-        return dt && dt >= periodStart && dt < periodEnd
-      })
-      .reduce((s, d) => s + (d.mrr || 0), 0),
-    [allFunnelDeals, periodStart, periodEnd])
-
-  // Helper: deal counts as a booking — forecast category = Closed AND major_project is blank
   const isBooking = (d) => {
     if (normalizeForecast(d.forecast) !== 'Closed') return false
-    if (d.major_project) return false // exclude major project deals
+    if (d.major_project) return false
     return true
   }
 
-  const yearEnd = new Date(now.getFullYear() + 1, 0, 1)
+  // Period boundaries based on periodMode
+  const periodStart = periodMode === 'month' ? mStart : periodMode === 'quarter' ? qStart : yearStart
+  const periodEnd = periodMode === 'month' ? mEnd : periodMode === 'quarter' ? qEnd : yearEnd
+  const periodLabel = periodMode === 'month' ? 'MTD' : periodMode === 'quarter' ? 'QTD' : 'YTD'
+  const periodTitle = periodMode === 'month' ? currentMonthName : periodMode === 'quarter' ? `Q${currentQ} ${now.getFullYear()}` : `${now.getFullYear()}`
 
-  // 2. YTD Bookings: forecast=Closed, major_project blank, close date in current year
-  const ytdBookings = useMemo(() =>
-    allFunnelDeals.filter(d => {
-      if ((d.mrr || 0) <= 0) return false
-      if (!isBooking(d)) return false
-      const dt = parseDate(d.close)
-      return dt && dt >= yearStart && dt < yearEnd
-    }).reduce((s, d) => s + (d.mrr || 0), 0), [allFunnelDeals])
-
-  // 3. MTD/QTD Bookings: forecast=Closed, major_project blank, close date in full period
+  // KPI: Period bookings
   const periodBookings = useMemo(() =>
     allFunnelDeals.filter(d => {
       if ((d.mrr || 0) <= 0) return false
@@ -175,16 +370,15 @@ export default function ForecastDashboard({ accounts, rawData }) {
       return dt && dt >= periodStart && dt < periodEnd
     }).reduce((s, d) => s + (d.mrr || 0), 0), [allFunnelDeals, periodStart, periodEnd])
 
-  // Active deals: current non-closed deals with positive MRR
+  // KPI: Weighted pipeline
   const currentActiveDeals = useMemo(() =>
     allActiveDeals.filter(d => !isClosed(d.stage) && (d.mrr || 0) > 0),
     [allActiveDeals])
 
-  // Pipeline metrics — weighted by stage win probability (MRR, not annualized)
   const weightedPipeline = currentActiveDeals.reduce((s, d) =>
     s + (d.mrr || 0) * stageProb(d.stage), 0)
 
-  // 4. Win Rate: wins / losses only for deals with close date in current month/quarter
+  // KPI: Win rate for period
   const periodClosed = useMemo(() =>
     allFunnelDeals.filter(d => {
       const s = normalizeStage(d.stage)
@@ -196,161 +390,121 @@ export default function ForecastDashboard({ accounts, rawData }) {
   const totalLost = periodClosed.filter(d => normalizeStage(d.stage) === 'closed lost').length
   const winRate = (totalWon + totalLost) > 0 ? totalWon / (totalWon + totalLost) : 0
 
-  return (
-    <div>
-      {/* Period Toggle + Premier Badge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-        <Badge color={T.green}>PREMIER CHANNEL ONLY</Badge>
-        <div style={{ width: '1px', height: '20px', background: T.border }} />
-        <div style={{ display: 'flex', gap: '2px', background: T.surface, borderRadius: RADIUS, padding: '2px' }}>
-          <button onClick={() => setPeriodMode('month')} style={{
-            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-            background: periodMode === 'month' ? T.card : 'transparent',
-            color: periodMode === 'month' ? T.cyan : T.textDim,
-            boxShadow: periodMode === 'month' ? CARD_SHADOW : 'none',
-          }}>Month</button>
-          <button onClick={() => setPeriodMode('quarter')} style={{
-            padding: '4px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-            fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600,
-            background: periodMode === 'quarter' ? T.card : 'transparent',
-            color: periodMode === 'quarter' ? T.cyan : T.textDim,
-            boxShadow: periodMode === 'quarter' ? CARD_SHADOW : 'none',
-          }}>Quarter</button>
-        </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>
-          {currentActiveDeals.length} active deals · {accounts.length} accounts
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{
-        display: 'flex', gap: '4px', marginBottom: '16px', padding: '4px',
-        background: T.surface, borderRadius: RADIUS, width: 'fit-content',
-      }}>
-        <TabBtn active={tab === 'overview'} label="Overview" onClick={() => setTab('overview')} />
-        <TabBtn active={tab === 'bookings'} label="Bookings Forecast" onClick={() => setTab('bookings')} />
-        <TabBtn active={tab === 'churn'} label="Churn Model" onClick={() => setTab('churn')} />
-        <TabBtn active={tab === 'patterns'} label="Buy Patterns" onClick={() => setTab('patterns')} />
-        <TabBtn active={tab === 'product'} label="Product Intel" onClick={() => setTab('product')} />
-        <TabBtn active={tab === 'health'} label="Account Health" onClick={() => setTab('health')} />
-      </div>
-
-      {tab === 'overview' && <OverviewTab
-        accounts={accounts} currentActiveDeals={currentActiveDeals} funnelClosed={funnelClosed}
-        closedWonDeals={closedWonDeals} churnDeals={churnDeals}
-        totalMRR={totalMRR} weightedPipeline={weightedPipeline}
-        ytdBookings={ytdBookings} periodBookings={periodBookings}
-        winRate={winRate} totalWon={totalWon} totalLost={totalLost}
-        currentQ={currentQ} periodMode={periodMode} currentMonthName={currentMonthName}
-        allActiveDeals={allActiveDeals}
-      />}
-
-      {tab === 'bookings' && <BookingsForecastTab
-        currentActiveDeals={currentActiveDeals} funnelClosed={funnelClosed}
-        closedWonDeals={closedWonDeals} weightedPipeline={weightedPipeline}
-        totalMRR={totalMRR} currentQ={currentQ}
-        allActiveDeals={allActiveDeals}
-      />}
-
-      {tab === 'churn' && <ChurnTab
-        accounts={accounts} allHistorical={allHistorical} churnDeals={churnDeals}
-      />}
-
-      {tab === 'patterns' && <BuyPatternsTab
-        closedWonDeals={closedWonDeals} allHistorical={allHistorical} currentQ={currentQ}
-        currentActiveDeals={currentActiveDeals}
-      />}
-
-      {tab === 'product' && <ProductIntelTab
-        accounts={accounts} currentActiveDeals={currentActiveDeals} closedWonDeals={closedWonDeals}
-      />}
-
-      {tab === 'health' && <AccountHealthTab accounts={accounts} />}
-    </div>
-  )
-}
-
-// =======================================================================
-// OVERVIEW TAB
-// =======================================================================
-
-function OverviewTab({
-  accounts, currentActiveDeals, funnelClosed, closedWonDeals, churnDeals,
-  totalMRR, weightedPipeline, ytdBookings, periodBookings,
-  winRate, totalWon, totalLost, currentQ, periodMode, currentMonthName,
-  allActiveDeals,
-}) {
-  // MRR Forecast: funnel.csv deals only (active + closed from funnel)
-  // Filters: Close Date in period, MRR > 0, Major Project blank, Premier (already filtered)
-  // Raw = sum of MRR per stage, Forecast = sum of MRR × stage win probability
-  const now = new Date()
-  const allFunnel = useMemo(() => [...allActiveDeals, ...funnelClosed], [allActiveDeals, funnelClosed])
-  const trajectoryData = useMemo(() => {
-    const months = {}
-
-    for (const d of allFunnel) {
-      const mrr = d.mrr || 0
-      if (mrr <= 0) continue
-      if (d.major_project) continue // exclude major project deals
+  // KPI: Period churn
+  const periodChurn = useMemo(() =>
+    allFunnelDeals.filter(d => {
+      if ((d.mrr || 0) >= 0) return false
       const dt = parseDate(d.close)
-      if (!dt) continue
-      // Filter to current period
-      if (periodMode === 'month') {
-        if (dt.getFullYear() !== now.getFullYear() || dt.getMonth() !== now.getMonth()) continue
-      } else {
-        const q = Math.floor(now.getMonth() / 3)
-        if (dt.getFullYear() !== now.getFullYear() || Math.floor(dt.getMonth() / 3) !== q) continue
-      }
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
-      if (!months[key]) months[key] = { month: key, raw: 0, forecast: 0, deals: 0 }
-      months[key].raw += mrr
-      months[key].forecast += mrr * stageProb(d.stage)
-      months[key].deals++
-    }
+      return dt && dt >= periodStart && dt < periodEnd
+    }).reduce((s, d) => s + Math.abs(d.mrr || 0), 0), [allFunnelDeals, periodStart, periodEnd])
 
-    const result = Object.values(months)
+  // --- Chart data ---
+  const chartData = useMemo(() => {
+    if (periodMode === 'month') {
+      // Daily cumulative traction for current month
+      const dayDeals = allFunnelDeals.filter(d => {
+        const dt = parseDate(d.close)
+        return dt && dt >= mStart && dt < mEnd && !d.major_project
+      }).sort((a, b) => parseDate(a.close) - parseDate(b.close))
 
-    // If quarter mode, ensure all 3 months exist
-    if (periodMode === 'quarter') {
-      const q = Math.floor(now.getMonth() / 3)
-      for (let i = 0; i < 3; i++) {
-        const mo = q * 3 + i
-        const key = `${now.getFullYear()}-${String(mo + 1).padStart(2, '0')}`
-        if (!result.find(m => m.month === key)) {
-          result.push({ month: key, raw: 0, forecast: 0, deals: 0 })
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+      const daily = []
+      let cumBook = 0, cumChurn = 0, cumDeals = 0
+
+      for (let day = 1; day <= Math.min(now.getDate(), daysInMonth); day++) {
+        const dayDate = new Date(now.getFullYear(), now.getMonth(), day)
+        const nextDay = new Date(now.getFullYear(), now.getMonth(), day + 1)
+        const dayDealsForDay = dayDeals.filter(d => {
+          const dt = parseDate(d.close)
+          return dt >= dayDate && dt < nextDay
+        })
+        for (const d of dayDealsForDay) {
+          const mrr = d.mrr || 0
+          if (mrr > 0 && isBooking(d)) cumBook += mrr
+          else if (mrr < 0) cumChurn += Math.abs(mrr)
+          cumDeals++
+        }
+        // Only include days that have data or are key milestones
+        if (day === 1 || day === now.getDate() || day % 5 === 0 || dayDealsForDay.length > 0) {
+          daily.push({
+            label: `${day}`,
+            bookings: cumBook,
+            churn: cumChurn,
+            net: cumBook - cumChurn,
+            deals: cumDeals,
+          })
         }
       }
+      // Ensure at least the first and last day
+      if (daily.length === 0) {
+        daily.push({ label: '1', bookings: 0, churn: 0, net: 0, deals: 0 })
+      }
+      return daily
     }
 
-    return result.sort((a, b) => a.month.localeCompare(b.month)).map(m => ({
-      ...m,
-      raw: Math.round(m.raw),
-      forecast: Math.round(m.forecast),
-    }))
-  }, [allFunnel, periodMode])
-
-  // Quarterly Net New MRR — from funnel.csv closed deals only
-  const quarterlyNetNew = useMemo(() => {
-    const quarters = {}
-    for (const d of funnelClosed) {
-      if (d.major_project) continue
-      const dt = parseDate(d.close)
-      if (!dt) continue
-      const q = `${dt.getFullYear()} Q${Math.floor(dt.getMonth() / 3) + 1}`
-      if (!quarters[q]) quarters[q] = { quarter: q, booked: 0, churn: 0 }
-      const mrr = d.mrr || 0
-      if (mrr >= 0) quarters[q].booked += mrr * 12
-      else quarters[q].churn += Math.abs(mrr) * 12
+    if (periodMode === 'quarter') {
+      const q = Math.floor(now.getMonth() / 3)
+      const months = []
+      for (let i = 0; i < 3; i++) {
+        const mo = q * 3 + i
+        const moStart = new Date(now.getFullYear(), mo, 1)
+        const moEnd = new Date(now.getFullYear(), mo + 1, 1)
+        const moLabel = moStart.toLocaleString('default', { month: 'short' })
+        let book = 0, churn = 0, deals = 0, won = 0, lost = 0
+        for (const d of allFunnelDeals) {
+          const dt = parseDate(d.close)
+          if (!dt || dt < moStart || dt >= moEnd || d.major_project) continue
+          const mrr = d.mrr || 0
+          if (mrr > 0 && isBooking(d)) book += mrr
+          else if (mrr < 0) churn += Math.abs(mrr)
+          deals++
+          const s = normalizeStage(d.stage)
+          if (s === 'closed won' && mrr > 0) won++
+          else if (s === 'closed lost') lost++
+        }
+        months.push({
+          label: moLabel,
+          bookings: book,
+          churn,
+          net: book - churn,
+          deals,
+          winRate: (won + lost) > 0 ? won / (won + lost) : undefined,
+        })
+      }
+      return months
     }
-    return Object.values(quarters)
-      .sort((a, b) => a.quarter.localeCompare(b.quarter))
-      .slice(-8)
-      .map(q => ({ ...q, net: q.booked - q.churn }))
-  }, [funnelClosed])
 
-  // 4. Pipeline by stage — positive MRR only, exclude major projects
+    // Annual: monthly granularity through current month
+    const months = []
+    for (let mo = 0; mo <= now.getMonth(); mo++) {
+      const moStart = new Date(now.getFullYear(), mo, 1)
+      const moEnd = new Date(now.getFullYear(), mo + 1, 1)
+      const moLabel = moStart.toLocaleString('default', { month: 'short' })
+      let book = 0, churn = 0, deals = 0, won = 0, lost = 0
+      for (const d of allFunnelDeals) {
+        const dt = parseDate(d.close)
+        if (!dt || dt < moStart || dt >= moEnd || d.major_project) continue
+        const mrr = d.mrr || 0
+        if (mrr > 0 && isBooking(d)) book += mrr
+        else if (mrr < 0) churn += Math.abs(mrr)
+        deals++
+        const s = normalizeStage(d.stage)
+        if (s === 'closed won' && mrr > 0) won++
+        else if (s === 'closed lost') lost++
+      }
+      months.push({
+        label: moLabel,
+        bookings: book,
+        churn,
+        net: book - churn,
+        deals,
+        winRate: (won + lost) > 0 ? won / (won + lost) : undefined,
+      })
+    }
+    return months
+  }, [allFunnelDeals, periodMode])
+
+  // --- Pipeline by stage ---
   const stageData = useMemo(() => {
     const stages = {}
     for (const d of currentActiveDeals) {
@@ -370,496 +524,46 @@ function OverviewTab({
   const totalWeightedMRR = stageData.reduce((s, d) => s + d.weighted, 0)
   const totalRawMRR = stageData.reduce((s, d) => s + d.raw, 0)
 
-  return (
-    <div>
-      {/* KPI Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <Stat label={<Tip label={`SUM(deal MRR) where: MRR > 0, Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ} ${now.getFullYear()}, Sales Channel = Premier. Source: funnel.csv`}>Total MRR</Tip>} value={`${$k(totalMRR)}/mo`} color={T.cyan} />
-        <Stat label={<Tip label={`SUM(deal MRR) where: Forecast Category = Closed, MRR > 0, Close Date >= 1/1/${now.getFullYear()} and < 1/1/${now.getFullYear() + 1}, Major Project = blank, Sales Channel = Premier. Source: funnel.csv`}>YTD Bookings</Tip>} value={`${$k(ytdBookings)}/mo`} color={T.green} />
-        <Stat label={<Tip label={`SUM(deal MRR) where: Forecast Category = Closed, MRR > 0, Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ} ${now.getFullYear()}, Major Project = blank, Sales Channel = Premier. Source: funnel.csv`}>{periodMode === 'month' ? 'MTD' : 'QTD'} Bookings</Tip>} value={`${$k(periodBookings)}/mo`} color={T.teal} />
-        <Stat label={<Tip label={`SUM(deal MRR × Stage Win Prob) for active pipeline deals. Major Project = blank, Sales Channel = Premier. Win probs: Discover ${(stageProb('Discover') * 100).toFixed(1)}%, Design ${(stageProb('Design Solution') * 100).toFixed(1)}%, Propose ${(stageProb('Propose') * 100).toFixed(1)}%, Negotiate ${(stageProb('Negotiate') * 100).toFixed(1)}%, Verbal ${(stageProb('Verbal Agreement') * 100).toFixed(1)}%`}>Weighted Pipeline</Tip>} value={`${$k(weightedPipeline)}/mo`} sub={`Raw: ${$k(totalRawMRR)}/mo`} color={T.purple} />
-        <Stat label={<Tip label={`Won ÷ (Won + Lost) where: Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ} ${now.getFullYear()}, Sales Channel = Premier. = ${totalWon} ÷ (${totalWon} + ${totalLost}) = ${pc(winRate)}. Source: funnel.csv`}>Win Rate</Tip>} value={pc(winRate)} sub={`${totalWon}W / ${totalLost}L`} color={winRate >= 0.5 ? T.green : T.yellow} />
-        <Stat label={<Tip label="Count of non-closed deals with MRR > 0 in the active pipeline. Sales Channel = Premier. Source: funnel.csv">Active Deals</Tip>} value={currentActiveDeals.length} sub={`${accounts.length} accounts`} color={T.blue} />
-      </div>
-
-      {/* MRR Forecast — current period only */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-          <Tip label={`Per stage: Raw = SUM(deal MRR), Forecast = SUM(deal MRR × Stage Win Prob). Filters: MRR > 0, Close Date in ${periodMode === 'month' ? currentMonthName : 'Q' + currentQ}, Major Project = blank, Sales Channel = Premier. Source: funnel.csv`}>
-            MRR FORECAST — {periodMode === 'month' ? currentMonthName.toUpperCase() : `Q${currentQ}`} {new Date().getFullYear()}
-          </Tip>
-        </div>
-        {trajectoryData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={trajectoryData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-              <XAxis dataKey="month" tick={{ fontFamily: FONT_MONO, fontSize: 9, fill: T.textDim }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={50} />
-              <Tooltip contentStyle={chartTheme.tooltip} formatter={(v, name) => [`$${Math.round(v).toLocaleString()}/mo`, name === 'raw' ? 'Raw Pipeline MRR' : 'Stage-Weighted Forecast']} />
-              <Bar dataKey="raw" fill={`${T.purple}50`} radius={[4, 4, 0, 0]} name="raw" />
-              <Bar dataKey="forecast" fill={T.teal} radius={[4, 4, 0, 0]} name="forecast" />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No forecast data for this period</div>
-        )}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-        {/* Quarterly Net New MRR */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Per quarter: Bookings = SUM(MRR) where MRR >= 0, Churn = SUM(|MRR|) where MRR < 0. Both × 12 for ARR. Excludes Major Projects. Sales Channel = Premier. Source: funnel.csv closed deals.">
-              QUARTERLY NET NEW MRR
-            </Tip>
-          </div>
-          {quarterlyNetNew.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={quarterlyNetNew} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                <XAxis dataKey="quarter" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={45} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, '']} />
-                <Bar dataKey="booked" fill={T.green} radius={[4, 4, 0, 0]} name="Bookings" />
-                <Bar dataKey="churn" fill={T.red} radius={[4, 4, 0, 0]} name="Churn" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No quarterly data</div>
-          )}
-        </div>
-
-        {/* Pipeline by Stage — positive MRR only */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
-              <Tip label={`Per stage: Raw = SUM(deal MRR), Weighted = SUM(deal MRR × Win Prob). Active deals only, MRR > 0, Major Project = blank, Premier. Win probs: Disc ${(stageProb('Discover') * 100).toFixed(0)}%, Design ${(stageProb('Design Solution') * 100).toFixed(0)}%, Prop ${(stageProb('Propose') * 100).toFixed(0)}%, Neg ${(stageProb('Negotiate') * 100).toFixed(0)}%, VA ${(stageProb('Verbal Agreement') * 100).toFixed(0)}%`}>
-                PIPELINE BY STAGE (MRR)
-              </Tip>
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '10px' }}>
-              <span style={{ color: T.purple }}>{$k(totalRawMRR)}/mo</span>
-              <span style={{ color: T.textDim }}> → </span>
-              <span style={{ color: T.teal, fontWeight: 700 }}>{$k(totalWeightedMRR)}/mo</span>
-            </div>
-          </div>
-          {stageData.map(s => {
-            const maxRaw = Math.max(...stageData.map(x => x.raw), 1)
-            const barPct = (s.raw / maxRaw) * 100
-            const color = STAGE_COLORS[s.stage] || T.textDim
-            return (
-              <div key={s.stage} style={{ marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontFamily: FONT_SANS, fontSize: '10px', fontWeight: 600, color }}>{s.stage}</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>({(s.prob * 100).toFixed(1)}%)</span>
-                    <span style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>{s.count}</span>
-                  </div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '9px' }}>
-                    <span style={{ color: T.purple }}>{$k(s.raw)}/mo</span>
-                    <span style={{ color: T.textDim }}> → </span>
-                    <span style={{ color: T.teal, fontWeight: 600 }}>{$k(s.weighted)}/mo</span>
-                  </div>
-                </div>
-                <div style={{ position: 'relative', height: '5px', background: T.border, borderRadius: '3px' }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px', width: `${barPct}%`, background: `${color}40` }} />
-                  <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '3px', width: `${barPct * s.prob}%`, background: color }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// =======================================================================
-// BOOKINGS FORECAST TAB
-// =======================================================================
-
-function BookingsForecastTab({
-  currentActiveDeals, funnelClosed, closedWonDeals, weightedPipeline,
-  totalMRR, currentQ, allActiveDeals,
-}) {
-  const now = new Date()
-  const yearStart = new Date(now.getFullYear(), 0, 1)
-
-  // Pipeline by stage (positive MRR only, exclude major projects)
-  const stageData = useMemo(() => {
-    const stages = {}
+  // --- Product data ---
+  const productPipeline = useMemo(() => {
+    const products = {}
     for (const d of currentActiveDeals) {
       if ((d.mrr || 0) <= 0) continue
-      if (d.major_project) continue
-      const s = d.stage || 'Unknown'
-      if (!stages[s]) stages[s] = { stage: s, count: 0, raw: 0, weighted: 0, prob: stageProb(s) }
-      stages[s].count++
-      stages[s].raw += (d.mrr || 0) * 12
-      stages[s].weighted += (d.mrr || 0) * stageProb(s) * 12
+      const prod = d.product || 'Unknown'
+      if (!products[prod]) products[prod] = { product: prod, pipeline: 0, bookings: 0, count: 0 }
+      products[prod].pipeline += (d.mrr || 0)
+      products[prod].count++
     }
-    return STAGE_ORDER.filter(s => stages[s]).map(s => stages[s]).concat(
-      Object.values(stages).filter(s => !STAGE_ORDER.includes(s.stage))
-    )
-  }, [currentActiveDeals])
-
-  const totalWeightedARR = stageData.reduce((s, d) => s + d.weighted, 0)
-  const totalRawARR = stageData.reduce((s, d) => s + d.raw, 0)
-
-  // Bookings composition by quarter
-  const bookingsComp = useMemo(() => {
-    const quarters = {}
     for (const d of closedWonDeals) {
-      const dt = parseDate(d.close)
-      if (!dt) continue
-      const q = `${dt.getFullYear()} Q${Math.floor(dt.getMonth() / 3) + 1}`
-      if (!quarters[q]) quarters[q] = { quarter: q, 'New Logo': 0, Expansion: 0, Renewal: 0, Other: 0 }
-      const t = (d.type || '').toLowerCase()
-      const mrr = (d.mrr || 0) * 12
-      if (t.includes('new') && !t.includes('re-rate')) quarters[q]['New Logo'] += mrr
-      else if (t.includes('expansion') || t.includes('upgrade') || t.includes('re-rate') || t.includes('rerate')) quarters[q].Expansion += mrr
-      else if (t.includes('renewal')) quarters[q].Renewal += mrr
-      else quarters[q].Other += mrr
+      const prod = d.product || 'Unknown'
+      if (!products[prod]) products[prod] = { product: prod, pipeline: 0, bookings: 0, count: 0 }
+      products[prod].bookings += (d.mrr || 0)
     }
-    return Object.values(quarters).sort((a, b) => a.quarter.localeCompare(b.quarter)).slice(-8)
-  }, [closedWonDeals])
+    return Object.values(products).sort((a, b) => (b.pipeline + b.bookings) - (a.pipeline + a.bookings)).slice(0, 10)
+  }, [currentActiveDeals, closedWonDeals])
 
-  // Win rate trend by quarter — from funnel.csv closed deals
-  const winRateTrend = useMemo(() => {
-    const quarters = {}
-    for (const d of funnelClosed) {
-      if (d.major_project) continue
-      const dt = parseDate(d.close)
-      if (!dt) continue
-      const s = normalizeStage(d.stage)
-      if (s !== 'closed won' && s !== 'closed lost') continue
-      const q = `${dt.getFullYear()} Q${Math.floor(dt.getMonth() / 3) + 1}`
-      if (!quarters[q]) quarters[q] = { quarter: q, won: 0, lost: 0 }
-      if (s === 'closed won' && (d.mrr || 0) > 0) quarters[q].won++
-      else if (s === 'closed lost') quarters[q].lost++
-    }
-    return Object.values(quarters)
-      .sort((a, b) => a.quarter.localeCompare(b.quarter))
-      .slice(-8)
-      .map(q => ({ ...q, rate: (q.won + q.lost) > 0 ? q.won / (q.won + q.lost) : 0 }))
-  }, [funnelClosed])
+  // --- Churn / at-risk ---
+  const totalChurnTMR = churnDeals.reduce((s, d) => s + Math.abs(d.mrr || 0) * 12, 0)
+  const atRiskAccounts = useMemo(() =>
+    filteredAccounts.filter(a => (a.risk_score || 0) >= 30)
+      .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
+      .slice(0, 15),
+    [filteredAccounts])
+  const atRiskTMR = atRiskAccounts.reduce((s, a) => s + (a.tmr || 0), 0)
 
-  // 8. Pipeline by Forecast Category — ordered: Closed, Commit, Best Case, Longshot, Not In Forecast
-  const byForecast = useMemo(() => {
-    const cats = {}
-    for (const d of allActiveDeals) {
-      const f = normalizeForecast(d.forecast)
-      if (!cats[f]) cats[f] = { category: f, count: 0, mrr: 0 }
-      cats[f].count++
-      cats[f].mrr += (d.mrr || 0) * 12
-    }
-    return FORECAST_ORDER
-      .filter(f => cats[f])
-      .map(f => cats[f])
-  }, [allActiveDeals])
-
-  return (
-    <div>
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <Stat label={<Tip label="Total raw ARR in active pipeline, positive MRR only (MRR × 12). Premier channel.">Raw Pipeline ARR</Tip>} value={$k(totalRawARR)} sub={`${currentActiveDeals.length} deals`} color={T.purple} />
-        <Stat label={<Tip label="SUM(Deal MRR × Stage Win Probability × 12). The probability-adjusted view of the pipeline.">Weighted Pipeline ARR</Tip>} value={$k(totalWeightedARR)} sub="Stage-probability adjusted" color={T.teal} />
-        <Stat label="Avg Deal Size" value={$k(closedWonDeals.length > 0 ? closedWonDeals.reduce((s, d) => s + (d.mrr || 0), 0) / closedWonDeals.length * 12 : 0)} sub={`${closedWonDeals.length} closed deals`} color={T.cyan} />
-        <Stat label="Pipeline Deals" value={currentActiveDeals.length} sub={`across ${[...new Set(currentActiveDeals.map(d => d.accountName))].length} accounts`} color={T.blue} />
-      </div>
-
-      {/* Stage Win Probability Reference Card */}
-      <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {/* Left: Stage probability table */}
-          <div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
-              <Tip label="Stage win probabilities from validated 2026 funnel model historical win rates.">
-                STAGE WIN PROBABILITIES
-              </Tip>
-            </div>
-            {STAGE_ORDER.map(stage => {
-              const prob = stageProb(stage)
-              const color = STAGE_COLORS[stage] || T.textDim
-              const pipeData = stageData.find(s => s.stage === stage)
-              return (
-                <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <div style={{ width: '110px', fontFamily: FONT_SANS, fontSize: '10px', color, fontWeight: 600 }}>{stage}</div>
-                  <div style={{ flex: 1, position: 'relative', height: '8px', background: T.border, borderRadius: '4px' }}>
-                    <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '4px', width: `${prob * 100}%`, background: `${color}60` }} />
-                  </div>
-                  <div style={{ width: '40px', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 600, color, textAlign: 'right' }}>
-                    {(prob * 100).toFixed(1)}%
-                  </div>
-                  {pipeData && (
-                    <div style={{ width: '80px', fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, textAlign: 'right' }}>
-                      {$k(pipeData.raw)} → {$k(pipeData.weighted)}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Right: Weighted total + formula + breakdown */}
-          <div>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '10px' }}>
-              <Tip>WEIGHTED PIPELINE SUMMARY</Tip>
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '28px', fontWeight: 700, color: T.teal, marginBottom: '4px' }}>
-              {$k(totalWeightedARR)}
-            </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim, marginBottom: '12px' }}>
-              Probability-Adjusted ARR
-            </div>
-            <div style={{
-              fontFamily: FONT_MONO, fontSize: '9px', color: T.textMid, padding: '8px',
-              background: T.surface, borderRadius: '6px', marginBottom: '12px',
-            }}>
-              SUM( Deal MRR × Stage Win % ) × 12
-            </div>
-
-            {stageData.map(s => {
-              const color = STAGE_COLORS[s.stage] || T.textDim
-              return (
-                <div key={s.stage} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '4px 0', borderBottom: `1px solid ${T.border}`,
-                  fontFamily: FONT_MONO, fontSize: '10px',
-                }}>
-                  <span style={{ color }}>{s.stage} ({s.count})</span>
-                  <span style={{ color: T.textMid }}>
-                    {$k(s.raw)} × {(s.prob * 100).toFixed(1)}% = <span style={{ color: T.teal, fontWeight: 600 }}>{$k(s.weighted)}</span>
-                  </span>
-                </div>
-              )
-            })}
-            {stageData.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontFamily: FONT_MONO, fontSize: '10px', fontWeight: 700 }}>
-                <span style={{ color: T.text }}>Total</span>
-                <span>
-                  <span style={{ color: T.purple }}>{$k(totalRawARR)}</span>
-                  <span style={{ color: T.textDim }}> → </span>
-                  <span style={{ color: T.teal }}>{$k(totalWeightedARR)}</span>
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-        {/* Bookings Composition by Quarter */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Quarterly bookings broken down by deal type: New Logo, Expansion, Renewal, Other. Premier channel only.">
-              BOOKINGS COMPOSITION BY QUARTER
-            </Tip>
-          </div>
-          {bookingsComp.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={bookingsComp} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                <XAxis dataKey="quarter" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={45} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, '']} />
-                <Bar dataKey="New Logo" stackId="a" fill={T.cyan} />
-                <Bar dataKey="Expansion" stackId="a" fill={T.green} />
-                <Bar dataKey="Renewal" stackId="a" fill={T.teal} />
-                <Bar dataKey="Other" stackId="a" fill={T.textDim} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No data</div>
-          )}
-        </div>
-
-        {/* Win Rate Trend */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Win rate per quarter: deals closed-won ÷ (closed-won + closed-lost). Premier channel only.">
-              WIN RATE TREND
-            </Tip>
-          </div>
-          {winRateTrend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={winRateTrend} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                <XAxis dataKey="quarter" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={35} tickFormatter={v => `${(v * 100).toFixed(0)}%`} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`${(v * 100).toFixed(1)}%`, 'Win Rate']} />
-                <Line type="monotone" dataKey="rate" stroke={T.green} strokeWidth={2} dot={{ r: 3, fill: T.green }} name="Win Rate" />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No data</div>
-          )}
-        </div>
-      </div>
-
-      {/* Pipeline by Forecast Category — Closed > Commit > Best Case > Longshot > Not In Forecast */}
-      {byForecast.length > 0 && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip>PIPELINE BY FORECAST CATEGORY</Tip>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {byForecast.map(f => {
-              const color = f.category === 'Closed' ? T.green : f.category === 'Commit' ? T.teal : f.category === 'Best Case' ? T.cyan : f.category === 'Longshot' ? T.yellow : T.textDim
-              return (
-                <div key={f.category} style={{
-                  flex: 1, padding: '10px', background: T.surface, borderRadius: '8px',
-                  borderLeft: `3px solid ${color}`,
-                }}>
-                  <div style={{ fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, marginBottom: '4px' }}>{f.category}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '14px', fontWeight: 700, color }}>{$k(f.mrr)}</div>
-                  <div style={{ fontFamily: FONT_MONO, fontSize: '9px', color: T.textDim }}>{f.count} deals</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// =======================================================================
-// CHURN MODEL TAB
-// =======================================================================
-
-function ChurnTab({ accounts, allHistorical, churnDeals }) {
-  // Monthly churn trend
-  const monthlyChurn = useMemo(() => {
-    const months = {}
-    for (const d of allHistorical) {
-      const dt = parseDate(d.close)
-      if (!dt) continue
-      const mrr = d.mrr || 0
-      if (mrr >= 0) continue
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
-      if (!months[key]) months[key] = { month: key, churn: 0, count: 0 }
-      months[key].churn += Math.abs(mrr) * 12
-      months[key].count++
-    }
-    return Object.values(months).sort((a, b) => a.month.localeCompare(b.month)).slice(-12)
-  }, [allHistorical])
-
-  // Churn by reason/type
-  const churnByType = useMemo(() => {
+  // Churn by product/type
+  const churnByProduct = useMemo(() => {
     const types = {}
     for (const d of churnDeals) {
-      const t = (d.type || d.product || 'Unknown').trim()
+      const t = (d.product || d.type || 'Unknown').trim()
       if (!types[t]) types[t] = { name: t, value: 0, count: 0 }
-      types[t].value += Math.abs(d.mrr || 0) * 12
+      types[t].value += Math.abs(d.mrr || 0)
       types[t].count++
     }
     return Object.values(types).sort((a, b) => b.value - a.value).slice(0, 8)
   }, [churnDeals])
 
-  const totalChurnARR = churnDeals.reduce((s, d) => s + Math.abs(d.mrr || 0) * 12, 0)
-
-  // At-risk accounts
-  const atRiskAccounts = useMemo(() =>
-    accounts.filter(a => (a.risk_score || 0) >= 30)
-      .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
-      .slice(0, 15),
-    [accounts])
-
-  const atRiskARR = atRiskAccounts.reduce((s, a) => s + (a.arr || 0), 0)
-
-  return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
-        <Stat label={<Tip label="Total ARR from deals with negative MRR. Premier channel.">Total Churn ARR</Tip>} value={$k(totalChurnARR)} sub={`${churnDeals.length} deals`} color={T.red} />
-        <Stat label={<Tip>AT-RISK ARR</Tip>} value={$(atRiskARR)} sub={`${atRiskAccounts.length} accounts`} color={T.orange} />
-        <Stat label={<Tip>AVG CHURN DEAL</Tip>} value={$k(churnDeals.length > 0 ? totalChurnARR / churnDeals.length : 0)} color={T.red} />
-        <Stat label={<Tip>CHURN RATE</Tip>} value={accounts.length > 0 ? pc(atRiskAccounts.length / accounts.length) : '---'} sub="of accounts at risk" color={T.yellow} />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip>MONTHLY CHURN TREND (ARR)</Tip>
-          </div>
-          {monthlyChurn.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={monthlyChurn} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                <XAxis dataKey="month" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={45} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'Churn ARR']} />
-                <Bar dataKey="churn" fill={T.red} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No churn data</div>
-          )}
-        </div>
-
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip>CHURN BY PRODUCT/TYPE</Tip>
-          </div>
-          {churnByType.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={churnByType} layout="vertical" margin={{ left: 80, right: 10 }}>
-                <XAxis type="number" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontFamily: FONT_SANS, fontSize: 9, fill: T.textMid }} axisLine={false} tickLine={false} width={75} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'ARR']} />
-                <Bar dataKey="value" fill={T.red} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No churn data</div>
-          )}
-        </div>
-      </div>
-
-      {atRiskAccounts.length > 0 && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, overflow: 'hidden' }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '2fr 0.6fr 0.8fr 0.6fr 1fr',
-            gap: '4px', padding: '8px 12px', background: T.surface,
-            borderBottom: `1px solid ${T.border}`,
-            fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em',
-          }}>
-            <div>Account</div>
-            <div style={{ textAlign: 'right' }}>Risk</div>
-            <div style={{ textAlign: 'right' }}>ARR</div>
-            <div style={{ textAlign: 'right' }}>NRR</div>
-            <div>Owner</div>
-          </div>
-          {atRiskAccounts.map((acc, i) => (
-            <div key={acc.name} style={{
-              display: 'grid', gridTemplateColumns: '2fr 0.6fr 0.8fr 0.6fr 1fr',
-              gap: '4px', padding: '8px 12px', fontSize: '11px',
-              borderBottom: `1px solid ${T.border}`,
-              background: i % 2 === 0 ? 'transparent' : `${T.surface}40`,
-            }}>
-              <div style={{ fontWeight: 600 }}>{acc.name}</div>
-              <div style={{ textAlign: 'right' }}>
-                <Badge color={acc.risk_score >= 50 ? T.red : T.orange}>{acc.risk_score}/100</Badge>
-              </div>
-              <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', color: T.cyan }}>{$(acc.arr)}</div>
-              <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', color: acc.nrr >= 1 ? T.green : T.red }}>{pc(acc.nrr)}</div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: '10px', color: T.textMid }}>{acc.sales_owner || acc.rep}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// =======================================================================
-// BUY PATTERNS TAB
-// =======================================================================
-
-function BuyPatternsTab({ closedWonDeals, allHistorical, currentQ, currentActiveDeals }) {
-  const now = new Date()
-  const yearStart = new Date(now.getFullYear(), 0, 1)
-
-  // 6. Booking seasonality — total closed MRR where Premier is channel (already filtered)
+  // --- Buy Patterns data ---
   const seasonality = useMemo(() => {
     const months = Array.from({ length: 12 }, (_, i) => ({
       month: new Date(2000, i, 1).toLocaleString('default', { month: 'short' }),
@@ -874,35 +578,6 @@ function BuyPatternsTab({ closedWonDeals, allHistorical, currentQ, currentActive
     return months
   }, [closedWonDeals])
 
-  // 5. Deal size distribution — YTD closed count + open pipeline count per bucket
-  const dealSizes = useMemo(() => {
-    const buckets = [
-      { label: '<$1K', min: 0, max: 1000, closed: 0, pipeline: 0 },
-      { label: '$1K-$5K', min: 1000, max: 5000, closed: 0, pipeline: 0 },
-      { label: '$5K-$10K', min: 5000, max: 10000, closed: 0, pipeline: 0 },
-      { label: '$10K-$25K', min: 10000, max: 25000, closed: 0, pipeline: 0 },
-      { label: '$25K-$50K', min: 25000, max: 50000, closed: 0, pipeline: 0 },
-      { label: '$50K+', min: 50000, max: Infinity, closed: 0, pipeline: 0 },
-    ]
-    // YTD closed deals
-    for (const d of closedWonDeals) {
-      const dt = parseDate(d.close)
-      if (!dt || dt < yearStart) continue
-      const arr = (d.mrr || 0) * 12
-      const bucket = buckets.find(b => arr >= b.min && arr < b.max)
-      if (bucket) bucket.closed++
-    }
-    // Open pipeline deals (not closed)
-    for (const d of currentActiveDeals) {
-      if ((d.mrr || 0) <= 0) continue
-      const arr = (d.mrr || 0) * 12
-      const bucket = buckets.find(b => arr >= b.min && arr < b.max)
-      if (bucket) bucket.pipeline++
-    }
-    return buckets.filter(b => b.closed > 0 || b.pipeline > 0)
-  }, [closedWonDeals, currentActiveDeals])
-
-  // Sales cycle trend
   const cycleTrend = useMemo(() => {
     const quarters = {}
     for (const d of closedWonDeals) {
@@ -922,297 +597,445 @@ function BuyPatternsTab({ closedWonDeals, allHistorical, currentQ, currentActive
       .map(q => ({ ...q, avgDays: q.count > 0 ? Math.round(q.totalDays / q.count) : 0 }))
   }, [closedWonDeals])
 
-  return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-        {/* 6. Booking Seasonality — total closed MRR, Premier channel */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Total closed MRR by month, aggregated across all years. Premier Opportunity Owner Channel only.">
-              BOOKING SEASONALITY (MRR)
-            </Tip>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={seasonality} margin={{ left: 10, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-              <XAxis dataKey="month" tick={{ fontFamily: FONT_SANS, fontSize: 9, fill: T.textMid }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={45} />
-              <Tooltip contentStyle={chartTheme.tooltip} formatter={(v, name) => [name === 'count' ? v : `$${Math.round(v).toLocaleString()}/mo`, name === 'count' ? 'Deals' : 'MRR']} />
-              <Bar dataKey="mrr" fill={T.green} radius={[4, 4, 0, 0]} name="MRR" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+  const avgCycle = cycleTrend.length > 0 ? cycleTrend[cycleTrend.length - 1].avgDays : null
 
-        {/* 5. Deal Size Distribution — YTD closed count + pipeline count */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Count of YTD closed deals (green) and open pipeline deals (purple) per ARR bucket.">
-              DEAL SIZE DISTRIBUTION (COUNT)
-            </Tip>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={dealSizes} margin={{ left: 10, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-              <XAxis dataKey="label" tick={{ fontFamily: FONT_MONO, fontSize: 9, fill: T.textDim }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={chartTheme.tooltip} />
-              <Bar dataKey="closed" fill={T.green} radius={[4, 4, 0, 0]} name="YTD Closed" />
-              <Bar dataKey="pipeline" fill={T.purple} radius={[4, 4, 0, 0]} name="Open Pipeline" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Sales Cycle Trend */}
-      {cycleTrend.length > 0 && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px', marginBottom: '16px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Average number of days from deal creation to close, by quarter. Premier channel only.">
-              AVG SALES CYCLE (DAYS)
-            </Tip>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={cycleTrend} margin={{ left: 10, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-              <XAxis dataKey="quarter" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`${v} days`, 'Avg Cycle']} />
-              <Line type="monotone" dataKey="avgDays" stroke={T.orange} strokeWidth={2} dot={{ r: 3, fill: T.orange }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// =======================================================================
-// PRODUCT INTEL TAB
-// =======================================================================
-
-function ProductIntelTab({ accounts, currentActiveDeals, closedWonDeals }) {
-  // Product pipeline (from active deals)
-  const productPipeline = useMemo(() => {
-    const products = {}
-    for (const d of currentActiveDeals) {
-      if ((d.mrr || 0) <= 0) continue
-      const prod = d.product || 'Unknown'
-      if (!products[prod]) products[prod] = { product: prod, pipeline: 0, count: 0 }
-      products[prod].pipeline += (d.mrr || 0) * 12
-      products[prod].count++
+  // --- Pipeline by forecast category ---
+  const byForecast = useMemo(() => {
+    const cats = {}
+    for (const d of allActiveDeals) {
+      const f = normalizeForecast(d.forecast)
+      if (!cats[f]) cats[f] = { category: f, count: 0, mrr: 0 }
+      cats[f].count++
+      cats[f].mrr += (d.mrr || 0)
     }
-    return Object.values(products).sort((a, b) => b.pipeline - a.pipeline).slice(0, 12)
-  }, [currentActiveDeals])
+    return FORECAST_ORDER.filter(f => cats[f]).map(f => cats[f])
+  }, [allActiveDeals])
 
-  // Product bookings
-  const productBookings = useMemo(() => {
-    const products = {}
-    for (const d of closedWonDeals) {
-      const prod = d.product || 'Unknown'
-      if (!products[prod]) products[prod] = { product: prod, bookings: 0, count: 0 }
-      products[prod].bookings += (d.mrr || 0) * 12
-      products[prod].count++
-    }
-    return Object.values(products).sort((a, b) => b.bookings - a.bookings).slice(0, 10)
-  }, [closedWonDeals])
+  // =======================================================================
+  // RENDER
+  // =======================================================================
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-        {/* 7. Product Pipeline — with vertical dotted gridlines */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip>PRODUCT BY PIPELINE (ARR)</Tip>
-          </div>
-          {productPipeline.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(180, productPipeline.length * 28)}>
-              <BarChart data={productPipeline} layout="vertical" margin={{ left: 100, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
-                <XAxis type="number" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="product" tick={{ fontFamily: FONT_SANS, fontSize: 9, fill: T.textMid }} axisLine={false} tickLine={false} width={95} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'Pipeline ARR']} />
-                <Bar dataKey="pipeline" fill={T.purple} radius={[0, 4, 4, 0]} name="Pipeline" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No pipeline data</div>
+      {/* ── Header ── */}
+      <div className="mb-4">
+        <div className="flex items-center gap-3 mb-3">
+          <Badge color={T.green}>PREMIER CHANNEL</Badge>
+          {selectedOwner && (
+            <>
+              <div className="w-px h-5 bg-revos-border" />
+              <GlowBadge color={T.cyan}>{selectedOwner}</GlowBadge>
+            </>
           )}
-        </div>
-
-        {/* Bookings by Product — with vertical dotted gridlines */}
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip>BOOKINGS BY PRODUCT (ARR)</Tip>
+          <div className="flex-1" />
+          <div className="font-mono text-[10px] text-revos-text-dim">
+            {currentActiveDeals.length} active deals · {filteredAccounts.length} accounts
           </div>
-          {productBookings.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(180, productBookings.length * 28)}>
-              <BarChart data={productBookings} layout="vertical" margin={{ left: 100, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
-                <XAxis type="number" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="product" tick={{ fontFamily: FONT_SANS, fontSize: 9, fill: T.textMid }} axisLine={false} tickLine={false} width={95} />
-                <Tooltip contentStyle={chartTheme.tooltip} formatter={(v) => [`$${Math.round(v).toLocaleString()}`, 'Bookings ARR']} />
-                <Bar dataKey="bookings" fill={T.green} radius={[0, 4, 4, 0]} name="Bookings" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_MONO, fontSize: '10px', color: T.textDim }}>No bookings data</div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// =======================================================================
-// ACCOUNT HEALTH TAB
-// =======================================================================
-
-function AccountHealthTab({ accounts }) {
-  const healthDist = useMemo(() => {
-    const buckets = { healthy: 0, warning: 0, critical: 0 }
-    for (const a of accounts) {
-      const r = a.risk_score || 0
-      if (r >= 50) buckets.critical++
-      else if (r >= 30) buckets.warning++
-      else buckets.healthy++
-    }
-    return [
-      { status: 'Healthy', count: buckets.healthy, color: T.green },
-      { status: 'Warning', count: buckets.warning, color: T.yellow },
-      { status: 'Critical', count: buckets.critical, color: T.red },
-    ]
-  }, [accounts])
-
-  const velocityDist = useMemo(() => {
-    const v = { accelerating: 0, stable: 0, stalled: 0 }
-    for (const a of accounts) {
-      const vel = (a.velocity || '').toLowerCase()
-      if (vel === 'accelerating') v.accelerating++
-      else if (vel === 'stalled') v.stalled++
-      else if (vel === 'stable') v.stable++
-    }
-    return [
-      { status: 'Accelerating', count: v.accelerating, color: T.green },
-      { status: 'Stable', count: v.stable, color: T.yellow },
-      { status: 'Stalled', count: v.stalled, color: T.red },
-    ].filter(x => x.count > 0)
-  }, [accounts])
-
-  const nrrDist = useMemo(() => {
-    const buckets = [
-      { label: '<80%', min: 0, max: 0.8, count: 0 },
-      { label: '80-90%', min: 0.8, max: 0.9, count: 0 },
-      { label: '90-100%', min: 0.9, max: 1.0, count: 0 },
-      { label: '100-110%', min: 1.0, max: 1.1, count: 0 },
-      { label: '110%+', min: 1.1, max: Infinity, count: 0 },
-    ]
-    for (const a of accounts) {
-      const nrr = a.nrr || 0
-      const bucket = buckets.find(b => nrr >= b.min && nrr < b.max)
-      if (bucket) bucket.count++
-    }
-    return buckets.filter(b => b.count > 0)
-  }, [accounts])
-
-  const repProductivity = useMemo(() => {
-    const reps = {}
-    for (const a of accounts) {
-      const rep = (a.sales_owner || a.rep || '').trim()
-      if (!rep) continue
-      if (!reps[rep]) reps[rep] = { rep, accounts: 0, arr: 0, pipeline: 0, deals: 0 }
-      reps[rep].accounts++
-      reps[rep].arr += a.arr || 0
-      reps[rep].pipeline += (a.pipeline_mrr || 0) * 12
-      reps[rep].deals += (a.active_deals?.length || 0)
-    }
-    return Object.values(reps).sort((a, b) => b.arr - a.arr)
-  }, [accounts])
-
-  return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}><Tip>ACCOUNT HEALTH</Tip></div>
-          {healthDist.map(h => (
-            <div key={h.status} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <div style={{ width: '60px', fontFamily: FONT_SANS, fontSize: '10px', color: h.color, fontWeight: 600 }}>{h.status}</div>
-              <div style={{ flex: 1, height: '8px', background: T.border, borderRadius: '4px', position: 'relative' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '4px', width: `${accounts.length > 0 ? (h.count / accounts.length) * 100 : 0}%`, background: h.color }} />
-              </div>
-              <div style={{ width: '30px', fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 600, color: h.color, textAlign: 'right' }}>{h.count}</div>
-            </div>
-          ))}
         </div>
 
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}><Tip>ACCOUNT VELOCITY</Tip></div>
-          {velocityDist.map(v => (
-            <div key={v.status} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <div style={{ width: '80px', fontFamily: FONT_SANS, fontSize: '10px', color: v.color, fontWeight: 600 }}>{v.status}</div>
-              <div style={{ flex: 1, height: '8px', background: T.border, borderRadius: '4px', position: 'relative' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: '4px', width: `${accounts.length > 0 ? (v.count / accounts.length) * 100 : 0}%`, background: v.color }} />
-              </div>
-              <div style={{ width: '30px', fontFamily: FONT_MONO, fontSize: '11px', fontWeight: 600, color: v.color, textAlign: 'right' }}>{v.count}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, padding: '14px' }}>
-          <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em', marginBottom: '12px' }}>
-            <Tip label="Net Revenue Retention distribution across accounts.">NRR DISTRIBUTION</Tip>
-          </div>
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={nrrDist} margin={{ left: 5, right: 5 }}>
-              <XAxis dataKey="label" tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: FONT_MONO, fontSize: 8, fill: T.textDim }} axisLine={false} tickLine={false} width={25} />
-              <Tooltip contentStyle={chartTheme.tooltip} />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Accounts">
-                {nrrDist.map((entry, i) => (
-                  <Cell key={i} fill={entry.min >= 1.0 ? T.green : entry.min >= 0.9 ? T.yellow : T.red} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {repProductivity.length > 0 && (
-        <div style={{ background: T.card, borderRadius: RADIUS, boxShadow: CARD_SHADOW, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 14px', borderBottom: `1px solid ${T.border}` }}>
-            <div style={{ fontFamily: FONT_SANS, fontSize: '10px', color: T.textDim, letterSpacing: '0.04em' }}>
-              <Tip label="ARR, pipeline, and deal count per sales rep.">REP PRODUCTIVITY</Tip>
-            </div>
-          </div>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 0.8fr 0.8fr 0.5fr',
-            gap: '4px', padding: '8px 12px', background: T.surface,
-            borderBottom: `1px solid ${T.border}`,
-            fontFamily: FONT_SANS, fontSize: '9px', color: T.textDim, letterSpacing: '0.04em',
-          }}>
-            <div>Rep</div>
-            <div style={{ textAlign: 'right' }}>ARR</div>
-            <div style={{ textAlign: 'right' }}>Pipeline</div>
-            <div style={{ textAlign: 'right' }}>Accounts</div>
-            <div style={{ textAlign: 'right' }}>Deals</div>
-          </div>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            {repProductivity.map((r, i) => (
-              <div key={r.rep} style={{
-                display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 0.8fr 0.8fr 0.5fr',
-                gap: '4px', padding: '8px 12px', fontSize: '11px',
-                borderBottom: `1px solid ${T.border}`,
-                background: i % 2 === 0 ? 'transparent' : `${T.surface}40`,
-              }}>
-                <div style={{ fontWeight: 600 }}>{r.rep}</div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', color: T.cyan }}>{$(r.arr)}</div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', color: T.purple }}>{$k(r.pipeline)}</div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', color: T.textMid }}>{r.accounts}</div>
-                <div style={{ textAlign: 'right', fontFamily: FONT_MONO, fontSize: '10px', color: T.teal }}>{r.deals}</div>
-              </div>
+        {/* Timeline toggle */}
+        <div className="flex items-center gap-3 mb-2">
+          <span className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase w-16">Timeline</span>
+          <div className="flex gap-0.5 bg-revos-surface rounded-xl p-0.5">
+            {['month', 'quarter', 'annual'].map(m => (
+              <button
+                key={m}
+                onClick={() => setPeriodMode(m)}
+                className={cn(
+                  'px-3 py-1 rounded-[10px] border-none cursor-pointer font-mono text-[10px] font-semibold capitalize',
+                  periodMode === m ? 'bg-revos-card text-revos-cyan shadow-card' : 'bg-transparent text-revos-text-dim shadow-none'
+                )}
+              >{m}</button>
             ))}
           </div>
         </div>
-      )}
+
+        {/* Ownership toggle */}
+        <div className="flex items-center gap-3 mb-2">
+          <span className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase w-16">View</span>
+          <div className="flex gap-0.5 bg-revos-surface rounded-xl p-0.5">
+            {[['rep', 'Rep'], ['1lm', '1LM']].map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => { setOwnerView(k); setSelectedOwner(null) }}
+                className={cn(
+                  'px-3 py-1 rounded-[10px] border-none cursor-pointer font-mono text-[10px] font-semibold',
+                  ownerView === k ? 'bg-revos-card text-revos-cyan shadow-card' : 'bg-transparent text-revos-text-dim shadow-none'
+                )}
+              >{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Owner pills */}
+        <div className="flex items-center gap-3">
+          <span className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase w-16">Owner</span>
+          <div className="flex gap-1 flex-wrap">
+            <button
+              onClick={() => setSelectedOwner(null)}
+              className={cn(
+                'px-2.5 py-1 rounded-full border cursor-pointer font-mono text-[9px] transition-all',
+                !selectedOwner
+                  ? 'bg-revos-cyan/15 text-revos-cyan border-revos-cyan/30'
+                  : 'bg-transparent text-revos-text-dim border-revos-border hover:border-revos-text-dim'
+              )}
+            >All</button>
+            {ownerPills.map(name => (
+              <button
+                key={name}
+                onClick={() => setSelectedOwner(selectedOwner === name ? null : name)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full border cursor-pointer font-mono text-[9px] transition-all',
+                  selectedOwner === name
+                    ? 'bg-revos-cyan/15 text-revos-cyan border-revos-cyan/30'
+                    : 'bg-transparent text-revos-text-dim border-revos-border hover:border-revos-text-dim'
+                )}
+              >{name}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Hero Card ── */}
+      <AnimatedBorderCard className="bg-revos-card rounded-xl shadow-card p-4 mb-4" borderColor={T.accent}>
+        {/* KPI strip */}
+        <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <Tip label={`SUM(deal MRR) where: Forecast = Closed, MRR > 0, Close Date in ${periodTitle}, Major Project = blank, Premier. Source: funnel.csv`}>
+                <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-1">{periodLabel} Bookings</div>
+              </Tip>
+              <div className="font-mono text-lg font-bold text-revos-green">{$k(periodBookings)}<span className="text-[10px] font-normal text-revos-text-dim">/mo</span></div>
+            </div>
+            <Sparkline data={SPARK_BOOK} color={T.green} width={48} height={20} />
+          </div>
+          <div className="flex items-start justify-between">
+            <div>
+              <Tip label={`SUM(deal MRR × Stage Win Prob) for active pipeline. Major Project = blank, Premier.`}>
+                <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-1">Weighted Pipeline</div>
+              </Tip>
+              <div className="font-mono text-lg font-bold text-revos-purple">{$k(weightedPipeline)}<span className="text-[10px] font-normal text-revos-text-dim">/mo</span></div>
+              <div className="font-mono text-[9px] text-revos-text-dim">Raw: {$k(totalRawMRR)}/mo</div>
+            </div>
+            <Sparkline data={SPARK_PIPE} color={T.purple} width={48} height={20} />
+          </div>
+          <div className="flex items-start justify-between">
+            <div>
+              <Tip label={`Won ÷ (Won + Lost) in ${periodTitle}. = ${totalWon} ÷ (${totalWon} + ${totalLost})`}>
+                <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-1">Win Rate</div>
+              </Tip>
+              <div className="font-mono text-lg font-bold" style={{ color: winRate >= 0.5 ? T.green : T.yellow }}>{pc(winRate)}</div>
+              <div className="font-mono text-[9px] text-revos-text-dim">{totalWon}W / {totalLost}L</div>
+            </div>
+            <ProgressRing value={Math.round(winRate * 100)} size={36} color={winRate >= 0.5 ? T.green : T.yellow} strokeWidth={2.5} />
+          </div>
+          <div className="flex items-start justify-between">
+            <div>
+              <Tip label={`SUM(|MRR|) where MRR < 0, Close Date in ${periodTitle}, Premier. Source: funnel.csv`}>
+                <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-1">{periodLabel} Churn</div>
+              </Tip>
+              <div className="font-mono text-lg font-bold text-revos-red">{$k(periodChurn)}<span className="text-[10px] font-normal text-revos-text-dim">/mo</span></div>
+            </div>
+            <Sparkline data={SPARK_CHURN} color={T.red} width={48} height={20} />
+          </div>
+        </div>
+
+        {/* Chart */}
+        <div className="border-t border-revos-border pt-3">
+          <div className="font-sans text-[10px] text-revos-text-dim tracking-wide mb-2">
+            BOOKINGS vs CHURN — {periodTitle.toUpperCase()}
+            {periodMode === 'month' && <span className="text-revos-text-dim ml-1">(cumulative)</span>}
+          </div>
+          <ForecastChart data={chartData} periodMode={periodMode} />
+          <div className="flex gap-4 mt-2 font-mono text-[9px]">
+            <span className="text-revos-green">● Bookings</span>
+            <span className="text-revos-red">● Churn</span>
+            <span className="text-revos-teal">- - Net</span>
+          </div>
+        </div>
+      </AnimatedBorderCard>
+
+      {/* ── Section: Pipeline by Stage ── */}
+      <Section
+        title="Pipeline by Stage"
+        badge={`${$k(totalRawMRR)}/mo → ${$k(totalWeightedMRR)}/mo`}
+        defaultOpen={true}
+        color={T.purple}
+      >
+        {stageData.length > 0 ? (
+          <>
+            {stageData.map(s => {
+              const maxRaw = Math.max(...stageData.map(x => x.raw), 1)
+              const barPct = (s.raw / maxRaw) * 100
+              const color = STAGE_COLORS[s.stage] || T.textDim
+              return (
+                <div key={s.stage} className="mb-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-sans text-[10px] font-semibold" style={{ color }}>{s.stage}</span>
+                      <span className="font-mono text-[9px] text-revos-text-dim">({(s.prob * 100).toFixed(1)}%)</span>
+                      <span className="font-mono text-[9px] text-revos-text-dim">{s.count} deal{s.count !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="font-mono text-[9px]">
+                      <span className="text-revos-purple">{$k(s.raw)}/mo</span>
+                      <span className="text-revos-text-dim"> → </span>
+                      <span className="text-revos-teal font-semibold">{$k(s.weighted)}/mo</span>
+                    </div>
+                  </div>
+                  <div className="relative h-[6px] bg-revos-border rounded-sm">
+                    <div className="absolute left-0 top-0 h-full rounded-sm transition-all" style={{ width: `${barPct}%`, background: `${color}40` }} />
+                    <div className="absolute left-0 top-0 h-full rounded-sm transition-all" style={{ width: `${barPct * s.prob}%`, background: color }} />
+                  </div>
+                </div>
+              )
+            })}
+            <div className="flex justify-between pt-2 border-t border-revos-border font-mono text-[10px] font-bold mt-1">
+              <span className="text-revos-text">Total ({currentActiveDeals.length} deals)</span>
+              <span>
+                <span className="text-revos-purple">{$k(totalRawMRR)}/mo</span>
+                <span className="text-revos-text-dim"> → </span>
+                <span className="text-revos-teal">{$k(totalWeightedMRR)}/mo</span>
+              </span>
+            </div>
+
+            {/* Forecast category breakdown */}
+            {byForecast.length > 0 && (
+              <div className="mt-4">
+                <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-2">BY FORECAST CATEGORY</div>
+                <div className="flex gap-2">
+                  {byForecast.map(f => {
+                    const color = f.category === 'Closed' ? T.green : f.category === 'Commit' ? T.teal : f.category === 'Best Case' ? T.cyan : f.category === 'Longshot' ? T.yellow : T.textDim
+                    return (
+                      <div key={f.category} className="flex-1 p-2.5 bg-revos-surface rounded-lg" style={{ borderLeft: `3px solid ${color}` }}>
+                        <div className="font-sans text-[9px] text-revos-text-dim mb-0.5">{f.category}</div>
+                        <div className="font-mono text-sm font-bold" style={{ color }}>{$k(f.mrr)}/mo</div>
+                        <div className="font-mono text-[9px] text-revos-text-dim">{f.count} deal{f.count !== 1 ? 's' : ''}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-6 font-mono text-[10px] text-revos-text-dim">No active pipeline deals</div>
+        )}
+      </Section>
+
+      {/* ── Section: Product Intelligence ── */}
+      <Section
+        title="Product Intelligence"
+        badge={`${productPipeline.length} products`}
+        color={T.cyan}
+      >
+        {productPipeline.length > 0 ? (
+          <div className="space-y-2">
+            {productPipeline.map(p => {
+              const maxVal = Math.max(...productPipeline.map(x => x.pipeline + x.bookings), 1)
+              const pipePct = (p.pipeline / maxVal) * 100
+              const bookPct = (p.bookings / maxVal) * 100
+              return (
+                <div key={p.product}>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <span className="font-sans text-[10px] font-semibold text-revos-text">{p.product}</span>
+                    <div className="font-mono text-[9px]">
+                      <span className="text-revos-purple">{$k(p.pipeline)}/mo pipe</span>
+                      {p.bookings > 0 && (
+                        <>
+                          <span className="text-revos-text-dim"> · </span>
+                          <span className="text-revos-green">{$k(p.bookings)}/mo booked</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative h-[5px] bg-revos-border rounded-sm">
+                    <div className="absolute left-0 top-0 h-full rounded-sm" style={{ width: `${pipePct}%`, background: `${T.purple}60` }} />
+                    <div className="absolute left-0 top-0 h-full rounded-sm" style={{ width: `${bookPct}%`, background: T.green }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6 font-mono text-[10px] text-revos-text-dim">No product data</div>
+        )}
+      </Section>
+
+      {/* ── Section: Churn & Risk ── */}
+      <Section
+        title="Churn & Risk"
+        badge={`${atRiskAccounts.length} at risk`}
+        color={T.red}
+      >
+        {/* Churn KPIs */}
+        <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="bg-revos-surface rounded-lg p-2.5">
+            <div className="font-sans text-[9px] text-revos-text-dim mb-1">Total Churn TMR</div>
+            <div className="font-mono text-sm font-bold text-revos-red">{$k(totalChurnTMR)}</div>
+            <div className="font-mono text-[9px] text-revos-text-dim">{churnDeals.length} deals</div>
+          </div>
+          <div className="bg-revos-surface rounded-lg p-2.5">
+            <div className="font-sans text-[9px] text-revos-text-dim mb-1">At-Risk TMR</div>
+            <div className="font-mono text-sm font-bold text-revos-orange">{$(atRiskTMR)}</div>
+            <div className="font-mono text-[9px] text-revos-text-dim">{atRiskAccounts.length} accounts</div>
+          </div>
+          <div className="bg-revos-surface rounded-lg p-2.5">
+            <div className="font-sans text-[9px] text-revos-text-dim mb-1">Avg Churn Deal</div>
+            <div className="font-mono text-sm font-bold text-revos-red">{$k(churnDeals.length > 0 ? totalChurnTMR / churnDeals.length : 0)}</div>
+          </div>
+          <div className="bg-revos-surface rounded-lg p-2.5">
+            <div className="font-sans text-[9px] text-revos-text-dim mb-1">Churn Rate</div>
+            <div className="font-mono text-sm font-bold text-revos-yellow">{filteredAccounts.length > 0 ? pc(atRiskAccounts.length / filteredAccounts.length) : '---'}</div>
+            <div className="font-mono text-[9px] text-revos-text-dim">of accounts at risk</div>
+          </div>
+        </div>
+
+        {/* Churn by product */}
+        {churnByProduct.length > 0 && (
+          <div className="mb-4">
+            <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-2">CHURN BY PRODUCT</div>
+            {churnByProduct.map(p => {
+              const maxVal = Math.max(...churnByProduct.map(x => x.value), 1)
+              const pct = (p.value / maxVal) * 100
+              return (
+                <div key={p.name} className="mb-1.5">
+                  <div className="flex justify-between items-center mb-0.5">
+                    <span className="font-sans text-[10px] text-revos-text">{p.name}</span>
+                    <span className="font-mono text-[9px] text-revos-red">{$k(p.value)}/mo · {p.count} deal{p.count !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="relative h-[4px] bg-revos-border rounded-sm">
+                    <div className="absolute left-0 top-0 h-full rounded-sm" style={{ width: `${pct}%`, background: T.red }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* At-risk accounts table */}
+        {atRiskAccounts.length > 0 && (
+          <div>
+            <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-2">AT-RISK ACCOUNTS</div>
+            <div className="bg-revos-surface rounded-lg overflow-hidden">
+              <div
+                className="grid gap-1 px-3 py-1.5 font-sans text-[9px] text-revos-text-dim tracking-wide border-b border-revos-border"
+                style={{ gridTemplateColumns: '2fr 0.6fr 0.8fr 0.6fr 1fr' }}
+              >
+                <div>Account</div>
+                <div className="text-right">Risk</div>
+                <div className="text-right">TMR</div>
+                <div className="text-right">NRR</div>
+                <div>Owner</div>
+              </div>
+              {atRiskAccounts.map((acc, i) => (
+                <div
+                  key={acc.name}
+                  className="grid gap-1 px-3 py-1.5 text-[10px] border-b border-revos-border last:border-b-0"
+                  style={{
+                    gridTemplateColumns: '2fr 0.6fr 0.8fr 0.6fr 1fr',
+                    background: i % 2 === 0 ? 'transparent' : `${T.surface}40`,
+                  }}
+                >
+                  <div className="font-semibold text-revos-text">{acc.name}</div>
+                  <div className="text-right">
+                    <span className={cn('font-mono text-[9px] font-semibold', acc.risk_score >= 50 ? 'text-revos-red' : 'text-revos-orange')}>{acc.risk_score}</span>
+                  </div>
+                  <div className="text-right font-mono text-[9px] text-revos-cyan">{$(acc.tmr)}</div>
+                  <div className={cn('text-right font-mono text-[9px]', acc.nrr >= 1 ? 'text-revos-green' : 'text-revos-red')}>{pc(acc.nrr)}</div>
+                  <div className="font-mono text-[9px] text-revos-text-mid">{acc.sales_owner || acc.rep}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Section: Buy Patterns & Velocity ── */}
+      <Section
+        title="Buy Patterns & Velocity"
+        badge={avgCycle ? `${avgCycle}d avg cycle` : undefined}
+        color={T.teal}
+      >
+        {/* Seasonality bars */}
+        <div className="mb-4">
+          <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-2">
+            <Tip label="Total closed MRR by month, aggregated across all years. Premier channel only.">BOOKING SEASONALITY</Tip>
+          </div>
+          <div className="flex items-end gap-1" style={{ height: 80 }}>
+            {seasonality.map((m, i) => {
+              const maxMRR = Math.max(...seasonality.map(x => x.mrr), 1)
+              const h = maxMRR > 0 ? (m.mrr / maxMRR) * 70 : 0
+              const isCurrentMonth = i === now.getMonth()
+              return (
+                <div key={m.month} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div
+                    className="w-full rounded-t-sm transition-all"
+                    style={{
+                      height: Math.max(h, 2),
+                      background: isCurrentMonth ? T.cyan : m.mrr > 0 ? T.green : T.border,
+                      opacity: isCurrentMonth ? 1 : 0.7,
+                    }}
+                  />
+                  <span className={cn('font-mono text-[7px]', isCurrentMonth ? 'text-revos-cyan font-bold' : 'text-revos-text-dim')}>{m.month}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Sales cycle trend */}
+        {cycleTrend.length > 0 && (
+          <div className="mb-4">
+            <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-2">
+              <Tip label="Average days from deal creation to close, by quarter. Premier channel only.">AVG SALES CYCLE</Tip>
+            </div>
+            <div className="flex items-end gap-1" style={{ height: 60 }}>
+              {cycleTrend.map((q, i) => {
+                const maxDays = Math.max(...cycleTrend.map(x => x.avgDays), 1)
+                const h = (q.avgDays / maxDays) * 50
+                const isLast = i === cycleTrend.length - 1
+                return (
+                  <div key={q.quarter} className="flex-1 flex flex-col items-center gap-0.5">
+                    <span className="font-mono text-[8px] text-revos-text-mid">{q.avgDays}d</span>
+                    <div
+                      className="w-full rounded-t-sm"
+                      style={{ height: Math.max(h, 2), background: isLast ? T.orange : `${T.orange}60` }}
+                    />
+                    <span className="font-mono text-[7px] text-revos-text-dim">{q.quarter.replace(/^\d+ /, '')}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Deal velocity summary */}
+        <div>
+          <div className="font-sans text-[9px] text-revos-text-dim tracking-wider uppercase mb-2">ACCOUNT VELOCITY</div>
+          <div className="flex gap-3">
+            {(() => {
+              const v = { accelerating: 0, stable: 0, stalled: 0 }
+              for (const a of filteredAccounts) {
+                const vel = (a.velocity || '').toLowerCase()
+                if (vel === 'accelerating') v.accelerating++
+                else if (vel === 'stalled') v.stalled++
+                else if (vel === 'stable') v.stable++
+              }
+              return [
+                { label: 'Accelerating', count: v.accelerating, color: T.green },
+                { label: 'Stable', count: v.stable, color: T.yellow },
+                { label: 'Stalled', count: v.stalled, color: T.red },
+              ].filter(x => x.count > 0).map(x => (
+                <div key={x.label} className="flex items-center gap-1.5 bg-revos-surface rounded-lg px-3 py-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: x.color }} />
+                  <span className="font-sans text-[10px] text-revos-text">{x.label}</span>
+                  <span className="font-mono text-[11px] font-bold" style={{ color: x.color }}>{x.count}</span>
+                </div>
+              ))
+            })()}
+          </div>
+        </div>
+      </Section>
     </div>
   )
 }

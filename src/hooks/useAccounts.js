@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { parseCSV } from '../lib/normalize'
-import { buildAccountState } from '../lib/accountBuilder'
+import { buildAccountState, normalizeStage } from '../lib/accountBuilder'
 
 /**
  * All data stays in browser memory only.
@@ -222,7 +222,7 @@ export default function useAccounts() {
         name,
         account_id: state.account_id,
         vertical: state.mega_vertical,
-        arr: state.total_arr,
+        tmr: state.total_tmr,
         mrr: state.total_mrr,
         pipeline_mrr: state.active_pipeline_mrr,
         pipeline_count: state.active_pipeline_count,
@@ -298,7 +298,7 @@ export default function useAccounts() {
             }))
           : (state.historical_deals || []),
         churn_deals_list: jsonHistorical.length > 0
-          ? jsonHistorical.filter(d => d.s === 'Closed Won' && (d.m || 0) < 0).map(d => ({
+          ? jsonHistorical.filter(d => normalizeStage(d.s || '') === 'closed won' && (d.m || 0) < 0).map(d => ({
               product: d.p || 'Unknown', mrr: d.m || 0, stage: d.s || '', close: d.c || '',
             }))
           : (state.historical_deals || []).filter(d => d.mrr < 0),
@@ -351,10 +351,19 @@ export default function useAccounts() {
                 classification: '', feet_from_network: 0, market: '',
               }
             }),
+        services: state.services
+          .filter(s => (s.service_status || '').toLowerCase() === 'active')
+          .map(s => ({
+            product: s.product_group || s.product || 'Unknown',
+            mrr: parseFloat(s.mrr) || 0,
+            expDate: s.exp_date || s.contract_end_date || s.term_end || '',
+            term: s.term_months || s.term || '',
+            status: s.service_status || 'active',
+          })),
       })
     }
 
-    built.sort((a, b) => b.arr - a.arr)
+    built.sort((a, b) => b.tmr - a.tmr)
     setAccounts(built)
     setIsDemo(false)
   }, [])
