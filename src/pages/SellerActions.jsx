@@ -438,6 +438,7 @@ function rankAccounts(accounts, mode) {
       card: {
         type: id, label: lbl.label, labelColor: lbl.color,
         account: item.acct.name || item.acct.id,
+        tmr: item.acct.tmr || item.acct.mrr || 0,
         tagline: item.tagline, signals: item.signals, suggestedMove: item.suggestedMove,
         cta: ctaMap[item.mode] || 'Take Action',
         ctaSecondary: item.mode === 'Growth' ? 'Build Outreach' : null,
@@ -801,6 +802,7 @@ export default function SellerActions({ accounts, onNavigate }) {
         card: {
           type: id, label: lbl.label, labelColor: lbl.color,
           account: item.acct.name || item.acct.id,
+          tmr: item.acct.tmr || item.acct.mrr || 0,
           tagline: item.tagline, signals: item.signals, suggestedMove: item.suggestedMove,
           cta: ctaMap[item.mode] || 'Take Action',
           ctaSecondary: item.mode === 'Growth' ? 'Build Outreach' : null,
@@ -1063,6 +1065,9 @@ export default function SellerActions({ accounts, onNavigate }) {
                     <span className="text-[9px] font-mono font-bold tracking-wider rounded px-1.5 py-[2px]" style={{ color: card.labelColor, background: `${card.labelColor}18`, border: `1px solid ${card.labelColor}35` }}>
                       {card.label}
                     </span>
+                  </div>
+                  <div className="font-mono text-[11px] font-semibold mb-0.5" style={{ color: T.cyan }}>
+                    {card.tmr > 0 ? `$${card.tmr.toLocaleString()} TMR` : '$0 TMR'}
                   </div>
                   <div className="font-sans text-[11px] text-revos-text-dim truncate">
                     {card.tagline}
