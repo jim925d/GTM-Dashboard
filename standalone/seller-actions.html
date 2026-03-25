@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RevOS - Seller Actions</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- React 18 UMD -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            revos: {
+              bg: '#111111',
+              surface: '#161616',
+              card: '#1C1C1C',
+              'card-hover': '#222222',
+              border: '#2A2A2A',
+              'border-light': '#3A3A3A',
+              text: '#F5F0E8',
+              'text-mid': '#D8D0C4',
+              'text-dim': '#A89888',
+              cyan: '#6EC8E4',
+              green: '#6ED8A0',
+              red: '#E87070',
+              yellow: '#E8C868',
+              orange: '#E8A050',
+              purple: '#B090E0',
+              blue: '#70A8E0',
+              teal: '#50D0B8',
+              pink: '#E888B0',
+              lime: '#B0E050',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ["'JetBrains Mono'", 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background: #111111;
+      color: #F5F0E8;
+      font-family: 'Inter', system-ui, sans-serif;
+      margin: 0;
+    }
+    @keyframes tooltipIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // ── Color tokens ──────────────────────────────────────────────
+    const T = {
+      bg: '#111111',
+      surface: '#161616',
+      card: '#1C1C1C',
+      cardHover: '#222222',
+      border: '#2A2A2A',
+      borderLight: '#3A3A3A',
+      text: '#F5F0E8',
+      textMid: '#D8D0C4',
+      textDim: '#A89888',
+      cyan: '#6EC8E4',
+      green: '#6ED8A0',
+      red: '#E87070',
+      yellow: '#E8C868',
+      orange: '#E8A050',
+      purple: '#B090E0',
+      blue: '#70A8E0',
+      teal: '#50D0B8',
+      pink: '#E888B0',
+      lime: '#B0E050',
+    }
+
+    // ── Utility ───────────────────────────────────────────────────
+    const cn = (...args) => args.filter(Boolean).join(' ')
+
+    // ── Module-level variable ─────────────────────────────────────
+    let modelSource = 'demo'
+
+    // ── Math helpers ──────────────────────────────────────────────
+    const sigmoid = x => 1 / (1 + Math.exp(-Math.max(-500, Math.min(500, x))))
+    const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0)
+    const predict = (x, model) => sigmoid(dot(model.weights, x) + model.bias)
+
+    function extractFeatures(deal, stats) {
+      const ov = stats.overall
+      const vwr = stats.vwr[deal.vertical] ?? ov
+      const pwr = stats.pwr[deal.product] ?? ov
+      const szp = stats.valsSorted.length ? stats.valsSorted.findIndex(v => v >= deal.dealValue) / stats.valsSorted.length : 0.5
+      const dn = deal.daysOpen != null ? Math.max(0, Math.min(1, 1 - (deal.daysOpen - stats.daysMean) / (stats.daysStd * 3 + 1))) : 0.5
+      const cwr = stats.comboR[`${deal.vertical}|${deal.product}`] ?? ov
+      return [vwr, pwr, szp < 0 ? 1 : szp, dn, cwr]
+    }
+
+    // ── Demo fallback model ───────────────────────────────────────
+    const DEMO_MODEL = {
+      generatedAt: '2026-03-18T00:00:00Z', source: 'demo',
+      stats: {
+        overall: 0.52,
+        vwr: { 'Enterprise Telco': 0.68, 'Regional ISP': 0.54, 'Cable MSO': 0.61, 'Neutral Host': 0.44 },
+        pwr: { 'Metro Ethernet': 0.71, DIA: 0.58, 'SD-WAN': 0.63, MPLS: 0.49 },
+        comboR: { 'Enterprise Telco|Metro Ethernet': 0.79, 'Regional ISP|DIA': 0.55, 'Cable MSO|SD-WAN': 0.66, 'Neutral Host|MPLS': 0.38 },
+        valsSorted: [2000, 4000, 6000, 8000, 10000, 12000, 15000, 20000], daysMean: 28, daysStd: 14,
+      },
+      vertModels: {
+        'Enterprise Telco': { weights: [1.2, 0.9, -0.3, 0.4, 1.1], bias: -0.5 },
+        'Regional ISP': { weights: [0.8, 1.1, -0.2, 0.3, 0.7], bias: -0.3 },
+      },
+      globalModel: { weights: [0.9, 0.8, -0.25, 0.35, 0.85], bias: -0.35 },
+      churnModel: { weights: [1.1, 0.9, -0.3, 0.4, 0.8], bias: -0.4 },
+    }
+
+    // ── Scoring functions ─────────────────────────────────────────
+    const scoreWinProb = (deal, md) => Math.round(predict(extractFeatures(deal, md.stats), md.vertModels[deal.vertical] || md.globalModel) * 100)
+    const scoreChurnRisk = (deal, md) => {
+      const s = md.stats
+      const mtmNorm = Math.min(1, (deal.mtmDays || 0) / 90)
+      const touchNorm = deal.daysSinceContact != null ? Math.min(1, deal.daysSinceContact / 60) : 0.5
+      const szp = s.valsSorted.length ? s.valsSorted.findIndex(v => v >= (deal.dealValue || 0)) / s.valsSorted.length : 0.5
+      const vcr = 1 - (s.vwr[deal.vertical] ?? s.overall)
+      return Math.round(predict([mtmNorm, touchNorm, szp < 0 ? 1 : szp, vcr, 0.5], md.churnModel) * 100)
+    }
+
+    const buildWinBreakdown = (deal, md) => {
+      const s = md.stats
+      const vwr = s.vwr[deal.vertical] ?? s.overall, pwr = s.pwr[deal.product] ?? s.overall
+      const cwr = s.comboR[`${deal.vertical}|${deal.product}`] ?? s.overall
+      const szp = s.valsSorted.length ? s.valsSorted.findIndex(v => v >= deal.dealValue) / s.valsSorted.length : 0.5
+      return [
+        { icon: '\ud83d\udcca', label: 'Vertical win rate', value: `${Math.round(vwr * 100)}%`, sub: deal.vertical, score: Math.round(vwr * 100) },
+        { icon: '\u2705', label: 'Product win rate', value: `${Math.round(pwr * 100)}%`, sub: deal.product, score: Math.round(pwr * 100) },
+        { icon: '\u2694\ufe0f', label: 'Vertical \u00d7 Product', value: `${Math.round(cwr * 100)}%`, sub: `${deal.vertical} + ${deal.product}`, score: Math.round(cwr * 100) },
+        { icon: '\ud83d\udcb0', label: 'Deal size percentile', value: `${Math.round((szp < 0 ? 1 : szp) * 100)}th`, sub: `$${(deal.dealValue || 0).toLocaleString()} MRR`, score: Math.round((szp < 0 ? 1 : szp) * 100) },
+        { icon: '\u23f1', label: 'Days open', value: deal.daysOpen != null ? `${deal.daysOpen}d` : '\u2014', sub: `Avg close: ${s.daysMean}d`, score: deal.daysOpen != null ? Math.round(Math.max(0, Math.min(1, 1 - (deal.daysOpen - s.daysMean) / (s.daysStd * 3 + 1))) * 100) : 50 },
+      ]
+    }
+
+    const buildChurnBreakdown = (deal, md) => {
+      const s = md.stats
+      const vwr = s.vwr[deal.vertical] ?? s.overall
+      return [
+        { icon: '\u23f0', label: 'Days in MtM', value: `${deal.mtmDays || 0}d`, sub: 'churn risk rises after 60d', score: Math.min(100, Math.round(((deal.mtmDays || 0) / 90) * 100)) },
+        { icon: '\ud83d\udcc9', label: 'Days since contact', value: deal.daysSinceContact != null ? `${deal.daysSinceContact}d` : '\u2014', sub: 'no renewal discussion logged', score: Math.min(100, Math.round(((deal.daysSinceContact || 0) / 60) * 100)) },
+        { icon: '\ud83c\udfe2', label: 'Vertical churn rate', value: `${Math.round((1 - vwr) * 100)}%`, sub: deal.vertical, score: Math.round((1 - vwr) * 100) },
+        { icon: '\ud83d\udcb0', label: 'MRR at risk', value: `$${(deal.dealValue || 0).toLocaleString()}`, sub: 'total exposed revenue', score: 80 },
+        { icon: '\ud83d\udee1\ufe0f', label: 'Save window', value: deal.mtmDays < 60 ? 'Open' : 'Closing', sub: 'save rate drops after day 60', score: deal.mtmDays < 60 ? 30 : 85 },
+      ]
+    }
+
+    // ── Demo deal profiles & card content ─────────────────────────
+    const DEMO_CARDS = [
+      // ── PROSPECTING ──────────────────────────────────────
+      {
+        card: {
+          type: 'prospect_1', label: 'PROSPECTING', labelColor: T.blue, mode: 'Prospecting',
+          account: 'Pacific Fiber Networks', tagline: '3 new locations detected \u00b7 Competitor shift at HQ',
+          signals: [
+            { icon: '\ud83d\udccd', text: 'Added 3 locations in Sacramento metro (last 30 days)' },
+            { icon: '\u26a1', text: 'HQ site moved on-net \u2014 AT&T lost coverage on Nov build-out' },
+            { icon: '\ud83d\udcc9', text: 'Lost 2 competitor bids in 2023 \u2014 both on price, not product' },
+            { icon: '\ud83d\udcb0', text: 'Historically buys in $8K\u2013$14K MRR range per location' },
+          ],
+          suggestedMove: 'Reach out re: new Sacramento sites. Lead with the HQ on-net news \u2014 they\u2019ve been price-sensitive, not product-sensitive. Anchor to $10K MRR per site.',
+          cta: 'Draft Outreach', hasWinProb: false, hasChurnRisk: false,
+        },
+        dealProfile: { vertical: 'Regional ISP', product: 'Metro Ethernet', dealValue: 10000, daysOpen: null, mtmDays: null, daysSinceContact: null },
+      },
+      {
+        card: {
+          type: 'prospect_2', label: 'PROSPECTING', labelColor: T.blue, mode: 'Prospecting',
+          account: 'Redwood Municipal Broadband', tagline: 'New logo \u00b7 RFP open for dark fiber backbone',
+          signals: [
+            { icon: '\ud83c\udfaf', text: 'Open RFP for 10G dark fiber ring connecting 5 city buildings \u2014 deadline Apr 15' },
+            { icon: '\ud83c\udfe2', text: 'All 5 locations within 0.5mi of your existing fiber routes' },
+            { icon: '\ud83d\udcca', text: 'Municipal broadband vertical win rate: 72% when on-net advantage exists' },
+            { icon: '\ud83d\udcb0', text: 'Estimated MRR: $18K\u2013$24K for full ring + maintenance' },
+          ],
+          suggestedMove: 'Submit RFP response by Apr 10. Lead with on-net proximity and SLA guarantees \u2014 municipals prioritize reliability over price.',
+          cta: 'Draft Outreach', hasWinProb: false, hasChurnRisk: false,
+        },
+        dealProfile: { vertical: 'Public Sector', product: 'Dark Fiber', dealValue: 20000, daysOpen: null, mtmDays: null, daysSinceContact: null },
+      },
+      {
+        card: {
+          type: 'prospect_3', label: 'PROSPECTING', labelColor: T.blue, mode: 'Prospecting',
+          account: 'Summit Health Partners', tagline: 'Healthcare expansion \u00b7 3 new clinic sites announced',
+          signals: [
+            { icon: '\ud83c\udfe5', text: '3 new urgent care clinics opening in Denver metro \u2014 Q2 2026 target' },
+            { icon: '\ud83d\udd12', text: 'Healthcare requires HIPAA-compliant connectivity \u2014 your SD-WAN meets this' },
+            { icon: '\ud83d\udd04', text: 'Similar win: MedFirst Group, 4 clinics, $9,200 MRR, 22-day close' },
+            { icon: '\ud83d\udccd', text: '2 of 3 sites are on-net today \u2014 third is 0.4mi from POP' },
+          ],
+          suggestedMove: 'Initiate contact with their IT Director. Lead with HIPAA-compliant SD-WAN bundle and reference the MedFirst deployment.',
+          cta: 'Draft Outreach', hasWinProb: false, hasChurnRisk: false,
+        },
+        dealProfile: { vertical: 'Healthcare', product: 'SD-WAN', dealValue: 9200, daysOpen: null, mtmDays: null, daysSinceContact: null },
+      },
+      // ── GROWTH ────────────────────────────────────────────
+      {
+        card: {
+          type: 'growth_1', label: 'GROWTH', labelColor: T.green, mode: 'Growth',
+          account: 'Cascade Broadband Co.', tagline: '2 locations underserved \u00b7 Competitor displacement opportunity',
+          signals: [
+            { icon: '\ud83c\udfe2', text: 'Phoenix (AZ-04): Currently on Lumen DIA 500Mb \u2014 your 1Gb fiber is on-net same building' },
+            { icon: '\ud83c\udfe2', text: 'Tucson (AZ-07): Off-net today, new on-net POP live Q1 2026 \u2014 0.3mi from their office' },
+            { icon: '\ud83d\udd04', text: 'Similar displacement win in Mesa, AZ \u2014 $6,200 MRR, 14-day close' },
+            { icon: '\ud83d\udca1', text: 'Recommend: Metro Ethernet 1Gb at Phoenix, SD-WAN bundle at Tucson on activation' },
+          ],
+          suggestedMove: 'Lead with Phoenix \u2014 it\u2019s a direct upgrade at the same building, easy yes. Use that to open Tucson conversation before your POP goes live.',
+          cta: 'Build Quote', ctaSecondary: 'Build Outreach', hasWinProb: true, hasChurnRisk: false,
+        },
+        dealProfile: { vertical: 'Enterprise Telco', product: 'Metro Ethernet', dealValue: 12400, daysOpen: 18, mtmDays: null, daysSinceContact: null },
+      },
+      {
+        card: {
+          type: 'growth_2', label: 'GROWTH', labelColor: T.green, mode: 'Growth',
+          account: 'Pinnacle Data Centers', tagline: '$8.4K MRR customer \u00b7 Cross-connect expansion in progress',
+          signals: [
+            { icon: '\ud83d\udcca', text: 'Currently on DIA 1Gb at 2 sites ($8,400 MRR) \u2014 98.7% utilization on primary' },
+            { icon: '\u26a1', text: 'Customer submitted a 10G wavelength inquiry through portal last week' },
+            { icon: '\ud83c\udfe2', text: 'New data hall opening in Ashburn, VA \u2014 needs connectivity by May 2026' },
+            { icon: '\ud83d\udcb0', text: 'Wavelength + cross-connect bundle estimated at $14K\u2013$18K MRR' },
+          ],
+          suggestedMove: 'Respond to the 10G inquiry with a bundled proposal \u2014 wavelength + Ashburn cross-connect. Offer a 3-year term discount to lock in before they RFP.',
+          cta: 'Build Quote', ctaSecondary: 'Build Outreach', hasWinProb: true, hasChurnRisk: false,
+        },
+        dealProfile: { vertical: 'Enterprise Telco', product: 'Wavelength', dealValue: 16000, daysOpen: 8, mtmDays: null, daysSinceContact: null },
+      },
+      {
+        card: {
+          type: 'growth_3', label: 'GROWTH', labelColor: T.green, mode: 'Growth',
+          account: 'Atlas Tower Co', tagline: 'SD-WAN deal in Propose stage \u00b7 $6.8K MRR',
+          signals: [
+            { icon: '\ud83d\udcc8', text: 'SD-WAN 12-site deal at $6,800 MRR \u2014 moved to Propose stage 5 days ago' },
+            { icon: '\u2705', text: 'Historical win rate for SD-WAN in this vertical: 63%' },
+            { icon: '\ud83d\udd04', text: 'Customer already on your DIA at 4 locations \u2014 strong existing relationship' },
+            { icon: '\ud83d\udca1', text: 'Decision maker (VP Ops) responded positively to last proposal meeting' },
+          ],
+          suggestedMove: 'Schedule a technical review with their network team. The deal is in proposal \u2014 address any remaining objections and push for verbal this week.',
+          cta: 'Build Quote', ctaSecondary: 'Build Outreach', hasWinProb: true, hasChurnRisk: false,
+        },
+        dealProfile: { vertical: 'Neutral Host', product: 'SD-WAN', dealValue: 6800, daysOpen: 25, mtmDays: null, daysSinceContact: null },
+      },
+      // ── RETENTION ─────────────────────────────────────────
+      {
+        card: {
+          type: 'retention_1', label: 'RETENTION', labelColor: T.yellow, mode: 'Retention',
+          account: 'TriState Infrastructure LLC', tagline: '2 services MtM \u00b7 Contract window closing in 34 days',
+          signals: [
+            { icon: '\u23f0', text: 'DIA 200Mb at Dallas-01 went MtM 47 days ago \u2014 no renewal discussion logged' },
+            { icon: '\u23f0', text: 'MPLS 3-site bundle expires Dec 31 \u2014 $11,400 MRR at risk' },
+            { icon: '\ud83d\udcca', text: 'Accounts in this pattern churn within 90 days 68% of the time without contact' },
+            { icon: '\ud83d\udee1\ufe0f', text: 'Save rate jumps to 81% when renewal offer made before day 60 of MtM' },
+          ],
+          suggestedMove: 'Contact by Friday. Offer 2-year renewal with 5% rate lock \u2014 historicals show they respond to pricing stability over upgrades. Don\u2019t lead with new products.',
+          cta: 'Build Renewal Offer', hasWinProb: true, hasChurnRisk: true,
+        },
+        dealProfile: { vertical: 'Enterprise Telco', product: 'MPLS', dealValue: 11400, daysOpen: null, mtmDays: 47, daysSinceContact: 47 },
+      },
+      {
+        card: {
+          type: 'retention_2', label: 'RETENTION', labelColor: T.yellow, mode: 'Retention',
+          account: 'Meridian Telecom Group', tagline: '$22K MRR at risk \u00b7 2 trouble tickets unresolved',
+          signals: [
+            { icon: '\ud83d\udea8', text: '2 open trouble tickets \u2014 latency issues at Chicago-02 and Denver-01 for 12 days' },
+            { icon: '\ud83d\udcc9', text: 'NRR dropped to 87% this quarter \u2014 they downgraded 1 circuit last month' },
+            { icon: '\ud83d\udcb0', text: '$22,400 MRR across 6 locations \u2014 top 10% account by revenue' },
+            { icon: '\u23f0', text: 'Master agreement renewal due in 60 days \u2014 competitor pricing shared internally' },
+          ],
+          suggestedMove: 'Escalate the open tickets immediately \u2014 service issues are the #1 churn driver for high-value accounts. Once resolved, schedule a QBR to discuss renewal terms before competitor gains traction.',
+          cta: 'Build Renewal Offer', hasWinProb: true, hasChurnRisk: true,
+        },
+        dealProfile: { vertical: 'Enterprise Telco', product: 'DIA', dealValue: 22400, daysOpen: null, mtmDays: 30, daysSinceContact: 12 },
+      },
+      {
+        card: {
+          type: 'retention_3', label: 'RETENTION', labelColor: T.yellow, mode: 'Retention',
+          account: 'Clearwater Communications', tagline: '90 days silent \u00b7 Contract expired \u00b7 $7.2K MRR exposed',
+          signals: [
+            { icon: '\u23f0', text: 'No activity in 90 days \u2014 last touch was a billing inquiry on Dec 18' },
+            { icon: '\ud83d\udcdc', text: 'MPLS contract expired 45 days ago \u2014 now month-to-month on all 3 circuits' },
+            { icon: '\ud83d\udcca', text: 'Accounts at 90+ days silence have 74% churn rate within the next quarter' },
+            { icon: '\u2694\ufe0f', text: 'Spectrum Enterprise submitted a competitive quote to their procurement team' },
+          ],
+          suggestedMove: 'This is urgent \u2014 call today. Acknowledge the silence, ask about their experience. Offer a loyalty renewal with rate lock and a free bandwidth upgrade on the primary circuit.',
+          cta: 'Build Renewal Offer', hasWinProb: true, hasChurnRisk: true,
+        },
+        dealProfile: { vertical: 'Cable MSO', product: 'MPLS', dealValue: 7200, daysOpen: null, mtmDays: 90, daysSinceContact: 90 },
+      },
+    ]
+
+    function computeDemoScores(mode, modelData) {
+      const s = {}
+      DEMO_CARDS.filter(d => d.card.mode === mode).forEach(({ card, dealProfile }) => {
+        if (card.hasWinProb) s[card.type] = { winProb: scoreWinProb(dealProfile, modelData), winBreakdown: buildWinBreakdown(dealProfile, modelData) }
+        if (card.hasChurnRisk) s[card.type] = { ...s[card.type], churnRisk: scoreChurnRisk(dealProfile, modelData), churnBreakdown: buildChurnBreakdown(dealProfile, modelData) }
+      })
+      return s
+    }
+
+    // ── Dynamic account ranking engine ────────────────────────────
+    const fmt$ = n => n >= 1e6 ? `$${(n/1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n/1e3).toFixed(1)}K` : `$${n}`
+
+    function classifyAccount(acct) {
+      const mrr = acct.mrr || 0
+      const arr = acct.arr || mrr * 12
+      const pipelineMrr = acct.pipeline_mrr || 0
+      const pipelineCount = acct.pipeline_count || 0
+      const deals = acct.active_deals || []
+      const winRate = acct.win_rate ?? 0
+      const daysSilent = acct.days_silent ?? 0
+      const riskScore = acct.risk_score ?? 0
+      const riskLevel = acct.risk_level || acct.health_level || 'healthy'
+      const velocity = acct.velocity || 'stable'
+      const vertical = acct.vertical || 'Unknown'
+      const products = acct.products || []
+      const churnMrr = acct.churn_mrr || 0
+      const disconnects = acct.disconnects || 0
+      const nrr = acct.nrr ?? 1.0
+
+      // RETENTION: at-risk or critical accounts with existing revenue
+      if ((riskLevel === 'at_risk' || riskLevel === 'critical') && mrr > 0) {
+        const mrrAtRisk = mrr
+        const urgency = riskLevel === 'critical' ? 1.5 : 1.0
+        const silentPenalty = Math.min(2.0, daysSilent / 30)
+        const impactScore = mrrAtRisk * urgency * (1 + silentPenalty)
+
+        const signals = []
+        if (daysSilent > 30) signals.push({ icon: '\u23f0', text: `No contact in ${daysSilent} days \u2014 accounts go silent before they leave` })
+        if (disconnects > 0) signals.push({ icon: '\ud83d\udcc9', text: `${disconnects} service disconnects on record \u2014 signals dissatisfaction` })
+        if (nrr < 1.0) signals.push({ icon: '\u26a0\ufe0f', text: `NRR at ${(nrr * 100).toFixed(0)}% \u2014 revenue contracting` })
+        if (churnMrr > 0) signals.push({ icon: '\ud83d\udcb0', text: `${fmt$(churnMrr)} MRR already churned \u2014 pattern suggests more at risk` })
+        if (riskScore >= 70) signals.push({ icon: '\ud83d\udea8', text: `Risk score ${riskScore}/100 \u2014 ${riskLevel === 'critical' ? 'immediate' : 'elevated'} churn probability` })
+        if (velocity === 'decelerating' || velocity === 'stalled') signals.push({ icon: '\ud83d\udcc9', text: `Account velocity: ${velocity} \u2014 engagement trending down` })
+        if (signals.length < 2) signals.push({ icon: '\ud83d\udee1\ufe0f', text: `${fmt$(mrrAtRisk)} MRR at risk \u2014 proactive outreach improves save rate` })
+
+        const tagline = `${fmt$(mrrAtRisk)} MRR at risk \u00b7 ${riskLevel === 'critical' ? 'Critical' : 'Elevated'} churn signals`
+        const suggestedMove = daysSilent > 45
+          ? `Urgent: reach out this week. ${daysSilent}+ days of silence is a strong churn predictor. Lead with value \u2014 offer a renewal or service review, not an upsell.`
+          : `Schedule a check-in. Address any service concerns first, then explore a renewal lock to stabilize the account.`
+
+        return {
+          mode: 'Retention', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
+          dealProfile: { vertical, product: products[0] || 'DIA', dealValue: mrrAtRisk, daysOpen: null, mtmDays: daysSilent, daysSinceContact: daysSilent },
+          hasWinProb: true, hasChurnRisk: true,
+        }
+      }
+
+      // GROWTH: existing customer with active pipeline
+      if (mrr > 0 && pipelineCount > 0) {
+        const bestDeal = deals.reduce((best, d) => (!best || (d.mrr || 0) > (best.mrr || 0)) ? d : best, null)
+        const dealMrr = bestDeal?.mrr || pipelineMrr
+        const impactScore = pipelineMrr * (winRate > 0 ? winRate : 0.5) * (velocity === 'accelerating' ? 1.3 : 1.0)
+
+        const signals = []
+        if (bestDeal) signals.push({ icon: '\ud83c\udfe2', text: `${bestDeal.product || 'Deal'} at ${fmt$(bestDeal.mrr || 0)} MRR \u2014 stage: ${bestDeal.stage || 'Active'}` })
+        if (pipelineCount > 1) signals.push({ icon: '\ud83d\udcca', text: `${pipelineCount} active opportunities totaling ${fmt$(pipelineMrr)} pipeline MRR` })
+        if (winRate > 0.6) signals.push({ icon: '\u2705', text: `Historical win rate ${(winRate * 100).toFixed(0)}% \u2014 strong conversion pattern` })
+        else if (winRate > 0) signals.push({ icon: '\ud83d\udcca', text: `Win rate ${(winRate * 100).toFixed(0)}% at this account \u2014 ${winRate >= 0.4 ? 'solid' : 'needs attention'}` })
+        if (velocity === 'accelerating') signals.push({ icon: '\u26a1', text: 'Account velocity accelerating \u2014 momentum is on your side' })
+        if (arr > 0) signals.push({ icon: '\ud83d\udcb0', text: `Current ARR ${fmt$(arr)} \u2014 expansion grows wallet share` })
+        if (signals.length < 2) signals.push({ icon: '\ud83d\udca1', text: `${fmt$(pipelineMrr)} in active pipeline \u2014 push to close` })
+
+        const tagline = `${pipelineCount} active deal${pipelineCount > 1 ? 's' : ''} \u00b7 ${fmt$(pipelineMrr)} pipeline MRR`
+        const suggestedMove = bestDeal?.stage?.toLowerCase().includes('propose') || bestDeal?.stage?.toLowerCase().includes('negotiate')
+          ? `Deal is in late stage \u2014 focus on removing blockers and getting to verbal. Lead with ROI proof from their existing ${fmt$(mrr)} MRR services.`
+          : `Advance the pipeline. Leverage existing relationship (${fmt$(mrr)} MRR customer) to accelerate the ${fmt$(dealMrr)} opportunity.`
+
+        return {
+          mode: 'Growth', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
+          dealProfile: { vertical, product: bestDeal?.product || products[0] || 'DIA', dealValue: dealMrr, daysOpen: bestDeal?.created ? Math.floor((Date.now() - new Date(bestDeal.created).getTime()) / 86400000) : 20, mtmDays: null, daysSinceContact: null },
+          hasWinProb: true, hasChurnRisk: false,
+        }
+      }
+
+      // PROSPECTING: new logo or dormant account with no pipeline
+      const prospectMrr = pipelineMrr || (arr > 0 ? mrr * 0.3 : 8000)
+      const impactScore = mrr === 0
+        ? prospectMrr * 1.2
+        : prospectMrr * 0.8
+
+      const signals = []
+      if (mrr === 0 && arr === 0) signals.push({ icon: '\ud83c\udfaf', text: 'New logo opportunity \u2014 no existing services' })
+      else if (pipelineCount === 0) signals.push({ icon: '\ud83d\udca1', text: `Existing customer (${fmt$(mrr)} MRR) with no active pipeline \u2014 whitespace opportunity` })
+      if (products.length > 0 && mrr > 0) signals.push({ icon: '\ud83d\udd04', text: `Currently on ${products.slice(0, 2).join(', ')} \u2014 cross-sell potential` })
+      if (daysSilent > 60 && mrr > 0) signals.push({ icon: '\u23f0', text: `${daysSilent} days since last engagement \u2014 re-engage before competitor does` })
+      if (vertical) signals.push({ icon: '\ud83c\udfe2', text: `Vertical: ${vertical} \u2014 tailor approach to industry priorities` })
+      if (signals.length < 2) signals.push({ icon: '\ud83d\udccd', text: 'Research account needs and initiate outreach' })
+
+      const tagline = mrr > 0 ? `Existing customer \u00b7 No active pipeline \u00b7 Whitespace` : `New logo target \u00b7 ${vertical}`
+      const suggestedMove = mrr > 0
+        ? `This customer has ${fmt$(mrr)} MRR but no deals in flight. Start a discovery conversation \u2014 identify unmet needs or upcoming contract renewals.`
+        : `Research this account and initiate outreach. Focus on their ${vertical} vertical pain points and lead with a relevant case study.`
+
+      return {
+        mode: 'Prospecting', impactScore, signals: signals.slice(0, 4), tagline, suggestedMove,
+        dealProfile: { vertical, product: products[0] || 'Metro Ethernet', dealValue: prospectMrr, daysOpen: null, mtmDays: null, daysSinceContact: daysSilent || null },
+        hasWinProb: false, hasChurnRisk: false,
+      }
+    }
+
+    function rankAccounts(accounts, mode) {
+      if (!accounts?.length) return null
+
+      const classified = accounts.map(acct => {
+        const c = classifyAccount(acct)
+        return { acct, ...c }
+      })
+
+      const filtered = classified.filter(c => c.mode === mode)
+      filtered.sort((a, b) => b.impactScore - a.impactScore)
+
+      const top = filtered.slice(0, 3)
+      if (top.length === 0) return null
+
+      const labelMap = { Prospecting: { label: 'PROSPECTING', color: T.blue }, Growth: { label: 'GROWTH', color: T.green }, Retention: { label: 'RETENTION', color: T.yellow } }
+      const ctaMap = { Prospecting: 'Draft Outreach', Growth: 'Build Quote', Retention: 'Build Renewal Offer' }
+
+      return top.map((item, i) => {
+        const id = `ranked_${i}`
+        const lbl = labelMap[item.mode] || labelMap.Prospecting
+        return {
+          card: {
+            type: id, label: lbl.label, labelColor: lbl.color,
+            account: item.acct.name || item.acct.id,
+            tagline: item.tagline, signals: item.signals, suggestedMove: item.suggestedMove,
+            cta: ctaMap[item.mode] || 'Take Action',
+            ctaSecondary: item.mode === 'Growth' ? 'Build Outreach' : null,
+            hasWinProb: item.hasWinProb, hasChurnRisk: item.hasChurnRisk,
+          },
+          dealProfile: item.dealProfile,
+          impactScore: item.impactScore,
+        }
+      })
+    }
+
+    // ── News templates & competitor pool ───────────────────────────
+    const NEWS_TEMPLATES = {
+      positive: [
+        (n) => ({ source: 'Industry Wire', title: `${n} expands operations with new regional office opening`, sentiment: 'positive', relevance: 'medium' }),
+        (n) => ({ source: 'LinkedIn', title: `${n} hiring surge \u2014 10+ new positions posted in last 30 days`, sentiment: 'positive', relevance: 'medium' }),
+        (n) => ({ source: 'Press Release', title: `${n} reports strong quarterly results, raises guidance`, sentiment: 'positive', relevance: 'high' }),
+        (n) => ({ source: 'CRN', title: `${n} earns industry certification, signals infrastructure investment`, sentiment: 'positive', relevance: 'low' }),
+      ],
+      opportunity: [
+        (n) => ({ source: 'FierceTelecom', title: `Incumbent provider loses key contract in ${n}'s region \u2014 displacement opportunity`, sentiment: 'opportunity', relevance: 'high' }),
+        (_n, v) => ({ source: 'Light Reading', title: `${v} sector seeing wave of vendor consolidation \u2014 timing is right`, sentiment: 'opportunity', relevance: 'high' }),
+      ],
+      negative: [
+        (n) => ({ source: 'SEC Filing', title: `${n} margins under pressure \u2014 cited telecom costs as factor`, sentiment: 'negative', relevance: 'high' }),
+        (_n, v) => ({ source: 'Industry Report', title: `${v} sector telecom spend projected flat \u2014 budget pressure expected`, sentiment: 'negative', relevance: 'high' }),
+      ],
+      risk: [
+        (n) => ({ source: 'LinkedIn', title: `${n} leadership posts about "cost optimization" \u2014 possible vendor review`, sentiment: 'risk', relevance: 'high' }),
+        (n) => ({ source: 'Glassdoor', title: `${n} layoffs reported in back-office functions`, sentiment: 'risk', relevance: 'medium' }),
+      ],
+    }
+
+    const COMPETITOR_POOL = [
+      { name: 'AT&T', statuses: ['Incumbent', 'Losing ground', 'Aggressive'] },
+      { name: 'Lumen', statuses: ['Incumbent', 'At risk', 'Legacy'] },
+      { name: 'Spectrum Enterprise', statuses: ['Aggressive', 'Bidding', 'Incumbent'] },
+      { name: 'Comcast Business', statuses: ['Weak', 'Incumbent', 'Expanding'] },
+      { name: 'Cox Business', statuses: ['Weak', 'At risk', 'Regional'] },
+      { name: 'Windstream', statuses: ['Bidding', 'Legacy', 'At risk'] },
+      { name: 'Crown Castle', statuses: ['Incumbent', 'Expanding'] },
+      { name: 'Zayo', statuses: ['Aggressive', 'Bidding'] },
+    ]
+
+    function generateIntelForAccount(acct) {
+      const name = acct.name || acct.id || 'Unknown'
+      const vert = acct.vertical || 'Enterprise'
+      const mrr = acct.mrr || 0
+      const arr = acct.arr || mrr * 12
+      const riskLevel = acct.risk_level || acct.health_level || 'healthy'
+      const employees = acct.employees || Math.round(80 + Math.random() * 800)
+
+      let seed = 0
+      for (let i = 0; i < name.length; i++) seed = ((seed << 5) - seed + name.charCodeAt(i)) | 0
+      const seededRand = () => { seed = (seed * 16807 + 0) % 2147483647; return (seed & 0x7fffffff) / 2147483647 }
+
+      const newsPool = []
+      newsPool.push(...NEWS_TEMPLATES.positive)
+      if (riskLevel === 'at_risk' || riskLevel === 'critical') {
+        newsPool.push(...NEWS_TEMPLATES.negative, ...NEWS_TEMPLATES.risk)
+      } else {
+        newsPool.push(...NEWS_TEMPLATES.opportunity)
+      }
+      const shuffled = newsPool.sort(() => seededRand() - 0.5)
+      const today = new Date()
+      const news = shuffled.slice(0, 4).map((fn, i) => {
+        const d = new Date(today); d.setDate(d.getDate() - (i * 3 + Math.floor(seededRand() * 5)))
+        return { date: d.toISOString().slice(0, 10), ...fn(name, vert) }
+      })
+
+      const compPool = COMPETITOR_POOL.sort(() => seededRand() - 0.5).slice(0, 2)
+      const competitors = compPool.map(c => ({
+        name: c.name,
+        status: c.statuses[Math.floor(seededRand() * c.statuses.length)],
+        detail: `Active in ${name}'s market. ${seededRand() > 0.5 ? 'Contract renewal approaching.' : 'Service quality concerns reported.'}`,
+      }))
+
+      const revenue = arr > 0 ? fmt$(arr) : fmt$(Math.round((10 + seededRand() * 200) * 1e6))
+      const growth = riskLevel === 'critical' ? `-${Math.floor(seededRand() * 8 + 2)}% YoY`
+        : riskLevel === 'at_risk' ? `+${Math.floor(seededRand() * 5)}% YoY`
+        : `+${Math.floor(seededRand() * 20 + 5)}% YoY`
+
+      return {
+        news,
+        competitors,
+        financials: {
+          revenue,
+          growth,
+          employees,
+          funding: seededRand() > 0.6 ? 'Private' : seededRand() > 0.3 ? `Series ${['A','B','C'][Math.floor(seededRand() * 3)]}` : 'Public',
+          techSpend: fmt$(Math.round((0.5 + seededRand() * 10) * 1e6)) + '/yr',
+        },
+      }
+    }
+
+    // ── Market Intelligence Data ──────────────────────────────────
+    const MARKET_INTEL = {
+      'Pacific Fiber Networks': {
+        news: [
+          { date: '2026-03-17', source: 'Light Reading', title: 'Pacific Fiber expands Sacramento metro footprint with 3 new POPs', sentiment: 'positive', relevance: 'high' },
+          { date: '2026-03-12', source: 'FierceTelecom', title: 'AT&T loses enterprise contract in NorCal region amid service complaints', sentiment: 'opportunity', relevance: 'high' },
+          { date: '2026-03-05', source: 'SEC Filing', title: 'Pacific Fiber Q4 revenue up 18% YoY, CAPEX guidance raised for 2026', sentiment: 'positive', relevance: 'medium' },
+          { date: '2026-02-28', source: 'LinkedIn', title: 'New VP of Network Engineering hired from Lumen \u2014 signaling infrastructure investment', sentiment: 'positive', relevance: 'medium' },
+        ],
+        competitors: [
+          { name: 'AT&T', status: 'Losing ground', detail: 'Lost HQ coverage after Nov build-out. Multiple churn signals.' },
+          { name: 'Lumen', status: 'Incumbent', detail: 'Legacy DIA at 2 locations. Contract expires Q2 2026.' },
+        ],
+        financials: { revenue: '$42M', growth: '+18% YoY', employees: 340, funding: 'Private', techSpend: '$6.2M/yr' },
+      },
+      'Cascade Broadband Co.': {
+        news: [
+          { date: '2026-03-15', source: 'Phoenix Biz Journal', title: 'Cascade Broadband opens new regional HQ in Tempe, AZ', sentiment: 'positive', relevance: 'high' },
+          { date: '2026-03-08', source: 'CRN', title: 'Cascade signs multi-year SD-WAN deal \u2014 moving away from legacy MPLS', sentiment: 'opportunity', relevance: 'high' },
+          { date: '2026-02-20', source: 'Glassdoor', title: 'Cascade hiring 15 network engineers in Phoenix metro', sentiment: 'positive', relevance: 'medium' },
+          { date: '2026-02-14', source: 'Press Release', title: 'Cascade Broadband achieves SOC2 Type II certification', sentiment: 'positive', relevance: 'low' },
+        ],
+        competitors: [
+          { name: 'Lumen', status: 'At risk', detail: 'DIA 500Mb at Phoenix \u2014 underperforming. Customer complaints logged.' },
+          { name: 'Cox Business', status: 'Weak', detail: 'Only coax at Tucson. No fiber option.' },
+        ],
+        financials: { revenue: '$28M', growth: '+12% YoY', employees: 185, funding: 'Series C', techSpend: '$3.8M/yr' },
+      },
+      'TriState Infrastructure LLC': {
+        news: [
+          { date: '2026-03-14', source: 'Dallas Morning News', title: 'TriState Infrastructure wins $50M state highway contract in Texas', sentiment: 'positive', relevance: 'medium' },
+          { date: '2026-03-10', source: 'Industry Report', title: 'Infrastructure sector telecom spend projected flat in 2026 \u2014 budget pressure expected', sentiment: 'negative', relevance: 'high' },
+          { date: '2026-02-25', source: 'LinkedIn', title: 'TriState CFO posts about "cost optimization initiatives" \u2014 possible vendor consolidation', sentiment: 'risk', relevance: 'high' },
+          { date: '2026-02-18', source: 'SEC Filing', title: 'TriState Q4 margins compressed 200bps \u2014 cited telecom costs as factor', sentiment: 'negative', relevance: 'high' },
+        ],
+        competitors: [
+          { name: 'Spectrum Enterprise', status: 'Aggressive', detail: 'Offering 20% below market rate on 3-year terms in Dallas.' },
+          { name: 'Windstream', status: 'Bidding', detail: 'Submitted RFP response for MPLS bundle replacement.' },
+        ],
+        financials: { revenue: '$180M', growth: '+3% YoY', employees: 1200, funding: 'Public (OTC)', techSpend: '$8.1M/yr' },
+      },
+    }
+
+    // ── ScoreBar ──────────────────────────────────────────────────
+    function ScoreBar({ score, color }) {
+      return (
+        <div className="flex items-center gap-2 mt-[3px]">
+          <div className="flex-1 h-[2px] bg-revos-border rounded-sm">
+            <div className="h-full rounded-sm opacity-60" style={{ width: `${score}%`, background: color }} />
+          </div>
+          <span className="text-[10px] text-revos-text-dim font-mono min-w-[28px]">{score}%</span>
+        </div>
+      )
+    }
+
+    // ── TooltipBadge ──────────────────────────────────────────────
+    function TooltipBadge({ prob, label, color, breakdown }) {
+      const [show, setShow] = useState(false)
+      return (
+        <div className="relative inline-block" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+          <div
+            className="flex flex-col items-center rounded-lg px-[14px] py-2 min-w-[80px] cursor-default transition-[border-color] duration-150"
+            style={{
+              background: `${color}15`,
+              border: `1px solid ${show ? color : color + '40'}`,
+            }}
+          >
+            <span className="text-[22px] font-bold font-mono" style={{ color }}>{prob}%</span>
+            <span className="text-[10px] text-revos-text-dim tracking-[0.08em] uppercase mt-[2px]">
+              {label} <span className="text-[9px]" style={{ color: `${color}90` }}>{'\u24d8'}</span>
+            </span>
+          </div>
+          {show && (
+            <div onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+              className="absolute top-[calc(100%+10px)] right-0 w-[300px] rounded-[10px] p-[14px] z-[100] shadow-[0_16px_48px_rgba(0,0,0,0.7)]"
+              style={{
+                background: T.surface,
+                border: `1px solid ${color}40`,
+                animation: 'tooltipIn 0.15s ease',
+              }}>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] text-revos-text-dim tracking-[0.1em] uppercase font-mono">
+                  {breakdown.length} signals
+                </span>
+                <span className="text-base font-bold font-mono" style={{ color }}>{prob}% confidence</span>
+              </div>
+              <div className="flex flex-col gap-[9px]">
+                {breakdown.map((d, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <span className="text-xs shrink-0 mt-[1px]">{d.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[11px] text-revos-text-mid font-medium">{d.label}</span>
+                        <span className="text-[11px] font-mono font-semibold ml-2 shrink-0" style={{ color }}>{d.value}</span>
+                      </div>
+                      <div className="text-[10px] text-revos-text-dim mt-[1px]">{d.sub}</div>
+                      <ScoreBar score={d.score} color={color} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-[10px] pt-2 border-t border-revos-border text-[10px] text-revos-text-dim flex justify-between">
+                <span>Per-vertical model</span>
+                {modelSource === 'demo' && <span className="text-revos-yellow">{'\u26a0'} demo data</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // ── MarketIntelPanel ──────────────────────────────────────────
+    function MarketIntelPanel({ intel, onClose }) {
+      if (!intel) return null
+      const sentimentColor = s => s === 'positive' ? T.green : s === 'opportunity' ? T.blue : s === 'negative' ? T.red : s === 'risk' ? T.yellow : T.textDim
+      const relevanceIcon = r => r === 'high' ? '\u2B50' : r === 'medium' ? '\u25CF' : '\u25CB'
+      return (
+        <div
+          className="rounded-lg p-4 mt-3 mb-3"
+          style={{ background: T.bg, border: `1px solid ${T.cyan}30` }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{'\uD83C\uDF10'}</span>
+              <span className="text-xs font-semibold font-mono tracking-[0.06em]" style={{ color: T.cyan }}>
+                MARKET INTELLIGENCE
+              </span>
+              <span className="text-[10px] text-revos-text-dim">
+                Updated {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="bg-transparent border border-revos-border rounded text-revos-text-dim text-[10px] px-2 py-[2px] cursor-pointer font-mono"
+            >
+              Close
+            </button>
+          </div>
+
+          {/* News */}
+          <div className="mb-[14px]">
+            <div className="text-[10px] text-revos-text-dim tracking-[0.08em] uppercase font-mono mb-[6px]">
+              RECENT NEWS &amp; SIGNALS
+            </div>
+            <div className="flex flex-col gap-[6px]">
+              {intel.news.map((n, i) => (
+                <div key={i}
+                  className="flex gap-2 items-start px-[10px] py-[6px] rounded"
+                  style={{
+                    background: `${sentimentColor(n.sentiment)}08`,
+                    border: `1px solid ${sentimentColor(n.sentiment)}20`,
+                  }}
+                >
+                  <span className="text-[10px] shrink-0 mt-[2px]">{relevanceIcon(n.relevance)}</span>
+                  <div className="flex-1">
+                    <div className="text-xs text-revos-text font-medium leading-[1.4]">{n.title}</div>
+                    <div className="flex gap-2 mt-[3px]">
+                      <span className="text-[10px] text-revos-text-dim font-mono">{n.date}</span>
+                      <span className="text-[10px] text-revos-text-mid">{n.source}</span>
+                      <span
+                        className="text-[9px] font-mono font-semibold rounded-[3px] px-[5px] py-[1px] uppercase"
+                        style={{
+                          color: sentimentColor(n.sentiment),
+                          background: `${sentimentColor(n.sentiment)}15`,
+                        }}
+                      >
+                        {n.sentiment}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Competitive landscape + Financials side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Competitors */}
+            <div>
+              <div className="text-[10px] text-revos-text-dim tracking-[0.08em] uppercase font-mono mb-[6px]">
+                COMPETITIVE LANDSCAPE
+              </div>
+              <div className="flex flex-col gap-1">
+                {intel.competitors.map((c, i) => (
+                  <div key={i} className="px-[10px] py-[6px] bg-revos-card rounded border border-revos-border">
+                    <div className="flex justify-between mb-[2px]">
+                      <span className="text-[11px] font-semibold text-revos-text">{c.name}</span>
+                      <span
+                        className="text-[9px] font-mono font-semibold px-[6px] py-[1px] rounded-[3px]"
+                        style={{
+                          color: c.status === 'Losing ground' || c.status === 'At risk' || c.status === 'Weak' ? T.green : c.status === 'Aggressive' || c.status === 'Bidding' ? T.red : T.yellow,
+                          background: (c.status === 'Losing ground' || c.status === 'At risk' || c.status === 'Weak' ? T.green : c.status === 'Aggressive' || c.status === 'Bidding' ? T.red : T.yellow) + '15',
+                        }}
+                      >
+                        {c.status}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-revos-text-dim leading-[1.4]">{c.detail}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Financials */}
+            <div>
+              <div className="text-[10px] text-revos-text-dim tracking-[0.08em] uppercase font-mono mb-[6px]">
+                COMPANY PROFILE
+              </div>
+              <div className="px-[10px] py-2 bg-revos-card rounded border border-revos-border">
+                {[
+                  { label: 'Revenue', value: intel.financials.revenue },
+                  { label: 'Growth', value: intel.financials.growth },
+                  { label: 'Employees', value: intel.financials.employees?.toLocaleString() },
+                  { label: 'Funding', value: intel.financials.funding },
+                  { label: 'Tech Spend', value: intel.financials.techSpend },
+                ].map((f, i) => (
+                  <div key={i} className={cn('flex justify-between py-[3px]', i < 4 && 'border-b border-revos-border')}>
+                    <span className="text-[10px] text-revos-text-dim">{f.label}</span>
+                    <span className="text-[11px] text-revos-text font-mono font-semibold">{f.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // ── ActionCard ────────────────────────────────────────────────
+    function ActionCard({ content, scores, active, onClick, marketIntel, onRefreshIntel, refreshingIntel, showIntel, onToggleIntel }) {
+      return (
+        <div
+          id={content._cardId}
+          onClick={onClick}
+          className="rounded-xl p-5 cursor-pointer transition-all duration-200"
+          style={{
+            background: T.card,
+            border: `1px solid ${active ? content.labelColor + '60' : T.border}`,
+            boxShadow: active ? `0 0 0 1px ${content.labelColor}30, 0 8px 32px rgba(0,0,0,0.4)` : 'none',
+          }}
+        >
+          {/* Header */}
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <div
+                className="inline-block text-[10px] font-bold tracking-[0.12em] rounded px-2 py-[3px] mb-2 font-mono"
+                style={{
+                  color: content.labelColor,
+                  background: `${content.labelColor}18`,
+                  border: `1px solid ${content.labelColor}35`,
+                }}
+              >
+                {content.label}
+              </div>
+              <div className="text-[17px] font-semibold text-revos-text tracking-[-0.02em]">{content.account}</div>
+              <div className="text-xs text-revos-text-dim mt-[3px]">{content.tagline}</div>
+            </div>
+            <div className="flex gap-2 shrink-0 ml-4" onClick={e => e.stopPropagation()}>
+              {content.hasWinProb && scores && (
+                <TooltipBadge prob={scores.winProb} label={content.type === 'churn' ? 'Save Rate' : 'Win Prob'} color={T.purple} breakdown={scores.winBreakdown} />
+              )}
+              {content.hasChurnRisk && scores && (
+                <TooltipBadge prob={scores.churnRisk} label="Churn Risk" color={T.red} breakdown={scores.churnBreakdown} />
+              )}
+            </div>
+          </div>
+
+          {/* Signals */}
+          {active && (
+            <div className="mb-4">
+              <div className="text-[11px] text-revos-text-dim tracking-[0.08em] uppercase mb-2 font-mono">WHY NOW</div>
+              <div className="flex flex-col gap-2">
+                {content.signals.map((s, i) => (
+                  <div key={i} className="flex gap-[10px] items-start">
+                    <span className="text-sm shrink-0 mt-[1px]">{s.icon}</span>
+                    <span className="text-[13px] text-revos-text-mid leading-[1.5]">{s.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Market Intelligence Panel */}
+          {active && showIntel && (
+            <MarketIntelPanel
+              intel={marketIntel}
+              onClose={() => onToggleIntel(content.account)}
+            />
+          )}
+
+          {/* Suggested move */}
+          {active && (
+            <div
+              className="rounded-md px-[14px] py-3 mb-4"
+              style={{
+                background: T.bg,
+                border: `1px solid ${T.border}`,
+                borderLeft: `3px solid ${content.labelColor}`,
+              }}
+            >
+              <div className="text-[11px] text-revos-text-dim tracking-[0.08em] uppercase mb-[6px] font-mono">SUGGESTED MOVE</div>
+              <p className="text-[13px] text-revos-text-mid leading-[1.6] m-0">{content.suggestedMove}</p>
+            </div>
+          )}
+
+          {/* CTA row */}
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-revos-text-dim">{active ? 'Click to collapse' : 'Click to expand'}</span>
+            {active && (
+              <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => onRefreshIntel(content.account)}
+                  disabled={refreshingIntel}
+                  className="rounded-md px-[14px] py-2 text-xs font-semibold font-mono flex items-center gap-[6px]"
+                  style={{
+                    background: `${T.cyan}12`,
+                    color: T.cyan,
+                    border: `1px solid ${T.cyan}40`,
+                    cursor: refreshingIntel ? 'wait' : 'pointer',
+                    opacity: refreshingIntel ? 0.6 : 1,
+                  }}
+                >
+                  {refreshingIntel ? '\u23F3' : '\uD83C\uDF10'} {refreshingIntel ? 'Scanning...' : showIntel ? 'Refresh Intel' : 'Market Intel'}
+                </button>
+                {content.ctaSecondary && (
+                  <button
+                    className="bg-transparent rounded-md px-4 py-2 text-[13px] font-semibold cursor-pointer font-sans"
+                    style={{
+                      color: content.labelColor,
+                      border: `1px solid ${content.labelColor}50`,
+                    }}
+                  >
+                    {content.ctaSecondary} &rarr;
+                  </button>
+                )}
+                <button
+                  className="border-none rounded-md px-4 py-2 text-[13px] font-semibold cursor-pointer font-sans"
+                  style={{
+                    background: content.labelColor,
+                    color: T.bg,
+                  }}
+                >
+                  {content.cta} &rarr;
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    // ── Main component ────────────────────────────────────────────
+    function SellerActions() {
+      const [active, setActive] = useState(null)
+      const [steeringMode, setSteeringMode] = useState('Prospecting')
+      const [modelData, setModelData] = useState(DEMO_MODEL)
+      const [intelData, setIntelData] = useState({})
+      const [refreshingAccount, setRefreshingAccount] = useState(null)
+
+      // Track model source for tooltip display
+      modelSource = modelData.source || 'demo'
+
+      // Compute scores for demo cards
+      const { cards, scores } = useMemo(() => {
+        const demoFiltered = DEMO_CARDS.filter(d => d.card.mode === steeringMode).map(d => d.card)
+        return { cards: demoFiltered, scores: computeDemoScores(steeringMode, modelData) }
+      }, [modelData, steeringMode])
+
+      // Auto-expand first card when mode changes
+      useEffect(() => {
+        if (cards.length > 0) setActive(cards[0].type)
+      }, [steeringMode, cards.length > 0])
+
+      const modes = [
+        { label: 'Prospecting', color: T.blue },
+        { label: 'Growth', color: T.green },
+        { label: 'Retention', color: T.yellow },
+      ]
+
+      const handleRefreshIntel = (accountName) => {
+        setRefreshingAccount(accountName)
+        setTimeout(() => {
+          if (!intelData[accountName]) {
+            const hardcoded = MARKET_INTEL[accountName]
+            if (hardcoded) {
+              setIntelData(prev => ({ ...prev, [accountName]: hardcoded }))
+            } else {
+              const demoCard = DEMO_CARDS.find(d => d.card.account === accountName)
+              const target = demoCard ? {
+                name: accountName,
+                vertical: demoCard.dealProfile.vertical,
+                mrr: demoCard.dealProfile.dealValue,
+                arr: (demoCard.dealProfile.dealValue || 0) * 12,
+                risk_level: demoCard.card.mode === 'Retention' ? 'at_risk' : 'healthy',
+              } : null
+              if (target) {
+                setIntelData(prev => ({ ...prev, [accountName]: generateIntelForAccount(target) }))
+              }
+            }
+          }
+          setRefreshingAccount(null)
+        }, 1500)
+      }
+
+      const handleToggleIntel = (accountName) => {
+        if (intelData[accountName]) {
+          setIntelData(prev => { const next = { ...prev }; delete next[accountName]; return next })
+        } else {
+          handleRefreshIntel(accountName)
+        }
+      }
+
+      return (
+        <div className="min-h-screen">
+          {/* ── Main content ── */}
+          <div className="px-5 py-7 max-w-[920px] mx-auto">
+
+            {/* Header */}
+            <div className="mb-5">
+              <div className="text-[11px] text-revos-text-dim tracking-[0.12em] uppercase font-mono mb-[6px]">
+                REVOS &middot; SELLER DASHBOARD
+              </div>
+              <h1 className="text-[22px] font-bold text-revos-text m-0 tracking-[-0.03em] font-sans">
+                Your Priority Actions
+              </h1>
+              <p className="text-[13px] text-revos-text-dim mt-[6px] mb-0 font-sans">
+                {cards.length} accounts need your attention &middot; Ranked by impact
+              </p>
+            </div>
+
+            {/* Demo mode banner */}
+            <div
+              className="rounded-lg px-[14px] py-2 mb-4 flex justify-between items-center"
+              style={{ background: `${T.yellow}10`, border: `1px solid ${T.yellow}30` }}
+            >
+              <span className="text-[11px] text-revos-yellow font-mono">
+                {'\u26a0'} DEMO MODE &mdash; load account data to activate dynamic prioritization
+              </span>
+            </div>
+
+            {/* Steering bar */}
+            <div className="bg-revos-card border border-revos-border rounded-[10px] px-4 py-3 flex items-center gap-3 mb-6 flex-wrap">
+              <span className="text-[11px] text-revos-text-dim tracking-[0.08em] uppercase font-mono">MODE</span>
+              {modes.map(m => (
+                <button
+                  key={m.label}
+                  onClick={() => setSteeringMode(m.label)}
+                  className="rounded-[20px] px-[14px] py-[5px] text-xs font-semibold cursor-pointer font-sans flex items-center gap-[6px]"
+                  style={{
+                    background: steeringMode === m.label ? `${m.color}15` : 'transparent',
+                    border: steeringMode === m.label ? `1px solid ${m.color}50` : `1px solid ${T.border}`,
+                    color: steeringMode === m.label ? m.color : T.textDim,
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+              <div className="ml-auto text-xs text-revos-text-dim font-mono">
+                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Cards */}
+            <div className="flex flex-col gap-3">
+              {cards.map(card => (
+                <ActionCard
+                  key={card.type}
+                  content={{ ...card, _cardId: `card-${card.type}` }}
+                  scores={scores[card.type]}
+                  active={active === card.type}
+                  onClick={() => setActive(active === card.type ? null : card.type)}
+                  marketIntel={intelData[card.account]}
+                  onRefreshIntel={handleRefreshIntel}
+                  refreshingIntel={refreshingAccount === card.account}
+                  showIntel={!!intelData[card.account]}
+                  onToggleIntel={handleToggleIntel}
+                />
+              ))}
+              {cards.length === 0 && (
+                <div className="bg-revos-card border border-revos-border rounded-xl px-5 py-10 text-center">
+                  <div className="text-sm text-revos-text-dim font-sans">
+                    No accounts in <strong className="text-revos-text">{steeringMode}</strong> mode
+                  </div>
+                  <div className="text-xs text-revos-text-dim mt-[6px] font-sans">
+                    Try switching modes above to see prioritized accounts
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Legend */}
+            <div className="mt-6 flex gap-5 flex-wrap items-center">
+              {[
+                { color: T.purple, label: 'Win / Save Probability' },
+                { color: T.red, label: 'Churn Risk Score' },
+              ].map(l => (
+                <div key={l.label} className="flex items-center gap-[6px]">
+                  <div className="w-2 h-2 rounded-sm" style={{ background: l.color }} />
+                  <span className="text-[11px] text-revos-text-dim">{l.label}</span>
+                </div>
+              ))}
+              <span className="text-[11px] text-revos-text-dim ml-auto">Hover badges to see signal breakdown</span>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // ── Mount ─────────────────────────────────────────────────────
+    ReactDOM.createRoot(document.getElementById('root')).render(<SellerActions />)
+  </script>
+</body>
+</html>

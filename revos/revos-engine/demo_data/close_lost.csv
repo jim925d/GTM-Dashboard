@@ -1,0 +1,962 @@
+opportunity_id,customer_account,product_group,mrr,stage,forecast_category,rep,sales_channel,created_date,close_date
+OPP-00001,DigiPath,Dark Fiber,489.02,Closed Lost,Not In Forecast,David Park,Direct,06/21/2024,08/30/2024
+OPP-00002,ByteWorks,Colocation,99.37,Closed Lost,Not In Forecast,Nicole Foster,Direct,03/24/2024,05/18/2024
+OPP-00003,IronGate Tech,Cloud Connect,2453.39,Closed Lost,Not In Forecast,David Park,Direct,05/01/2024,09/10/2024
+OPP-00004,EchoPoint,Wavelengths,691.6,Closed Lost,Not In Forecast,Chris Weber,Direct,05/03/2024,07/15/2024
+OPP-00005,FlexNet Solutions,Wavelengths,137.39,Closed Lost,Not In Forecast,Lisa Chen,Direct,02/02/2026,02/23/2026
+OPP-00010,TerraLink,DDoS Protection,613.48,Closed Lost,Not In Forecast,Nicole Foster,Channel,09/18/2025,12/10/2025
+OPP-00014,CoreConnect,IP Transit,2196.08,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/31/2025,05/28/2025
+OPP-00017,NexGen Telecom,Managed Services,300.31,Closed Lost,Not In Forecast,Chris Weber,Direct,05/12/2024,11/08/2024
+OPP-00018,FiberLink,Dark Fiber,102.6,Closed Lost,Not In Forecast,Chris Weber,Agent,08/08/2024,12/09/2024
+OPP-00020,EchoPoint,Dark Fiber,18.73,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,06/26/2025,09/22/2025
+OPP-00032,NexGen Telecom,SD-WAN,17.9,Closed Lost,Not In Forecast,Mark Thompson,Agent,07/02/2025,10/14/2025
+OPP-00036,GridForce,SD-WAN,298.7,Closed Lost,Not In Forecast,Jose Banales,Agent,01/27/2026,02/26/2026
+OPP-00038,TerraLink,IP Transit,241.97,Closed Lost,Not In Forecast,Nicole Foster,Agent,11/01/2025,02/25/2026
+OPP-00040,FlexNet Solutions,Colocation,638.28,Closed Lost,Not In Forecast,Nicole Foster,Channel,10/07/2024,11/28/2024
+OPP-00042,TerraLink,Managed Services,840.28,Closed Lost,Not In Forecast,Chris Weber,Direct,08/30/2025,01/10/2026
+OPP-00043,CloudFirst,Colocation,921.6,Closed Lost,Not In Forecast,Lisa Chen,Direct,08/16/2025,12/18/2025
+OPP-00048,SilverStream,Ethernet,140.98,Closed Lost,Not In Forecast,Jessica Kim,Direct,05/06/2025,07/02/2025
+OPP-00060,SwiftNode,Dark Fiber,688.79,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,10/05/2025,03/04/2026
+OPP-00061,OmniConnect,DDoS Protection,225.43,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,10/01/2024,01/04/2025
+OPP-00062,DigiPath,Colocation,209.29,Closed Lost,Not In Forecast,Mark Thompson,Direct,01/21/2025,02/08/2025
+OPP-00067,LinkStream,SD-WAN,529.79,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,11/10/2024,02/06/2025
+OPP-00070,PrimeRoute,Colocation,1364.25,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,04/13/2024,05/21/2024
+OPP-00072,SwiftNode,SD-WAN,363.45,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/09/2025,03/22/2025
+OPP-00073,SignalBridge,Cloud Connect,1693.9,Closed Lost,Not In Forecast,Chris Weber,Agent,06/26/2025,08/02/2025
+OPP-00075,SwiftNode,Dark Fiber,1847.38,Closed Lost,Not In Forecast,Lisa Chen,Channel,04/16/2024,10/09/2024
+OPP-00076,SilverStream,Ethernet,577.91,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/10/2025,06/04/2025
+OPP-00077,PrimeRoute,DDoS Protection,82.28,Closed Lost,Not In Forecast,Jessica Kim,Channel,08/04/2024,09/05/2024
+OPP-00079,WavePoint,Managed Services,352.29,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,09/27/2024,12/12/2024
+OPP-00080,Titanium Labs,DDoS Protection,200.87,Closed Lost,Not In Forecast,Lisa Chen,Channel,01/14/2026,03/08/2026
+OPP-00085,WavePoint,Ethernet,72.75,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,04/13/2025,10/03/2025
+OPP-00086,NexGen Telecom,Managed Services,622.81,Closed Lost,Not In Forecast,Nicole Foster,Direct,06/13/2025,09/24/2025
+OPP-00087,CopperLine,SD-WAN,108.97,Closed Lost,Not In Forecast,Chris Weber,Agent,03/20/2025,08/29/2025
+OPP-00090,DataSync Labs,MPLS,748.46,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,07/31/2024,12/31/2024
+OPP-00101,DigiPath,Dark Fiber,107.02,Closed Lost,Not In Forecast,Mark Thompson,Direct,07/12/2024,08/12/2024
+OPP-00102,Pinnacle IT,Managed Services,437.68,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,04/18/2024,05/18/2024
+OPP-00103,Pinnacle IT,DDoS Protection,512.15,Closed Lost,Not In Forecast,Chris Weber,Agent,12/24/2024,06/16/2025
+OPP-00107,StarForge,Cloud Connect,195.67,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,10/21/2024,12/14/2024
+OPP-00110,PrimeRoute,SD-WAN,446.12,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,06/25/2025,10/05/2025
+OPP-00111,SignalBridge,Cloud Connect,1027.17,Closed Lost,Not In Forecast,David Park,Agent,12/10/2025,01/06/2026
+OPP-00112,Quantum Networks,SD-WAN,60.01,Closed Lost,Not In Forecast,Jessica Kim,Agent,07/12/2024,10/23/2024
+OPP-00116,DigiPath,DDoS Protection,111.58,Closed Lost,Not In Forecast,Jose Banales,Channel,09/05/2025,10/10/2025
+OPP-00119,RedRock Data,Managed Services,3015.43,Closed Lost,Not In Forecast,Nicole Foster,Agent,08/19/2024,12/24/2024
+OPP-00121,DataSync Labs,Dark Fiber,652.17,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,07/04/2025,12/14/2025
+OPP-00136,NexGen Telecom,DDoS Protection,493.97,Closed Lost,Not In Forecast,Nicole Foster,Channel,08/27/2025,02/05/2026
+OPP-00139,TerraLink,Cloud Connect,85.27,Closed Lost,Not In Forecast,David Park,Agent,07/02/2024,12/12/2024
+OPP-00140,ClearPath,IP Transit,3487.7,Closed Lost,Not In Forecast,Jose Banales,Channel,07/21/2025,01/13/2026
+OPP-00148,SilverStream,IP Transit,446.19,Closed Lost,Not In Forecast,Jessica Kim,Channel,01/12/2026,03/10/2026
+OPP-00149,DigiPath,Dark Fiber,207.89,Closed Lost,Not In Forecast,Mark Thompson,Channel,06/17/2025,08/25/2025
+OPP-00150,GoldGrid,SD-WAN,38.43,Closed Lost,Not In Forecast,Jessica Kim,Direct,06/15/2024,09/19/2024
+OPP-00153,CoreConnect,MPLS,507.33,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,10/27/2025,11/29/2025
+OPP-00154,CoreConnect,Cloud Connect,573.52,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,07/28/2024,11/30/2024
+OPP-00157,SignalBridge,MPLS,2030.19,Closed Lost,Not In Forecast,Nicole Foster,Direct,04/16/2024,05/21/2024
+OPP-00158,DataSync Labs,MPLS,399.08,Closed Lost,Not In Forecast,David Park,Agent,01/08/2025,07/06/2025
+OPP-00159,HorizonIO,Managed Services,120.96,Closed Lost,Not In Forecast,Lisa Chen,Agent,07/06/2025,09/11/2025
+OPP-00162,Titanium Labs,Cloud Connect,1905.67,Closed Lost,Not In Forecast,Lisa Chen,Direct,06/18/2024,10/11/2024
+OPP-00171,GoldGrid,DDoS Protection,129.18,Closed Lost,Not In Forecast,Mark Thompson,Agent,05/20/2025,07/12/2025
+OPP-00176,FlexNet Solutions,Dark Fiber,771.09,Closed Lost,Not In Forecast,David Park,Agent,09/20/2025,12/13/2025
+OPP-00181,Atlas Computing,SD-WAN,250.72,Closed Lost,Not In Forecast,Lisa Chen,Direct,02/06/2026,03/12/2026
+OPP-00185,GoldGrid,Ethernet,274.7,Closed Lost,Not In Forecast,Lisa Chen,Direct,07/13/2025,12/12/2025
+OPP-00186,LinkStream,Ethernet,54.99,Closed Lost,Not In Forecast,Nicole Foster,Direct,05/20/2024,10/22/2024
+OPP-00194,NetScale Systems,Wavelengths,307.04,Closed Lost,Not In Forecast,Nicole Foster,Direct,05/14/2024,07/03/2024
+OPP-00195,Summit Cloud,SD-WAN,315.61,Closed Lost,Not In Forecast,Lisa Chen,Agent,10/09/2025,02/17/2026
+OPP-00200,GridForce,MPLS,193.94,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,07/16/2024,11/30/2024
+OPP-00202,OmniConnect,SD-WAN,3811.37,Closed Lost,Not In Forecast,David Park,Channel,02/08/2025,04/16/2025
+OPP-00207,GoldGrid,Managed Services,447.26,Closed Lost,Not In Forecast,Jessica Kim,Direct,08/14/2025,12/17/2025
+OPP-00209,SkyBridge Networks,DDoS Protection,4867.89,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/16/2026,02/08/2026
+OPP-00212,PrimeRoute,Colocation,156.39,Closed Lost,Not In Forecast,Nicole Foster,Agent,10/19/2025,02/10/2026
+OPP-00213,EchoPoint,Cloud Connect,429.91,Closed Lost,Not In Forecast,Chris Weber,Agent,05/11/2024,06/20/2024
+OPP-00215,PrimeRoute,Managed Services,84.59,Closed Lost,Not In Forecast,Jessica Kim,Direct,04/11/2025,05/17/2025
+OPP-00222,TerraLink,Cloud Connect,143.25,Closed Lost,Not In Forecast,Jessica Kim,Channel,10/09/2024,02/23/2025
+OPP-00223,Apex Digital,IP Transit,245.17,Closed Lost,Not In Forecast,Chris Weber,Channel,04/24/2025,08/10/2025
+OPP-00228,IronGate Tech,Wavelengths,335.85,Closed Lost,Not In Forecast,Jose Banales,Direct,02/11/2026,02/23/2026
+OPP-00230,Cascade Networks,Managed Services,236.8,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,07/13/2024,08/02/2024
+OPP-00237,SilverStream,IP Transit,503.46,Closed Lost,Not In Forecast,Nicole Foster,Channel,08/08/2024,10/09/2024
+OPP-00241,Summit Cloud,Wavelengths,575.86,Closed Lost,Not In Forecast,Nicole Foster,Direct,06/12/2025,11/13/2025
+OPP-00243,NexGen Telecom,Ethernet,181.48,Closed Lost,Not In Forecast,Nicole Foster,Agent,10/15/2024,12/21/2024
+OPP-00244,CloudFirst,MPLS,1626.24,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,10/25/2025,01/16/2026
+OPP-00246,Apex Digital,Ethernet,305.53,Closed Lost,Not In Forecast,Chris Weber,Channel,06/21/2024,10/17/2024
+OPP-00251,FiberLink,Dark Fiber,335.53,Closed Lost,Not In Forecast,Lisa Chen,Channel,05/29/2024,08/10/2024
+OPP-00252,TerraLink,Wavelengths,110.65,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,08/01/2024,01/27/2025
+OPP-00253,WavePoint,Wavelengths,273.34,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,08/20/2024,12/18/2024
+OPP-00257,RedRock Data,DDoS Protection,503.62,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,02/15/2026,02/21/2026
+OPP-00259,IronGate Tech,DDoS Protection,140.64,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,11/08/2025,02/21/2026
+OPP-00263,NetScale Systems,Managed Services,279.87,Closed Lost,Not In Forecast,Jessica Kim,Agent,07/01/2024,12/09/2024
+OPP-00264,DigiPath,Ethernet,92.8,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,08/18/2024,10/17/2024
+OPP-00267,StarForge,Managed Services,773.68,Closed Lost,Not In Forecast,Jose Banales,Channel,03/30/2025,09/12/2025
+OPP-00268,RedRock Data,Ethernet,173.99,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,03/27/2024,07/05/2024
+OPP-00269,Acme Corp,DDoS Protection,396.45,Closed Lost,Not In Forecast,David Park,Direct,08/10/2024,11/04/2024
+OPP-00270,Quantum Networks,Dark Fiber,516.51,Closed Lost,Not In Forecast,Lisa Chen,Agent,07/29/2024,10/12/2024
+OPP-00273,HorizonIO,Managed Services,3702.02,Closed Lost,Not In Forecast,David Park,Direct,04/28/2024,07/07/2024
+OPP-00276,ByteWorks,IP Transit,507.07,Closed Lost,Not In Forecast,Lisa Chen,Channel,06/02/2024,06/22/2024
+OPP-00277,NetScale Systems,Ethernet,244.85,Closed Lost,Not In Forecast,Jessica Kim,Direct,08/08/2025,08/30/2025
+OPP-00282,OmniConnect,MPLS,562.4,Closed Lost,Not In Forecast,Lisa Chen,Direct,05/14/2024,07/24/2024
+OPP-00283,Titanium Labs,DDoS Protection,544.42,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,09/26/2024,02/14/2025
+OPP-00285,GridForce,IP Transit,659.14,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,07/09/2024,12/05/2024
+OPP-00288,FlexNet Solutions,IP Transit,478.11,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/06/2025,07/27/2025
+OPP-00289,ByteWorks,MPLS,253.8,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,12/29/2025,02/04/2026
+OPP-00290,ClearPath,Managed Services,230.07,Closed Lost,Not In Forecast,Jose Banales,Channel,03/19/2024,04/15/2024
+OPP-00292,Titanium Labs,Ethernet,117.18,Closed Lost,Not In Forecast,Mark Thompson,Channel,04/06/2025,06/01/2025
+OPP-00293,NetScale Systems,Colocation,845.83,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,01/16/2026,03/14/2026
+OPP-00295,FlexNet Solutions,SD-WAN,132.2,Closed Lost,Not In Forecast,Lisa Chen,Direct,05/29/2025,07/05/2025
+OPP-00297,Zenith Systems,Managed Services,248.37,Closed Lost,Not In Forecast,Jessica Kim,Agent,12/12/2024,04/18/2025
+OPP-00302,Quantum Networks,DDoS Protection,1097.04,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,05/21/2025,07/03/2025
+OPP-00303,BluePeak,IP Transit,2981.9,Closed Lost,Not In Forecast,Mark Thompson,Agent,06/29/2024,09/25/2024
+OPP-00304,EchoPoint,Cloud Connect,108.41,Closed Lost,Not In Forecast,Chris Weber,Channel,08/12/2024,02/01/2025
+OPP-00306,SkyBridge Networks,Dark Fiber,81.23,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,02/09/2025,05/03/2025
+OPP-00307,BluePeak,MPLS,3172.84,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,04/04/2025,05/03/2025
+OPP-00309,GridForce,SD-WAN,659.85,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,07/31/2025,01/14/2026
+OPP-00312,BluePeak,Colocation,497.7,Closed Lost,Not In Forecast,Jose Banales,Agent,12/01/2024,05/20/2025
+OPP-00320,FlexNet Solutions,Managed Services,375.78,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,07/18/2024,11/07/2024
+OPP-00322,WavePoint,Cloud Connect,268.33,Closed Lost,Not In Forecast,Mark Thompson,Direct,06/23/2025,09/16/2025
+OPP-00323,LinkStream,IP Transit,104.88,Closed Lost,Not In Forecast,Nicole Foster,Direct,05/31/2025,09/26/2025
+OPP-00327,ByteWorks,IP Transit,183.85,Closed Lost,Not In Forecast,Lisa Chen,Agent,04/25/2024,08/14/2024
+OPP-00329,SwiftNode,DDoS Protection,1196.24,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,01/20/2025,05/22/2025
+OPP-00333,NetScale Systems,Wavelengths,241.97,Closed Lost,Not In Forecast,David Park,Agent,09/12/2024,10/07/2024
+OPP-00339,Cascade Networks,Colocation,151.26,Closed Lost,Not In Forecast,Nicole Foster,Direct,04/16/2025,06/08/2025
+OPP-00342,Atlas Computing,Managed Services,84.63,Closed Lost,Not In Forecast,Nicole Foster,Channel,01/16/2026,02/04/2026
+OPP-00346,SkyBridge Networks,Wavelengths,50.44,Closed Lost,Not In Forecast,Jose Banales,Direct,09/26/2024,11/10/2024
+OPP-00349,Pinnacle IT,Colocation,37.22,Closed Lost,Not In Forecast,Mark Thompson,Agent,11/28/2025,03/05/2026
+OPP-00358,Summit Cloud,Wavelengths,3600.76,Closed Lost,Not In Forecast,Chris Weber,Direct,12/18/2025,02/19/2026
+OPP-00359,HorizonIO,Managed Services,1360.28,Closed Lost,Not In Forecast,Nicole Foster,Agent,09/02/2025,10/04/2025
+OPP-00361,FlexNet Solutions,Ethernet,119.97,Closed Lost,Not In Forecast,Nicole Foster,Agent,11/19/2024,05/17/2025
+OPP-00365,LinkStream,DDoS Protection,735.54,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,07/01/2025,10/08/2025
+OPP-00372,PulseNet,MPLS,646.57,Closed Lost,Not In Forecast,Jose Banales,Agent,10/06/2024,03/18/2025
+OPP-00374,SwiftNode,Cloud Connect,149.42,Closed Lost,Not In Forecast,Nicole Foster,Agent,10/30/2024,04/27/2025
+OPP-00378,StarForge,SD-WAN,52.54,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,11/11/2025,02/08/2026
+OPP-00380,Summit Cloud,IP Transit,1033.1,Closed Lost,Not In Forecast,Jessica Kim,Direct,03/20/2025,04/14/2025
+OPP-00382,Atlas Computing,Dark Fiber,1028.43,Closed Lost,Not In Forecast,Jose Banales,Agent,09/26/2025,03/05/2026
+OPP-00383,PulseNet,DDoS Protection,426.24,Closed Lost,Not In Forecast,Chris Weber,Channel,11/01/2024,03/28/2025
+OPP-00386,Pinnacle IT,Managed Services,483.16,Closed Lost,Not In Forecast,Jessica Kim,Direct,12/22/2025,03/16/2026
+OPP-00395,WavePoint,DDoS Protection,309.48,Closed Lost,Not In Forecast,Nicole Foster,Channel,10/04/2025,03/10/2026
+OPP-00400,PulseNet,Managed Services,22.0,Closed Lost,Not In Forecast,Jessica Kim,Direct,08/22/2025,01/16/2026
+OPP-00407,PulseNet,Managed Services,2174.19,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,10/08/2024,12/22/2024
+OPP-00412,PulseNet,Colocation,232.6,Closed Lost,Not In Forecast,David Park,Direct,10/19/2024,02/18/2025
+OPP-00413,SkyBridge Networks,Cloud Connect,4091.88,Closed Lost,Not In Forecast,Chris Weber,Channel,11/14/2024,04/20/2025
+OPP-00415,Cascade Networks,Colocation,205.23,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,05/18/2024,07/27/2024
+OPP-00423,HorizonIO,Ethernet,431.12,Closed Lost,Not In Forecast,Lisa Chen,Agent,04/22/2024,08/06/2024
+OPP-00430,GridForce,Wavelengths,116.34,Closed Lost,Not In Forecast,Mark Thompson,Direct,09/26/2024,01/01/2025
+OPP-00431,TechFlow Inc,IP Transit,76.07,Closed Lost,Not In Forecast,Jose Banales,Agent,03/26/2024,06/08/2024
+OPP-00438,CloudFirst,Dark Fiber,147.84,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,10/10/2025,02/21/2026
+OPP-00443,TerraLink,Ethernet,145.91,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,07/09/2024,08/17/2024
+OPP-00446,RedRock Data,Wavelengths,505.15,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/23/2025,02/26/2025
+OPP-00449,SignalBridge,IP Transit,1350.28,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,12/26/2025,02/19/2026
+OPP-00451,DataSync Labs,SD-WAN,171.24,Closed Lost,Not In Forecast,Nicole Foster,Direct,12/25/2024,05/30/2025
+OPP-00453,ByteWorks,SD-WAN,2309.29,Closed Lost,Not In Forecast,David Park,Direct,07/25/2025,09/22/2025
+OPP-00456,TerraLink,Dark Fiber,124.02,Closed Lost,Not In Forecast,David Park,Agent,08/21/2024,09/17/2024
+OPP-00465,FiberLink,Dark Fiber,2025.07,Closed Lost,Not In Forecast,David Park,Agent,11/19/2025,03/15/2026
+OPP-00466,PulseNet,Ethernet,133.61,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,02/22/2025,07/12/2025
+OPP-00471,Titanium Labs,IP Transit,1576.33,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,12/30/2025,03/13/2026
+OPP-00472,GridForce,Wavelengths,706.86,Closed Lost,Not In Forecast,Mark Thompson,Direct,11/18/2025,01/31/2026
+OPP-00480,Apex Digital,Managed Services,143.95,Closed Lost,Not In Forecast,Jose Banales,Direct,09/01/2024,10/17/2024
+OPP-00481,Quantum Networks,Wavelengths,530.93,Closed Lost,Not In Forecast,Jessica Kim,Agent,10/02/2025,01/22/2026
+OPP-00483,HorizonIO,Managed Services,397.61,Closed Lost,Not In Forecast,David Park,Agent,11/30/2025,03/10/2026
+OPP-00487,StarForge,IP Transit,912.58,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/10/2025,05/12/2025
+OPP-00492,BluePeak,DDoS Protection,47.34,Closed Lost,Not In Forecast,Jose Banales,Channel,01/27/2025,04/28/2025
+OPP-00494,GridForce,Cloud Connect,719.31,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,12/20/2025,02/17/2026
+OPP-00496,TechFlow Inc,Ethernet,1166.14,Closed Lost,Not In Forecast,Nicole Foster,Agent,04/06/2025,09/28/2025
+OPP-00497,EchoPoint,IP Transit,747.28,Closed Lost,Not In Forecast,Nicole Foster,Agent,04/19/2024,07/12/2024
+OPP-00498,BluePeak,Wavelengths,174.59,Closed Lost,Not In Forecast,Jessica Kim,Direct,07/10/2024,10/28/2024
+OPP-00499,DataSync Labs,Ethernet,1101.57,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,02/16/2025,04/08/2025
+OPP-00503,StarForge,Colocation,33.25,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,01/02/2025,06/12/2025
+OPP-00506,Quantum Networks,Managed Services,121.24,Closed Lost,Not In Forecast,Nicole Foster,Direct,01/06/2026,03/02/2026
+OPP-00508,RedRock Data,Dark Fiber,202.72,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,10/27/2025,12/13/2025
+OPP-00512,RedRock Data,Wavelengths,6819.86,Closed Lost,Not In Forecast,Nicole Foster,Agent,04/10/2025,07/17/2025
+OPP-00514,WavePoint,Managed Services,54.34,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,02/11/2026,02/16/2026
+OPP-00515,IronGate Tech,Cloud Connect,131.71,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,04/18/2024,07/02/2024
+OPP-00521,WavePoint,Colocation,97.51,Closed Lost,Not In Forecast,David Park,Channel,01/26/2026,03/01/2026
+OPP-00524,Pinnacle IT,MPLS,250.05,Closed Lost,Not In Forecast,Mark Thompson,Agent,08/17/2025,09/20/2025
+OPP-00525,PrimeRoute,SD-WAN,1414.49,Closed Lost,Not In Forecast,Mark Thompson,Agent,11/13/2025,01/05/2026
+OPP-00529,Atlas Computing,DDoS Protection,174.07,Closed Lost,Not In Forecast,Jessica Kim,Channel,07/16/2025,10/06/2025
+OPP-00530,WavePoint,Colocation,597.39,Closed Lost,Not In Forecast,Chris Weber,Direct,09/13/2025,03/10/2026
+OPP-00533,Acme Corp,Dark Fiber,132.61,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,11/30/2024,02/02/2025
+OPP-00534,DataSync Labs,Dark Fiber,656.39,Closed Lost,Not In Forecast,Nicole Foster,Direct,11/27/2025,01/14/2026
+OPP-00537,VectorData,IP Transit,109.59,Closed Lost,Not In Forecast,Jessica Kim,Direct,08/12/2024,01/12/2025
+OPP-00540,Summit Cloud,Managed Services,438.29,Closed Lost,Not In Forecast,Jessica Kim,Channel,07/24/2025,09/08/2025
+OPP-00546,DataSync Labs,IP Transit,89.28,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/01/2024,05/30/2024
+OPP-00548,IronGate Tech,Cloud Connect,59.15,Closed Lost,Not In Forecast,Chris Weber,Channel,09/06/2024,12/24/2024
+OPP-00552,GoldGrid,Wavelengths,75.49,Closed Lost,Not In Forecast,David Park,Channel,06/23/2024,12/13/2024
+OPP-00553,SkyBridge Networks,Colocation,227.96,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,08/17/2024,12/31/2024
+OPP-00556,CopperLine,MPLS,216.05,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,11/06/2024,12/16/2024
+OPP-00558,GoldGrid,Managed Services,199.86,Closed Lost,Not In Forecast,Mark Thompson,Channel,10/21/2025,11/20/2025
+OPP-00561,Atlas Computing,SD-WAN,173.22,Closed Lost,Not In Forecast,Jose Banales,Agent,11/13/2025,01/05/2026
+OPP-00562,Titanium Labs,Dark Fiber,313.39,Closed Lost,Not In Forecast,Chris Weber,Direct,06/26/2024,11/03/2024
+OPP-00565,Zenith Systems,IP Transit,187.48,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,09/12/2025,10/05/2025
+OPP-00570,Cascade Networks,Wavelengths,345.0,Closed Lost,Not In Forecast,Jessica Kim,Agent,02/05/2026,03/08/2026
+OPP-00575,HorizonIO,IP Transit,146.7,Closed Lost,Not In Forecast,David Park,Direct,09/04/2024,02/24/2025
+OPP-00577,SwiftNode,SD-WAN,5.33,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,09/15/2025,12/16/2025
+OPP-00580,CoreConnect,Colocation,356.9,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,05/13/2024,10/30/2024
+OPP-00582,Quantum Networks,Colocation,1504.18,Closed Lost,Not In Forecast,Chris Weber,Direct,08/16/2024,12/18/2024
+OPP-00588,DigiPath,SD-WAN,247.88,Closed Lost,Not In Forecast,Chris Weber,Direct,11/21/2025,03/08/2026
+OPP-00590,SignalBridge,MPLS,295.9,Closed Lost,Not In Forecast,Jose Banales,Direct,03/22/2025,07/22/2025
+OPP-00591,OmniConnect,Dark Fiber,789.64,Closed Lost,Not In Forecast,David Park,Channel,06/22/2024,12/07/2024
+OPP-00597,Quantum Networks,DDoS Protection,1394.12,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,05/17/2024,09/29/2024
+OPP-00599,PrimeRoute,MPLS,407.83,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,10/31/2025,11/18/2025
+OPP-00600,Cascade Networks,Ethernet,123.05,Closed Lost,Not In Forecast,Lisa Chen,Channel,07/17/2025,11/02/2025
+OPP-00602,DigiPath,Managed Services,456.05,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,02/16/2025,07/07/2025
+OPP-00606,NetScale Systems,Cloud Connect,767.07,Closed Lost,Not In Forecast,Lisa Chen,Channel,11/03/2025,03/09/2026
+OPP-00610,GridForce,SD-WAN,74.87,Closed Lost,Not In Forecast,Jessica Kim,Channel,04/14/2025,08/22/2025
+OPP-00612,HorizonIO,DDoS Protection,287.01,Closed Lost,Not In Forecast,Jessica Kim,Direct,08/18/2025,09/16/2025
+OPP-00615,IronGate Tech,Cloud Connect,182.33,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,06/12/2024,07/13/2024
+OPP-00620,FiberLink,MPLS,320.56,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,06/04/2024,09/04/2024
+OPP-00622,TechFlow Inc,Colocation,107.83,Closed Lost,Not In Forecast,Mark Thompson,Agent,12/07/2025,02/16/2026
+OPP-00625,DigiPath,IP Transit,12.73,Closed Lost,Not In Forecast,Lisa Chen,Direct,05/24/2025,11/20/2025
+OPP-00628,Quantum Networks,DDoS Protection,525.48,Closed Lost,Not In Forecast,Mark Thompson,Direct,09/06/2025,11/24/2025
+OPP-00629,RedRock Data,Wavelengths,5451.72,Closed Lost,Not In Forecast,Lisa Chen,Agent,11/14/2024,03/17/2025
+OPP-00631,SkyBridge Networks,Wavelengths,149.61,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,01/27/2025,02/16/2025
+OPP-00633,DigiPath,Colocation,855.83,Closed Lost,Not In Forecast,Lisa Chen,Channel,08/29/2024,01/03/2025
+OPP-00636,PulseNet,Managed Services,480.83,Closed Lost,Not In Forecast,Mark Thompson,Direct,11/28/2024,04/24/2025
+OPP-00637,CoreConnect,MPLS,83.4,Closed Lost,Not In Forecast,Chris Weber,Channel,02/16/2025,05/14/2025
+OPP-00638,GridForce,Wavelengths,550.35,Closed Lost,Not In Forecast,Chris Weber,Channel,11/07/2024,12/14/2024
+OPP-00640,SkyBridge Networks,IP Transit,1528.16,Closed Lost,Not In Forecast,Nicole Foster,Direct,11/02/2024,01/08/2025
+OPP-00649,DigiPath,Managed Services,365.78,Closed Lost,Not In Forecast,Jose Banales,Channel,08/16/2024,10/01/2024
+OPP-00654,FlexNet Solutions,Cloud Connect,130.83,Closed Lost,Not In Forecast,Jose Banales,Agent,11/18/2024,03/15/2025
+OPP-00658,Summit Cloud,Cloud Connect,2631.99,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/09/2026,03/15/2026
+OPP-00661,VectorData,Cloud Connect,1014.17,Closed Lost,Not In Forecast,David Park,Agent,09/20/2024,01/13/2025
+OPP-00662,DataSync Labs,Wavelengths,1056.99,Closed Lost,Not In Forecast,Chris Weber,Agent,12/14/2024,03/26/2025
+OPP-00664,Acme Corp,DDoS Protection,607.07,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,12/11/2025,03/06/2026
+OPP-00669,DataSync Labs,Managed Services,224.17,Closed Lost,Not In Forecast,Chris Weber,Channel,04/06/2024,08/07/2024
+OPP-00670,Titanium Labs,Cloud Connect,49.9,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,01/08/2026,03/03/2026
+OPP-00674,RedRock Data,SD-WAN,1365.94,Closed Lost,Not In Forecast,Lisa Chen,Direct,08/27/2024,10/25/2024
+OPP-00675,Summit Cloud,Dark Fiber,517.19,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,03/01/2025,06/14/2025
+OPP-00678,SignalBridge,SD-WAN,635.93,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/06/2024,09/21/2024
+OPP-00679,GridForce,Managed Services,237.53,Closed Lost,Not In Forecast,Chris Weber,Direct,12/15/2024,04/04/2025
+OPP-00681,Atlas Computing,Colocation,115.87,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,09/02/2024,01/06/2025
+OPP-00684,GoldGrid,MPLS,63.43,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/21/2025,06/07/2025
+OPP-00685,Cascade Networks,Colocation,757.47,Closed Lost,Not In Forecast,David Park,Direct,04/15/2024,09/15/2024
+OPP-00688,FlexNet Solutions,MPLS,172.67,Closed Lost,Not In Forecast,Mark Thompson,Agent,03/22/2025,07/31/2025
+OPP-00691,BluePeak,IP Transit,2919.61,Closed Lost,Not In Forecast,Mark Thompson,Agent,09/10/2025,10/25/2025
+OPP-00698,Titanium Labs,SD-WAN,3118.68,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,05/11/2024,10/18/2024
+OPP-00701,ClearPath,DDoS Protection,229.38,Closed Lost,Not In Forecast,Mark Thompson,Channel,06/27/2024,11/27/2024
+OPP-00704,NexGen Telecom,MPLS,1430.78,Closed Lost,Not In Forecast,Nicole Foster,Direct,02/06/2025,06/19/2025
+OPP-00705,StarForge,DDoS Protection,650.84,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,10/07/2025,11/23/2025
+OPP-00706,HorizonIO,MPLS,795.54,Closed Lost,Not In Forecast,Chris Weber,Channel,09/22/2025,11/19/2025
+OPP-00709,EchoPoint,MPLS,1082.26,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,08/16/2025,11/20/2025
+OPP-00710,ClearPath,SD-WAN,588.99,Closed Lost,Not In Forecast,Jessica Kim,Channel,07/31/2025,11/23/2025
+OPP-00711,EchoPoint,Wavelengths,697.88,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,04/07/2025,09/22/2025
+OPP-00713,TechFlow Inc,SD-WAN,911.59,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,08/05/2025,11/20/2025
+OPP-00717,EchoPoint,MPLS,94.21,Closed Lost,Not In Forecast,David Park,Agent,07/08/2025,11/26/2025
+OPP-00720,GridForce,IP Transit,325.43,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,11/14/2025,02/16/2026
+OPP-00721,ClearPath,SD-WAN,1601.18,Closed Lost,Not In Forecast,Lisa Chen,Direct,11/15/2024,12/18/2024
+OPP-00730,Pinnacle IT,Managed Services,608.6,Closed Lost,Not In Forecast,Nicole Foster,Agent,08/31/2024,10/11/2024
+OPP-00732,ClearPath,DDoS Protection,83.82,Closed Lost,Not In Forecast,Lisa Chen,Channel,10/07/2025,11/20/2025
+OPP-00738,GoldGrid,Wavelengths,401.25,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/10/2025,05/31/2025
+OPP-00741,Cascade Networks,Cloud Connect,303.17,Closed Lost,Not In Forecast,Lisa Chen,Agent,05/10/2025,08/27/2025
+OPP-00745,Summit Cloud,IP Transit,106.99,Closed Lost,Not In Forecast,Chris Weber,Direct,10/04/2025,02/15/2026
+OPP-00763,SilverStream,Wavelengths,621.03,Closed Lost,Not In Forecast,Mark Thompson,Channel,03/19/2025,05/18/2025
+OPP-00769,SkyBridge Networks,Dark Fiber,963.7,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,06/23/2024,12/08/2024
+OPP-00770,Apex Digital,DDoS Protection,1880.78,Closed Lost,Not In Forecast,Mark Thompson,Channel,08/23/2025,02/17/2026
+OPP-00773,SwiftNode,Cloud Connect,2739.43,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/10/2026,02/21/2026
+OPP-00774,TechFlow Inc,Ethernet,3112.7,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,10/31/2024,04/19/2025
+OPP-00776,LinkStream,IP Transit,223.88,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,07/09/2025,10/11/2025
+OPP-00778,TerraLink,IP Transit,7869.53,Closed Lost,Not In Forecast,Jessica Kim,Channel,07/24/2025,08/13/2025
+OPP-00781,Zenith Systems,Cloud Connect,331.84,Closed Lost,Not In Forecast,Chris Weber,Channel,07/23/2024,11/13/2024
+OPP-00783,TerraLink,DDoS Protection,928.1,Closed Lost,Not In Forecast,Lisa Chen,Direct,01/28/2026,03/13/2026
+OPP-00788,PulseNet,Cloud Connect,233.42,Closed Lost,Not In Forecast,Mark Thompson,Agent,09/24/2024,11/29/2024
+OPP-00791,PrimeRoute,Dark Fiber,236.67,Closed Lost,Not In Forecast,Nicole Foster,Direct,12/15/2024,05/03/2025
+OPP-00792,Pinnacle IT,Cloud Connect,309.37,Closed Lost,Not In Forecast,Nicole Foster,Channel,03/17/2025,06/24/2025
+OPP-00793,FiberLink,Dark Fiber,1463.31,Closed Lost,Not In Forecast,Jessica Kim,Agent,11/27/2024,03/16/2025
+OPP-00795,SwiftNode,Ethernet,2286.62,Closed Lost,Not In Forecast,Nicole Foster,Channel,01/21/2026,03/02/2026
+OPP-00798,VectorData,Managed Services,1592.5,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,01/06/2026,03/05/2026
+OPP-00802,RedRock Data,Managed Services,541.61,Closed Lost,Not In Forecast,Mark Thompson,Agent,07/22/2024,10/15/2024
+OPP-00803,Titanium Labs,Managed Services,1781.7,Closed Lost,Not In Forecast,Lisa Chen,Channel,10/19/2024,12/30/2024
+OPP-00804,CloudFirst,IP Transit,142.71,Closed Lost,Not In Forecast,Jessica Kim,Agent,03/09/2025,07/02/2025
+OPP-00805,Zenith Systems,Wavelengths,1008.25,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,06/25/2024,08/12/2024
+OPP-00806,Apex Digital,MPLS,320.17,Closed Lost,Not In Forecast,Jose Banales,Agent,08/13/2024,10/20/2024
+OPP-00811,TechFlow Inc,MPLS,845.52,Closed Lost,Not In Forecast,Nicole Foster,Agent,07/26/2025,01/22/2026
+OPP-00813,EchoPoint,Colocation,779.38,Closed Lost,Not In Forecast,Jessica Kim,Direct,01/21/2026,03/07/2026
+OPP-00814,PulseNet,MPLS,569.34,Closed Lost,Not In Forecast,Mark Thompson,Direct,12/05/2024,12/28/2024
+OPP-00815,Quantum Networks,Wavelengths,161.92,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,08/08/2024,01/17/2025
+OPP-00818,IronGate Tech,Wavelengths,322.33,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,12/03/2024,04/05/2025
+OPP-00821,Quantum Networks,Cloud Connect,79.84,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,10/31/2024,02/19/2025
+OPP-00828,IronGate Tech,Colocation,242.95,Closed Lost,Not In Forecast,Mark Thompson,Channel,03/25/2024,07/26/2024
+OPP-00831,SkyBridge Networks,Wavelengths,174.84,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,12/14/2024,02/21/2025
+OPP-00834,FiberLink,DDoS Protection,48.65,Closed Lost,Not In Forecast,Jessica Kim,Direct,03/25/2024,05/18/2024
+OPP-00841,FiberLink,Colocation,212.29,Closed Lost,Not In Forecast,Nicole Foster,Direct,04/26/2024,07/20/2024
+OPP-00843,ByteWorks,Ethernet,232.45,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,12/30/2024,04/13/2025
+OPP-00847,CoreConnect,MPLS,128.95,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,06/27/2024,07/31/2024
+OPP-00853,NexGen Telecom,SD-WAN,42.22,Closed Lost,Not In Forecast,Jose Banales,Agent,01/04/2026,02/19/2026
+OPP-00857,ByteWorks,Cloud Connect,160.34,Closed Lost,Not In Forecast,David Park,Direct,06/05/2025,09/22/2025
+OPP-00862,SilverStream,Dark Fiber,124.03,Closed Lost,Not In Forecast,Jose Banales,Direct,10/15/2025,02/20/2026
+OPP-00866,OmniConnect,Wavelengths,3162.5,Closed Lost,Not In Forecast,Nicole Foster,Channel,09/16/2024,01/18/2025
+OPP-00870,OmniConnect,Cloud Connect,1647.67,Closed Lost,Not In Forecast,Jessica Kim,Channel,10/01/2025,02/20/2026
+OPP-00872,Quantum Networks,Ethernet,6872.55,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,07/08/2024,08/07/2024
+OPP-00873,OmniConnect,Cloud Connect,18.56,Closed Lost,Not In Forecast,Mark Thompson,Channel,05/14/2024,07/03/2024
+OPP-00874,DigiPath,IP Transit,556.19,Closed Lost,Not In Forecast,Chris Weber,Agent,11/16/2025,01/10/2026
+OPP-00876,HorizonIO,Managed Services,239.84,Closed Lost,Not In Forecast,Chris Weber,Agent,01/04/2026,01/27/2026
+OPP-00877,SilverStream,IP Transit,775.85,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,10/24/2025,03/16/2026
+OPP-00891,VectorData,Dark Fiber,182.21,Closed Lost,Not In Forecast,Nicole Foster,Agent,04/06/2025,05/31/2025
+OPP-00892,Titanium Labs,DDoS Protection,224.73,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,09/16/2025,01/28/2026
+OPP-00893,FiberLink,Wavelengths,804.12,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/17/2025,03/20/2025
+OPP-00894,Apex Digital,Cloud Connect,105.94,Closed Lost,Not In Forecast,Nicole Foster,Channel,01/02/2026,03/12/2026
+OPP-00898,OmniConnect,DDoS Protection,152.31,Closed Lost,Not In Forecast,Jessica Kim,Channel,04/20/2025,05/07/2025
+OPP-00900,Atlas Computing,IP Transit,69.53,Closed Lost,Not In Forecast,Jessica Kim,Channel,06/22/2025,08/08/2025
+OPP-00901,SwiftNode,MPLS,2422.31,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,11/23/2025,03/14/2026
+OPP-00903,HorizonIO,Colocation,303.45,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,09/24/2025,01/26/2026
+OPP-00907,Pinnacle IT,Wavelengths,79.76,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,11/02/2024,03/26/2025
+OPP-00910,IronGate Tech,IP Transit,349.63,Closed Lost,Not In Forecast,Chris Weber,Agent,07/25/2024,12/16/2024
+OPP-00912,IronGate Tech,Dark Fiber,469.48,Closed Lost,Not In Forecast,Nicole Foster,Direct,07/29/2024,12/07/2024
+OPP-00915,RedRock Data,Cloud Connect,277.51,Closed Lost,Not In Forecast,Lisa Chen,Channel,06/22/2025,08/17/2025
+OPP-00917,GoldGrid,MPLS,54.0,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,08/21/2024,10/30/2024
+OPP-00920,GridForce,SD-WAN,169.58,Closed Lost,Not In Forecast,Chris Weber,Direct,07/30/2025,12/02/2025
+OPP-00928,Atlas Computing,SD-WAN,280.27,Closed Lost,Not In Forecast,Mark Thompson,Channel,05/17/2025,08/17/2025
+OPP-00929,PrimeRoute,Cloud Connect,590.6,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,06/26/2025,11/14/2025
+OPP-00939,Atlas Computing,IP Transit,89.47,Closed Lost,Not In Forecast,David Park,Direct,08/19/2024,12/13/2024
+OPP-00941,FlexNet Solutions,Ethernet,421.17,Closed Lost,Not In Forecast,Chris Weber,Direct,05/08/2024,11/04/2024
+OPP-00943,GoldGrid,DDoS Protection,398.62,Closed Lost,Not In Forecast,Chris Weber,Channel,10/12/2024,01/23/2025
+OPP-00948,VectorData,Managed Services,3127.51,Closed Lost,Not In Forecast,David Park,Channel,07/11/2024,10/03/2024
+OPP-00951,PrimeRoute,SD-WAN,313.76,Closed Lost,Not In Forecast,Lisa Chen,Direct,03/08/2025,06/04/2025
+OPP-00952,DigiPath,Dark Fiber,861.95,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/22/2025,06/10/2025
+OPP-00958,CoreConnect,Colocation,360.06,Closed Lost,Not In Forecast,Jessica Kim,Agent,05/22/2025,09/19/2025
+OPP-00962,Summit Cloud,Dark Fiber,566.9,Closed Lost,Not In Forecast,Lisa Chen,Agent,12/21/2025,02/22/2026
+OPP-00967,FlexNet Solutions,SD-WAN,124.66,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,07/06/2025,11/04/2025
+OPP-00968,IronGate Tech,IP Transit,478.98,Closed Lost,Not In Forecast,Jose Banales,Channel,01/13/2026,03/03/2026
+OPP-00971,HorizonIO,DDoS Protection,3486.0,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,01/21/2026,03/09/2026
+OPP-00972,CoreConnect,Cloud Connect,752.94,Closed Lost,Not In Forecast,Nicole Foster,Agent,01/28/2026,03/11/2026
+OPP-00974,CloudFirst,MPLS,1600.17,Closed Lost,Not In Forecast,David Park,Direct,04/17/2024,06/15/2024
+OPP-00975,Apex Digital,Wavelengths,117.81,Closed Lost,Not In Forecast,Jessica Kim,Channel,02/11/2026,03/10/2026
+OPP-00977,Cascade Networks,Managed Services,21.17,Closed Lost,Not In Forecast,Lisa Chen,Direct,08/06/2024,09/07/2024
+OPP-00980,FlexNet Solutions,Wavelengths,323.78,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,07/09/2024,12/20/2024
+OPP-00989,NetScale Systems,SD-WAN,341.49,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,03/28/2025,08/31/2025
+OPP-00990,FlexNet Solutions,Ethernet,1234.98,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,12/29/2024,02/02/2025
+OPP-00991,LinkStream,IP Transit,96.48,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,08/10/2024,09/03/2024
+OPP-00992,NexGen Telecom,Managed Services,192.05,Closed Lost,Not In Forecast,Jessica Kim,Direct,06/12/2024,07/12/2024
+OPP-00995,IronGate Tech,DDoS Protection,338.39,Closed Lost,Not In Forecast,Jose Banales,Direct,10/20/2025,03/16/2026
+OPP-00997,Zenith Systems,Dark Fiber,67.21,Closed Lost,Not In Forecast,Nicole Foster,Channel,02/09/2025,05/02/2025
+OPP-00998,PulseNet,Managed Services,310.53,Closed Lost,Not In Forecast,Jessica Kim,Direct,10/27/2024,02/23/2025
+OPP-01002,DataSync Labs,MPLS,415.62,Closed Lost,Not In Forecast,Lisa Chen,Channel,02/14/2025,07/25/2025
+OPP-01005,OmniConnect,Ethernet,1884.02,Closed Lost,Not In Forecast,Chris Weber,Agent,06/05/2024,08/16/2024
+OPP-01008,Atlas Computing,Cloud Connect,260.14,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,08/17/2025,09/20/2025
+OPP-01011,Atlas Computing,Dark Fiber,715.0,Closed Lost,Not In Forecast,Mark Thompson,Direct,04/21/2024,08/24/2024
+OPP-01012,TechFlow Inc,IP Transit,1464.11,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,05/03/2025,10/07/2025
+OPP-01017,DataSync Labs,Ethernet,127.37,Closed Lost,Not In Forecast,Chris Weber,Agent,07/17/2024,10/13/2024
+OPP-01019,PrimeRoute,IP Transit,3156.54,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,10/03/2024,10/19/2024
+OPP-01020,RedRock Data,Dark Fiber,1093.62,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,06/25/2025,09/23/2025
+OPP-01022,NetScale Systems,Cloud Connect,750.96,Closed Lost,Not In Forecast,Mark Thompson,Agent,04/26/2024,08/29/2024
+OPP-01027,EchoPoint,Managed Services,299.04,Closed Lost,Not In Forecast,David Park,Direct,11/26/2024,03/29/2025
+OPP-01029,SilverStream,DDoS Protection,196.53,Closed Lost,Not In Forecast,Lisa Chen,Direct,04/22/2025,08/28/2025
+OPP-01030,IronGate Tech,DDoS Protection,541.28,Closed Lost,Not In Forecast,David Park,Direct,06/19/2025,10/16/2025
+OPP-01031,ByteWorks,MPLS,76.82,Closed Lost,Not In Forecast,Mark Thompson,Agent,04/08/2024,07/29/2024
+OPP-01034,DataSync Labs,Dark Fiber,146.79,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,11/08/2024,05/03/2025
+OPP-01035,NexGen Telecom,Dark Fiber,240.46,Closed Lost,Not In Forecast,David Park,Agent,06/01/2024,10/23/2024
+OPP-01039,SkyBridge Networks,Colocation,1107.39,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,07/19/2025,12/25/2025
+OPP-01043,LinkStream,Colocation,114.46,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/26/2025,01/30/2026
+OPP-01045,SwiftNode,Wavelengths,340.33,Closed Lost,Not In Forecast,Jose Banales,Channel,07/16/2024,11/19/2024
+OPP-01048,Pinnacle IT,Dark Fiber,250.42,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,06/22/2024,11/21/2024
+OPP-01052,Cascade Networks,MPLS,5587.43,Closed Lost,Not In Forecast,Chris Weber,Channel,10/18/2024,12/15/2024
+OPP-01054,CloudFirst,IP Transit,403.78,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,10/12/2025,02/04/2026
+OPP-01055,TerraLink,DDoS Protection,4355.65,Closed Lost,Not In Forecast,Jessica Kim,Channel,06/08/2025,11/13/2025
+OPP-01056,SwiftNode,Managed Services,232.64,Closed Lost,Not In Forecast,David Park,Agent,12/09/2025,02/17/2026
+OPP-01060,EchoPoint,Wavelengths,674.74,Closed Lost,Not In Forecast,Jose Banales,Channel,07/30/2024,09/04/2024
+OPP-01063,Zenith Systems,DDoS Protection,674.89,Closed Lost,Not In Forecast,Jose Banales,Direct,06/15/2025,07/11/2025
+OPP-01066,Acme Corp,Ethernet,116.74,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,09/29/2024,11/16/2024
+OPP-01069,SignalBridge,Dark Fiber,76.21,Closed Lost,Not In Forecast,Nicole Foster,Channel,01/07/2025,03/16/2025
+OPP-01073,FiberLink,IP Transit,290.76,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,11/15/2025,02/23/2026
+OPP-01079,Pinnacle IT,DDoS Protection,919.84,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/25/2025,09/23/2025
+OPP-01094,Titanium Labs,SD-WAN,614.27,Closed Lost,Not In Forecast,David Park,Agent,10/26/2025,03/11/2026
+OPP-01096,FlexNet Solutions,SD-WAN,170.28,Closed Lost,Not In Forecast,Jose Banales,Channel,12/28/2025,03/14/2026
+OPP-01098,BluePeak,MPLS,250.84,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,06/16/2025,08/08/2025
+OPP-01103,StarForge,DDoS Protection,1819.19,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,01/27/2026,02/21/2026
+OPP-01104,Apex Digital,Colocation,846.23,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,06/21/2025,08/15/2025
+OPP-01110,PulseNet,Managed Services,60.97,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,05/28/2024,06/13/2024
+OPP-01114,Pinnacle IT,Ethernet,2031.16,Closed Lost,Not In Forecast,David Park,Direct,11/23/2024,02/12/2025
+OPP-01116,FlexNet Solutions,Dark Fiber,682.19,Closed Lost,Not In Forecast,Lisa Chen,Channel,06/11/2025,09/09/2025
+OPP-01120,PrimeRoute,MPLS,1372.81,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,11/06/2024,01/11/2025
+OPP-01122,SwiftNode,MPLS,1234.42,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,11/23/2024,02/04/2025
+OPP-01124,CopperLine,Managed Services,768.23,Closed Lost,Not In Forecast,Jessica Kim,Direct,07/20/2025,09/02/2025
+OPP-01125,SwiftNode,Wavelengths,88.06,Closed Lost,Not In Forecast,Jessica Kim,Direct,06/14/2025,12/10/2025
+OPP-01127,ClearPath,Colocation,1104.07,Closed Lost,Not In Forecast,Jessica Kim,Agent,12/24/2024,05/31/2025
+OPP-01129,PulseNet,Wavelengths,143.14,Closed Lost,Not In Forecast,Chris Weber,Agent,09/21/2024,11/24/2024
+OPP-01138,WavePoint,IP Transit,118.21,Closed Lost,Not In Forecast,Nicole Foster,Channel,01/23/2026,02/28/2026
+OPP-01140,SwiftNode,Ethernet,115.41,Closed Lost,Not In Forecast,Mark Thompson,Channel,04/10/2024,05/30/2024
+OPP-01142,Apex Digital,Colocation,1385.23,Closed Lost,Not In Forecast,Jessica Kim,Channel,08/25/2025,10/01/2025
+OPP-01147,LinkStream,SD-WAN,1409.35,Closed Lost,Not In Forecast,Mark Thompson,Direct,05/27/2024,09/02/2024
+OPP-01150,Cascade Networks,Wavelengths,856.14,Closed Lost,Not In Forecast,Mark Thompson,Direct,09/29/2024,12/06/2024
+OPP-01156,GoldGrid,Cloud Connect,710.0,Closed Lost,Not In Forecast,Jose Banales,Direct,05/09/2025,06/04/2025
+OPP-01162,Apex Digital,DDoS Protection,5162.27,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,12/25/2025,01/21/2026
+OPP-01165,Summit Cloud,Cloud Connect,1129.97,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,06/24/2024,10/04/2024
+OPP-01167,OmniConnect,SD-WAN,11.14,Closed Lost,Not In Forecast,Jessica Kim,Channel,08/23/2025,10/26/2025
+OPP-01173,CopperLine,Ethernet,117.14,Closed Lost,Not In Forecast,Lisa Chen,Channel,11/07/2025,12/30/2025
+OPP-01175,ByteWorks,Managed Services,1455.5,Closed Lost,Not In Forecast,David Park,Direct,12/21/2024,01/15/2025
+OPP-01176,TerraLink,SD-WAN,801.29,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,07/01/2024,08/07/2024
+OPP-01180,FiberLink,MPLS,168.02,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,11/26/2025,02/19/2026
+OPP-01182,IronGate Tech,Dark Fiber,3999.05,Closed Lost,Not In Forecast,Lisa Chen,Agent,12/02/2024,03/18/2025
+OPP-01185,HorizonIO,Wavelengths,782.11,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,07/28/2025,11/09/2025
+OPP-01189,WavePoint,SD-WAN,204.97,Closed Lost,Not In Forecast,Jose Banales,Channel,01/10/2026,03/13/2026
+OPP-01191,Cascade Networks,MPLS,2281.25,Closed Lost,Not In Forecast,Chris Weber,Agent,03/25/2025,06/15/2025
+OPP-01196,VectorData,Dark Fiber,325.85,Closed Lost,Not In Forecast,Nicole Foster,Channel,02/06/2026,03/07/2026
+OPP-01197,ByteWorks,MPLS,896.73,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,05/29/2024,11/17/2024
+OPP-01199,TerraLink,DDoS Protection,111.03,Closed Lost,Not In Forecast,Chris Weber,Agent,06/01/2025,08/19/2025
+OPP-01207,Pinnacle IT,MPLS,1776.44,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,01/01/2025,04/08/2025
+OPP-01215,LinkStream,SD-WAN,1442.33,Closed Lost,Not In Forecast,Chris Weber,Agent,11/22/2025,12/09/2025
+OPP-01217,Zenith Systems,SD-WAN,980.37,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,10/10/2024,11/16/2024
+OPP-01220,GridForce,Ethernet,1083.33,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,09/13/2024,12/26/2024
+OPP-01221,Atlas Computing,Ethernet,88.47,Closed Lost,Not In Forecast,Jose Banales,Channel,02/24/2025,07/01/2025
+OPP-01223,NetScale Systems,DDoS Protection,295.43,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,07/02/2024,09/14/2024
+OPP-01226,OmniConnect,Managed Services,53.67,Closed Lost,Not In Forecast,Jessica Kim,Direct,09/12/2024,01/04/2025
+OPP-01227,VectorData,IP Transit,81.69,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,09/23/2025,12/05/2025
+OPP-01234,RedRock Data,Cloud Connect,2214.01,Closed Lost,Not In Forecast,Nicole Foster,Agent,06/13/2024,07/03/2024
+OPP-01235,Acme Corp,Dark Fiber,263.97,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,12/16/2025,02/27/2026
+OPP-01237,EchoPoint,MPLS,108.8,Closed Lost,Not In Forecast,Chris Weber,Direct,04/27/2024,06/15/2024
+OPP-01245,StarForge,Ethernet,822.74,Closed Lost,Not In Forecast,Jessica Kim,Channel,09/15/2024,01/03/2025
+OPP-01252,VectorData,Cloud Connect,235.94,Closed Lost,Not In Forecast,Lisa Chen,Agent,05/20/2024,06/20/2024
+OPP-01258,CopperLine,IP Transit,286.48,Closed Lost,Not In Forecast,Lisa Chen,Direct,04/23/2025,06/17/2025
+OPP-01259,HorizonIO,Colocation,29.24,Closed Lost,Not In Forecast,David Park,Direct,08/28/2024,01/14/2025
+OPP-01268,SilverStream,Colocation,257.79,Closed Lost,Not In Forecast,Lisa Chen,Agent,10/03/2024,03/01/2025
+OPP-01269,Summit Cloud,SD-WAN,239.34,Closed Lost,Not In Forecast,Lisa Chen,Channel,01/15/2025,02/05/2025
+OPP-01270,TechFlow Inc,DDoS Protection,337.78,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,08/25/2024,02/08/2025
+OPP-01274,RedRock Data,Wavelengths,108.47,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,03/18/2025,06/27/2025
+OPP-01275,Quantum Networks,DDoS Protection,654.16,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,08/23/2024,01/25/2025
+OPP-01276,Quantum Networks,Ethernet,1066.17,Closed Lost,Not In Forecast,Jessica Kim,Direct,07/21/2025,08/15/2025
+OPP-01283,CopperLine,SD-WAN,1027.34,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,04/19/2025,07/26/2025
+OPP-01290,Acme Corp,MPLS,1876.29,Closed Lost,Not In Forecast,Jose Banales,Agent,10/11/2024,01/02/2025
+OPP-01292,CloudFirst,SD-WAN,467.06,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,04/02/2025,09/05/2025
+OPP-01297,SignalBridge,Ethernet,475.73,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,01/19/2026,03/10/2026
+OPP-01299,GridForce,Dark Fiber,164.86,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,10/18/2024,03/20/2025
+OPP-01303,OmniConnect,Dark Fiber,274.4,Closed Lost,Not In Forecast,David Park,Agent,03/12/2025,07/30/2025
+OPP-01305,FiberLink,Managed Services,100.59,Closed Lost,Not In Forecast,Chris Weber,Agent,06/23/2025,09/01/2025
+OPP-01310,DigiPath,Wavelengths,329.9,Closed Lost,Not In Forecast,Mark Thompson,Direct,06/01/2025,06/21/2025
+OPP-01313,GridForce,Managed Services,488.44,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,04/27/2024,07/10/2024
+OPP-01316,LinkStream,Wavelengths,175.13,Closed Lost,Not In Forecast,Mark Thompson,Channel,08/22/2025,10/13/2025
+OPP-01322,Quantum Networks,Managed Services,2703.28,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,11/06/2024,02/09/2025
+OPP-01335,TerraLink,Dark Fiber,1411.29,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,02/10/2025,03/02/2025
+OPP-01339,OmniConnect,Cloud Connect,129.76,Closed Lost,Not In Forecast,Chris Weber,Direct,11/07/2024,01/29/2025
+OPP-01340,SkyBridge Networks,SD-WAN,125.83,Closed Lost,Not In Forecast,Jessica Kim,Direct,06/18/2024,08/12/2024
+OPP-01341,Quantum Networks,MPLS,351.92,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,06/07/2025,09/01/2025
+OPP-01343,StarForge,Managed Services,507.21,Closed Lost,Not In Forecast,Chris Weber,Direct,06/29/2024,09/20/2024
+OPP-01345,Zenith Systems,IP Transit,498.19,Closed Lost,Not In Forecast,Mark Thompson,Direct,11/24/2024,04/04/2025
+OPP-01350,WavePoint,Managed Services,148.18,Closed Lost,Not In Forecast,Nicole Foster,Agent,07/29/2025,11/23/2025
+OPP-01356,ClearPath,Managed Services,562.4,Closed Lost,Not In Forecast,David Park,Direct,10/29/2024,11/23/2024
+OPP-01357,DataSync Labs,SD-WAN,284.73,Closed Lost,Not In Forecast,Jose Banales,Direct,10/19/2024,11/03/2024
+OPP-01362,HorizonIO,SD-WAN,1145.2,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,08/21/2024,09/30/2024
+OPP-01364,Pinnacle IT,Wavelengths,234.29,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,01/27/2025,04/12/2025
+OPP-01368,SignalBridge,SD-WAN,1507.83,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,09/30/2024,11/27/2024
+OPP-01369,Zenith Systems,Managed Services,1047.94,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,05/23/2024,10/03/2024
+OPP-01371,ClearPath,IP Transit,2218.65,Closed Lost,Not In Forecast,Jessica Kim,Channel,05/20/2025,08/03/2025
+OPP-01372,HorizonIO,Cloud Connect,49.42,Closed Lost,Not In Forecast,Lisa Chen,Direct,07/16/2024,09/06/2024
+OPP-01377,WavePoint,Dark Fiber,192.89,Closed Lost,Not In Forecast,Mark Thompson,Direct,12/24/2025,02/23/2026
+OPP-01378,ClearPath,MPLS,165.48,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,01/21/2026,03/09/2026
+OPP-01381,Apex Digital,MPLS,2882.89,Closed Lost,Not In Forecast,Lisa Chen,Channel,11/01/2025,01/20/2026
+OPP-01390,SignalBridge,Ethernet,1489.32,Closed Lost,Not In Forecast,Nicole Foster,Agent,06/29/2025,10/21/2025
+OPP-01392,Atlas Computing,Wavelengths,580.06,Closed Lost,Not In Forecast,Mark Thompson,Direct,10/05/2025,03/10/2026
+OPP-01397,Apex Digital,Wavelengths,104.77,Closed Lost,Not In Forecast,Mark Thompson,Agent,10/02/2025,03/04/2026
+OPP-01398,Quantum Networks,Colocation,101.56,Closed Lost,Not In Forecast,Nicole Foster,Agent,04/28/2024,07/31/2024
+OPP-01400,SkyBridge Networks,DDoS Protection,819.96,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,07/02/2024,12/25/2024
+OPP-01405,CoreConnect,MPLS,1820.48,Closed Lost,Not In Forecast,Mark Thompson,Agent,08/01/2024,10/10/2024
+OPP-01407,DigiPath,Cloud Connect,348.66,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,12/28/2025,02/18/2026
+OPP-01409,Acme Corp,DDoS Protection,1181.58,Closed Lost,Not In Forecast,Jessica Kim,Direct,10/12/2024,02/09/2025
+OPP-01412,TechFlow Inc,Ethernet,466.96,Closed Lost,Not In Forecast,Jessica Kim,Channel,12/21/2024,05/17/2025
+OPP-01413,HorizonIO,DDoS Protection,1209.12,Closed Lost,Not In Forecast,Jose Banales,Direct,11/23/2024,04/29/2025
+OPP-01418,BluePeak,Dark Fiber,575.42,Closed Lost,Not In Forecast,Lisa Chen,Channel,10/30/2024,01/07/2025
+OPP-01419,LinkStream,Cloud Connect,136.14,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,11/10/2025,02/17/2026
+OPP-01422,ClearPath,Wavelengths,463.43,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,06/25/2024,12/17/2024
+OPP-01425,HorizonIO,DDoS Protection,298.01,Closed Lost,Not In Forecast,Mark Thompson,Agent,04/22/2024,09/20/2024
+OPP-01427,SignalBridge,SD-WAN,1036.93,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,11/16/2025,02/24/2026
+OPP-01428,Titanium Labs,Ethernet,218.22,Closed Lost,Not In Forecast,Jessica Kim,Channel,10/23/2024,11/12/2024
+OPP-01430,EchoPoint,Wavelengths,2031.25,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,06/01/2024,08/16/2024
+OPP-01436,FlexNet Solutions,SD-WAN,161.26,Closed Lost,Not In Forecast,David Park,Direct,06/04/2024,07/27/2024
+OPP-01441,CloudFirst,DDoS Protection,1259.91,Closed Lost,Not In Forecast,Lisa Chen,Direct,04/04/2024,09/25/2024
+OPP-01442,Cascade Networks,IP Transit,1103.6,Closed Lost,Not In Forecast,Mark Thompson,Direct,09/10/2025,10/26/2025
+OPP-01447,OmniConnect,Cloud Connect,142.58,Closed Lost,Not In Forecast,David Park,Direct,01/12/2025,03/17/2025
+OPP-01448,TechFlow Inc,Wavelengths,786.48,Closed Lost,Not In Forecast,Jessica Kim,Channel,09/12/2025,02/03/2026
+OPP-01449,TechFlow Inc,Ethernet,1031.51,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,08/02/2024,12/14/2024
+OPP-01450,GoldGrid,Dark Fiber,31.49,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,03/16/2025,05/19/2025
+OPP-01452,Quantum Networks,Wavelengths,508.84,Closed Lost,Not In Forecast,Nicole Foster,Channel,10/07/2024,12/22/2024
+OPP-01459,ByteWorks,Ethernet,983.33,Closed Lost,Not In Forecast,Chris Weber,Agent,09/08/2024,11/02/2024
+OPP-01461,DataSync Labs,SD-WAN,2530.39,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/26/2025,05/12/2025
+OPP-01464,TerraLink,IP Transit,187.2,Closed Lost,Not In Forecast,Jessica Kim,Direct,05/10/2024,09/12/2024
+OPP-01465,Summit Cloud,Colocation,283.02,Closed Lost,Not In Forecast,Mark Thompson,Channel,08/11/2024,02/01/2025
+OPP-01467,SwiftNode,Ethernet,316.79,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,01/07/2026,02/26/2026
+OPP-01468,DigiPath,Dark Fiber,506.95,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,03/30/2025,09/05/2025
+OPP-01469,CopperLine,Wavelengths,23.95,Closed Lost,Not In Forecast,David Park,Channel,10/25/2025,02/25/2026
+OPP-01471,FlexNet Solutions,IP Transit,75.78,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,01/13/2025,02/02/2025
+OPP-01473,Zenith Systems,MPLS,56.03,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,06/29/2025,10/28/2025
+OPP-01474,TechFlow Inc,Managed Services,425.3,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/02/2026,02/16/2026
+OPP-01490,Apex Digital,IP Transit,148.81,Closed Lost,Not In Forecast,Jessica Kim,Channel,06/02/2024,11/03/2024
+OPP-01491,FlexNet Solutions,SD-WAN,259.02,Closed Lost,Not In Forecast,David Park,Agent,06/22/2024,10/25/2024
+OPP-01492,PrimeRoute,SD-WAN,257.45,Closed Lost,Not In Forecast,Jose Banales,Direct,08/10/2024,12/21/2024
+OPP-01493,RedRock Data,Colocation,1165.57,Closed Lost,Not In Forecast,Mark Thompson,Direct,06/30/2024,12/22/2024
+OPP-01494,GridForce,SD-WAN,2615.4,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,06/09/2025,08/22/2025
+OPP-01497,DigiPath,Managed Services,161.79,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/15/2024,09/02/2024
+OPP-01498,SkyBridge Networks,Dark Fiber,68.44,Closed Lost,Not In Forecast,Chris Weber,Agent,02/16/2025,04/12/2025
+OPP-01500,Cascade Networks,IP Transit,520.23,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,02/14/2026,03/10/2026
+OPP-01501,IronGate Tech,MPLS,673.6,Closed Lost,Not In Forecast,Nicole Foster,Agent,09/24/2025,01/27/2026
+OPP-01503,FlexNet Solutions,Cloud Connect,828.55,Closed Lost,Not In Forecast,Jessica Kim,Agent,03/18/2025,05/17/2025
+OPP-01505,Atlas Computing,Managed Services,420.93,Closed Lost,Not In Forecast,Nicole Foster,Agent,08/22/2024,10/09/2024
+OPP-01506,Apex Digital,Colocation,1022.79,Closed Lost,Not In Forecast,Nicole Foster,Direct,11/16/2024,03/05/2025
+OPP-01512,ClearPath,DDoS Protection,1069.53,Closed Lost,Not In Forecast,Mark Thompson,Agent,09/11/2025,02/28/2026
+OPP-01513,SkyBridge Networks,Wavelengths,391.92,Closed Lost,Not In Forecast,Lisa Chen,Agent,04/17/2025,09/22/2025
+OPP-01515,GoldGrid,Wavelengths,514.93,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,10/07/2024,03/04/2025
+OPP-01519,PulseNet,Managed Services,555.85,Closed Lost,Not In Forecast,Chris Weber,Agent,07/30/2024,12/14/2024
+OPP-01520,Acme Corp,SD-WAN,64.49,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,02/19/2025,07/26/2025
+OPP-01526,PulseNet,Wavelengths,217.35,Closed Lost,Not In Forecast,David Park,Channel,08/02/2025,09/22/2025
+OPP-01529,FiberLink,IP Transit,808.34,Closed Lost,Not In Forecast,Lisa Chen,Direct,05/17/2024,09/05/2024
+OPP-01530,Acme Corp,Wavelengths,929.14,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,04/11/2024,09/09/2024
+OPP-01536,HorizonIO,Ethernet,1165.41,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,11/23/2024,05/04/2025
+OPP-01541,LinkStream,Managed Services,123.6,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,05/12/2024,10/14/2024
+OPP-01542,GridForce,IP Transit,435.98,Closed Lost,Not In Forecast,Jose Banales,Direct,10/21/2025,02/25/2026
+OPP-01544,Titanium Labs,Cloud Connect,3075.94,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,06/21/2024,07/11/2024
+OPP-01550,Atlas Computing,SD-WAN,127.81,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,10/10/2025,02/03/2026
+OPP-01556,SkyBridge Networks,MPLS,66.37,Closed Lost,Not In Forecast,Mark Thompson,Channel,06/14/2025,07/20/2025
+OPP-01559,CloudFirst,Wavelengths,715.31,Closed Lost,Not In Forecast,Jose Banales,Agent,06/23/2025,10/10/2025
+OPP-01560,IronGate Tech,SD-WAN,255.06,Closed Lost,Not In Forecast,Nicole Foster,Direct,09/10/2024,11/27/2024
+OPP-01562,DigiPath,Colocation,456.33,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,04/30/2025,07/24/2025
+OPP-01563,Quantum Networks,Managed Services,2834.41,Closed Lost,Not In Forecast,Mark Thompson,Channel,06/19/2025,07/31/2025
+OPP-01571,PrimeRoute,MPLS,255.73,Closed Lost,Not In Forecast,Jose Banales,Channel,12/04/2024,05/24/2025
+OPP-01572,SilverStream,Colocation,1738.27,Closed Lost,Not In Forecast,Jose Banales,Agent,11/28/2025,03/02/2026
+OPP-01573,ByteWorks,Wavelengths,233.51,Closed Lost,Not In Forecast,Lisa Chen,Channel,01/11/2025,02/21/2025
+OPP-01575,PulseNet,Cloud Connect,2801.23,Closed Lost,Not In Forecast,Chris Weber,Direct,12/03/2025,02/20/2026
+OPP-01582,VectorData,Colocation,920.87,Closed Lost,Not In Forecast,Jose Banales,Channel,09/27/2024,01/17/2025
+OPP-01583,Titanium Labs,Wavelengths,2508.24,Closed Lost,Not In Forecast,David Park,Agent,08/11/2025,01/24/2026
+OPP-01584,PrimeRoute,IP Transit,297.57,Closed Lost,Not In Forecast,Nicole Foster,Agent,10/31/2025,03/17/2026
+OPP-01585,CloudFirst,SD-WAN,486.79,Closed Lost,Not In Forecast,Jose Banales,Agent,05/29/2025,06/24/2025
+OPP-01586,RedRock Data,Colocation,232.49,Closed Lost,Not In Forecast,Lisa Chen,Direct,07/05/2024,11/14/2024
+OPP-01588,VectorData,MPLS,463.82,Closed Lost,Not In Forecast,Chris Weber,Direct,08/10/2024,10/04/2024
+OPP-01589,OmniConnect,MPLS,180.67,Closed Lost,Not In Forecast,Lisa Chen,Agent,08/13/2025,10/25/2025
+OPP-01595,DataSync Labs,Ethernet,1541.74,Closed Lost,Not In Forecast,David Park,Channel,07/26/2025,08/26/2025
+OPP-01596,Cascade Networks,IP Transit,3664.81,Closed Lost,Not In Forecast,David Park,Agent,03/20/2024,07/15/2024
+OPP-01598,EchoPoint,DDoS Protection,1073.78,Closed Lost,Not In Forecast,Nicole Foster,Agent,12/11/2025,03/03/2026
+OPP-01599,HorizonIO,Colocation,170.11,Closed Lost,Not In Forecast,Chris Weber,Agent,02/02/2025,03/01/2025
+OPP-01602,LinkStream,DDoS Protection,56.99,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,02/16/2025,06/06/2025
+OPP-01606,ClearPath,Colocation,417.29,Closed Lost,Not In Forecast,Jose Banales,Agent,05/27/2025,07/14/2025
+OPP-01612,Cascade Networks,DDoS Protection,1024.96,Closed Lost,Not In Forecast,Jessica Kim,Agent,11/17/2025,03/03/2026
+OPP-01613,SwiftNode,Dark Fiber,3008.75,Closed Lost,Not In Forecast,David Park,Channel,05/27/2025,06/30/2025
+OPP-01615,EchoPoint,Dark Fiber,279.17,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/26/2025,10/24/2025
+OPP-01616,HorizonIO,IP Transit,1369.01,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,12/17/2024,01/13/2025
+OPP-01618,NetScale Systems,Wavelengths,155.33,Closed Lost,Not In Forecast,Mark Thompson,Direct,08/03/2025,01/23/2026
+OPP-01622,SilverStream,Ethernet,562.07,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,11/08/2024,02/09/2025
+OPP-01623,Acme Corp,Dark Fiber,374.45,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,05/25/2024,09/25/2024
+OPP-01624,OmniConnect,IP Transit,171.22,Closed Lost,Not In Forecast,David Park,Channel,09/13/2025,11/20/2025
+OPP-01626,Apex Digital,Ethernet,1716.21,Closed Lost,Not In Forecast,Nicole Foster,Direct,05/27/2025,11/08/2025
+OPP-01630,WavePoint,Wavelengths,3319.18,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,09/10/2024,02/04/2025
+OPP-01637,TerraLink,Managed Services,105.57,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,04/21/2025,08/22/2025
+OPP-01640,Acme Corp,Cloud Connect,482.3,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,10/20/2025,02/26/2026
+OPP-01648,CoreConnect,DDoS Protection,176.38,Closed Lost,Not In Forecast,David Park,Direct,06/21/2025,07/19/2025
+OPP-01649,VectorData,Cloud Connect,83.8,Closed Lost,Not In Forecast,David Park,Direct,05/03/2024,08/07/2024
+OPP-01652,PrimeRoute,Managed Services,249.39,Closed Lost,Not In Forecast,Mark Thompson,Agent,07/28/2025,12/23/2025
+OPP-01653,Cascade Networks,IP Transit,111.01,Closed Lost,Not In Forecast,Mark Thompson,Agent,04/20/2025,09/20/2025
+OPP-01658,StarForge,MPLS,207.1,Closed Lost,Not In Forecast,Lisa Chen,Channel,12/17/2025,02/16/2026
+OPP-01661,LinkStream,Cloud Connect,339.06,Closed Lost,Not In Forecast,Jessica Kim,Channel,12/22/2024,05/25/2025
+OPP-01662,IronGate Tech,Dark Fiber,409.68,Closed Lost,Not In Forecast,Chris Weber,Channel,09/15/2024,12/20/2024
+OPP-01674,FlexNet Solutions,Wavelengths,168.44,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,09/12/2024,02/13/2025
+OPP-01678,GridForce,MPLS,268.23,Closed Lost,Not In Forecast,David Park,Channel,08/25/2024,12/03/2024
+OPP-01680,CoreConnect,DDoS Protection,635.29,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/24/2026,02/23/2026
+OPP-01683,Acme Corp,SD-WAN,174.6,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,09/24/2024,10/31/2024
+OPP-01694,CoreConnect,Colocation,698.95,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,03/28/2024,05/14/2024
+OPP-01701,TerraLink,DDoS Protection,1914.53,Closed Lost,Not In Forecast,Mark Thompson,Direct,04/01/2024,08/22/2024
+OPP-01707,StarForge,Cloud Connect,462.78,Closed Lost,Not In Forecast,David Park,Agent,11/16/2025,03/14/2026
+OPP-01713,ClearPath,Ethernet,16.44,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,11/16/2025,03/05/2026
+OPP-01716,TerraLink,DDoS Protection,220.1,Closed Lost,Not In Forecast,David Park,Channel,11/10/2025,12/25/2025
+OPP-01720,OmniConnect,IP Transit,236.32,Closed Lost,Not In Forecast,Mark Thompson,Direct,03/24/2025,06/18/2025
+OPP-01721,PulseNet,DDoS Protection,63.55,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,01/05/2026,03/02/2026
+OPP-01723,IronGate Tech,DDoS Protection,248.2,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,05/04/2024,10/27/2024
+OPP-01724,OmniConnect,IP Transit,191.11,Closed Lost,Not In Forecast,Jessica Kim,Agent,05/03/2024,05/27/2024
+OPP-01726,IronGate Tech,Dark Fiber,819.28,Closed Lost,Not In Forecast,Nicole Foster,Channel,04/29/2025,09/26/2025
+OPP-01729,LinkStream,Ethernet,93.3,Closed Lost,Not In Forecast,Mark Thompson,Direct,09/03/2025,02/19/2026
+OPP-01730,SilverStream,IP Transit,853.36,Closed Lost,Not In Forecast,Jose Banales,Channel,11/05/2024,03/08/2025
+OPP-01739,DigiPath,Colocation,800.49,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,01/23/2026,02/21/2026
+OPP-01740,Summit Cloud,SD-WAN,286.67,Closed Lost,Not In Forecast,Chris Weber,Direct,12/26/2024,05/11/2025
+OPP-01741,DataSync Labs,Cloud Connect,251.1,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,12/17/2024,01/19/2025
+OPP-01744,WavePoint,SD-WAN,3644.26,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,07/04/2025,12/02/2025
+OPP-01745,Titanium Labs,Managed Services,87.52,Closed Lost,Not In Forecast,Chris Weber,Direct,07/26/2025,10/08/2025
+OPP-01747,GoldGrid,Managed Services,258.53,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,06/19/2024,12/12/2024
+OPP-01748,TerraLink,Cloud Connect,190.83,Closed Lost,Not In Forecast,David Park,Direct,05/03/2024,06/27/2024
+OPP-01758,HorizonIO,MPLS,802.3,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,12/07/2024,03/02/2025
+OPP-01762,Pinnacle IT,Dark Fiber,72.89,Closed Lost,Not In Forecast,Jessica Kim,Channel,05/14/2025,08/31/2025
+OPP-01765,SilverStream,DDoS Protection,3455.15,Closed Lost,Not In Forecast,Lisa Chen,Channel,06/01/2025,07/06/2025
+OPP-01772,ByteWorks,Colocation,316.62,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,06/20/2025,09/29/2025
+OPP-01777,SignalBridge,Ethernet,53.01,Closed Lost,Not In Forecast,Jose Banales,Direct,06/30/2025,08/01/2025
+OPP-01780,RedRock Data,Cloud Connect,214.9,Closed Lost,Not In Forecast,David Park,Channel,09/18/2025,01/23/2026
+OPP-01781,WavePoint,Managed Services,68.89,Closed Lost,Not In Forecast,Mark Thompson,Channel,11/06/2025,02/16/2026
+OPP-01785,DataSync Labs,Ethernet,656.61,Closed Lost,Not In Forecast,Nicole Foster,Direct,02/06/2025,03/21/2025
+OPP-01786,RedRock Data,Wavelengths,797.69,Closed Lost,Not In Forecast,Mark Thompson,Direct,10/09/2025,02/17/2026
+OPP-01789,HorizonIO,Managed Services,61.72,Closed Lost,Not In Forecast,Jose Banales,Channel,09/04/2024,09/21/2024
+OPP-01792,Apex Digital,DDoS Protection,257.38,Closed Lost,Not In Forecast,Lisa Chen,Channel,03/20/2025,08/27/2025
+OPP-01796,PulseNet,Dark Fiber,789.3,Closed Lost,Not In Forecast,Chris Weber,Channel,06/25/2024,08/28/2024
+OPP-01797,LinkStream,Wavelengths,147.6,Closed Lost,Not In Forecast,Lisa Chen,Agent,11/02/2024,12/27/2024
+OPP-01798,NetScale Systems,Wavelengths,277.55,Closed Lost,Not In Forecast,Mark Thompson,Direct,01/25/2026,03/09/2026
+OPP-01799,SkyBridge Networks,Colocation,742.1,Closed Lost,Not In Forecast,Mark Thompson,Channel,02/15/2025,05/08/2025
+OPP-01801,PulseNet,MPLS,1678.77,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,04/19/2025,10/14/2025
+OPP-01802,Zenith Systems,SD-WAN,727.82,Closed Lost,Not In Forecast,Chris Weber,Agent,01/21/2026,03/14/2026
+OPP-01805,GoldGrid,Managed Services,559.99,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/14/2026,03/11/2026
+OPP-01812,Atlas Computing,Wavelengths,95.87,Closed Lost,Not In Forecast,Lisa Chen,Channel,08/25/2024,10/30/2024
+OPP-01815,DataSync Labs,DDoS Protection,229.91,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,07/26/2024,12/07/2024
+OPP-01816,SilverStream,Managed Services,191.02,Closed Lost,Not In Forecast,Chris Weber,Direct,11/01/2025,02/25/2026
+OPP-01819,HorizonIO,MPLS,164.02,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,02/03/2026,02/25/2026
+OPP-01820,Acme Corp,Managed Services,162.46,Closed Lost,Not In Forecast,David Park,Direct,12/10/2025,03/04/2026
+OPP-01829,SkyBridge Networks,Dark Fiber,988.53,Closed Lost,Not In Forecast,Jose Banales,Direct,11/14/2025,03/06/2026
+OPP-01830,LinkStream,Dark Fiber,10977.91,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,01/13/2025,05/18/2025
+OPP-01837,SilverStream,DDoS Protection,447.17,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,07/31/2025,09/04/2025
+OPP-01847,DigiPath,Managed Services,1003.21,Closed Lost,Not In Forecast,David Park,Channel,08/24/2025,09/20/2025
+OPP-01848,FiberLink,Colocation,15.35,Closed Lost,Not In Forecast,Nicole Foster,Direct,08/08/2025,09/14/2025
+OPP-01850,TerraLink,DDoS Protection,626.02,Closed Lost,Not In Forecast,David Park,Channel,09/14/2025,02/28/2026
+OPP-01851,StarForge,Cloud Connect,3517.52,Closed Lost,Not In Forecast,Jessica Kim,Direct,03/01/2025,04/26/2025
+OPP-01852,FiberLink,Wavelengths,154.04,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,12/26/2024,05/21/2025
+OPP-01854,ClearPath,MPLS,108.5,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,11/05/2025,03/18/2026
+OPP-01855,EchoPoint,MPLS,1855.68,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,02/17/2025,07/30/2025
+OPP-01857,Cascade Networks,DDoS Protection,121.39,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,06/05/2025,11/04/2025
+OPP-01859,GoldGrid,MPLS,170.17,Closed Lost,Not In Forecast,Mark Thompson,Direct,05/27/2025,09/27/2025
+OPP-01860,CopperLine,Ethernet,1200.65,Closed Lost,Not In Forecast,Lisa Chen,Channel,04/08/2024,08/19/2024
+OPP-01862,Quantum Networks,Dark Fiber,131.47,Closed Lost,Not In Forecast,Lisa Chen,Agent,02/03/2025,05/18/2025
+OPP-01863,DigiPath,Ethernet,5368.36,Closed Lost,Not In Forecast,Chris Weber,Direct,04/30/2024,07/26/2024
+OPP-01864,Apex Digital,Dark Fiber,104.7,Closed Lost,Not In Forecast,Mark Thompson,Channel,09/12/2025,02/01/2026
+OPP-01867,SkyBridge Networks,SD-WAN,960.29,Closed Lost,Not In Forecast,Jessica Kim,Agent,07/30/2025,01/06/2026
+OPP-01872,DataSync Labs,Cloud Connect,303.05,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,08/21/2025,10/01/2025
+OPP-01873,VectorData,SD-WAN,1012.59,Closed Lost,Not In Forecast,David Park,Channel,04/09/2024,09/18/2024
+OPP-01876,DigiPath,Managed Services,4687.18,Closed Lost,Not In Forecast,David Park,Direct,12/20/2024,01/12/2025
+OPP-01877,GridForce,SD-WAN,411.09,Closed Lost,Not In Forecast,Lisa Chen,Agent,07/12/2025,11/17/2025
+OPP-01881,OmniConnect,Managed Services,392.89,Closed Lost,Not In Forecast,Jessica Kim,Direct,12/21/2024,01/30/2025
+OPP-01882,Titanium Labs,Ethernet,69.89,Closed Lost,Not In Forecast,Mark Thompson,Channel,12/08/2025,03/12/2026
+OPP-01883,FiberLink,IP Transit,124.3,Closed Lost,Not In Forecast,Mark Thompson,Channel,12/04/2024,05/15/2025
+OPP-01884,BluePeak,Ethernet,847.01,Closed Lost,Not In Forecast,Mark Thompson,Direct,04/01/2024,06/22/2024
+OPP-01885,LinkStream,IP Transit,101.8,Closed Lost,Not In Forecast,Chris Weber,Direct,09/07/2025,01/10/2026
+OPP-01890,SwiftNode,IP Transit,686.88,Closed Lost,Not In Forecast,Mark Thompson,Direct,07/14/2025,08/17/2025
+OPP-01891,TerraLink,Managed Services,3621.73,Closed Lost,Not In Forecast,Mark Thompson,Direct,07/10/2024,11/28/2024
+OPP-01894,Acme Corp,IP Transit,516.41,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,06/17/2025,10/31/2025
+OPP-01900,DigiPath,MPLS,119.15,Closed Lost,Not In Forecast,Jose Banales,Channel,05/08/2024,09/03/2024
+OPP-01905,NexGen Telecom,MPLS,154.06,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,12/20/2025,02/11/2026
+OPP-01914,Zenith Systems,IP Transit,195.32,Closed Lost,Not In Forecast,Jose Banales,Agent,08/04/2024,12/16/2024
+OPP-01915,ByteWorks,Cloud Connect,224.31,Closed Lost,Not In Forecast,Lisa Chen,Channel,03/26/2024,06/24/2024
+OPP-01917,DigiPath,DDoS Protection,9539.82,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,07/13/2024,08/05/2024
+OPP-01923,RedRock Data,IP Transit,391.19,Closed Lost,Not In Forecast,David Park,Direct,09/07/2024,11/02/2024
+OPP-01927,FiberLink,Colocation,131.32,Closed Lost,Not In Forecast,David Park,Agent,12/21/2024,02/27/2025
+OPP-01928,HorizonIO,Dark Fiber,2614.59,Closed Lost,Not In Forecast,David Park,Agent,08/19/2024,09/25/2024
+OPP-01930,PrimeRoute,SD-WAN,1400.88,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,06/08/2024,11/05/2024
+OPP-01932,PulseNet,Wavelengths,2222.55,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,04/05/2024,07/17/2024
+OPP-01933,FiberLink,Wavelengths,129.97,Closed Lost,Not In Forecast,Jose Banales,Direct,12/28/2024,02/02/2025
+OPP-01942,RedRock Data,Wavelengths,334.82,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,07/04/2024,07/20/2024
+OPP-01945,TerraLink,Colocation,267.71,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,02/15/2026,03/15/2026
+OPP-01946,IronGate Tech,MPLS,306.72,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,08/13/2024,12/05/2024
+OPP-01948,GoldGrid,Colocation,407.06,Closed Lost,Not In Forecast,Lisa Chen,Agent,03/28/2024,06/28/2024
+OPP-01952,Apex Digital,Managed Services,273.33,Closed Lost,Not In Forecast,Lisa Chen,Agent,11/12/2024,04/27/2025
+OPP-01955,DataSync Labs,Cloud Connect,1415.46,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,03/23/2025,07/14/2025
+OPP-01965,SwiftNode,Dark Fiber,275.58,Closed Lost,Not In Forecast,Jessica Kim,Agent,06/04/2024,11/16/2024
+OPP-01968,DigiPath,Managed Services,682.88,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,07/12/2024,10/08/2024
+OPP-01970,PulseNet,DDoS Protection,137.22,Closed Lost,Not In Forecast,Nicole Foster,Agent,08/07/2025,09/10/2025
+OPP-01976,ByteWorks,IP Transit,442.42,Closed Lost,Not In Forecast,Jessica Kim,Agent,10/25/2025,12/09/2025
+OPP-01977,TerraLink,Ethernet,917.6,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,01/08/2026,02/19/2026
+OPP-01981,EchoPoint,MPLS,1408.33,Closed Lost,Not In Forecast,Jose Banales,Agent,09/11/2024,09/27/2024
+OPP-01982,SignalBridge,Ethernet,172.28,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,02/17/2025,03/12/2025
+OPP-01987,PrimeRoute,IP Transit,787.59,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,06/19/2025,09/29/2025
+OPP-01989,IronGate Tech,SD-WAN,228.29,Closed Lost,Not In Forecast,Jessica Kim,Channel,08/10/2024,08/31/2024
+OPP-01996,GridForce,Ethernet,252.85,Closed Lost,Not In Forecast,Lisa Chen,Direct,12/10/2025,01/08/2026
+OPP-02002,SignalBridge,Ethernet,1813.73,Closed Lost,Not In Forecast,David Park,Direct,01/17/2026,03/05/2026
+OPP-02005,EchoPoint,MPLS,50.2,Closed Lost,Not In Forecast,Mark Thompson,Direct,04/13/2025,04/29/2025
+OPP-02006,DataSync Labs,DDoS Protection,241.22,Closed Lost,Not In Forecast,Jose Banales,Agent,07/09/2024,11/08/2024
+OPP-02010,GridForce,Managed Services,371.28,Closed Lost,Not In Forecast,Mark Thompson,Channel,04/19/2024,08/20/2024
+OPP-02011,LinkStream,SD-WAN,274.01,Closed Lost,Not In Forecast,Nicole Foster,Channel,06/28/2024,11/20/2024
+OPP-02020,VectorData,SD-WAN,472.7,Closed Lost,Not In Forecast,Lisa Chen,Channel,01/14/2026,02/17/2026
+OPP-02021,BluePeak,SD-WAN,29.43,Closed Lost,Not In Forecast,Chris Weber,Channel,05/25/2024,09/11/2024
+OPP-02024,NexGen Telecom,Cloud Connect,864.89,Closed Lost,Not In Forecast,Chris Weber,Channel,05/27/2025,11/09/2025
+OPP-02025,Summit Cloud,Ethernet,77.35,Closed Lost,Not In Forecast,Lisa Chen,Direct,07/19/2024,12/21/2024
+OPP-02026,CoreConnect,IP Transit,1761.1,Closed Lost,Not In Forecast,Mark Thompson,Channel,08/24/2025,01/01/2026
+OPP-02027,Summit Cloud,Colocation,158.52,Closed Lost,Not In Forecast,Chris Weber,Channel,10/25/2025,02/23/2026
+OPP-02028,LinkStream,SD-WAN,2608.85,Closed Lost,Not In Forecast,Mark Thompson,Agent,02/02/2026,03/08/2026
+OPP-02030,SwiftNode,Dark Fiber,317.2,Closed Lost,Not In Forecast,Chris Weber,Channel,02/08/2026,02/26/2026
+OPP-02031,Pinnacle IT,Ethernet,917.25,Closed Lost,Not In Forecast,Nicole Foster,Agent,09/18/2025,11/12/2025
+OPP-02035,OmniConnect,MPLS,103.4,Closed Lost,Not In Forecast,Nicole Foster,Channel,09/20/2025,01/25/2026
+OPP-02038,ByteWorks,Wavelengths,38.92,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,12/01/2024,05/13/2025
+OPP-02039,WavePoint,Colocation,513.72,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,12/23/2025,03/16/2026
+OPP-02040,SwiftNode,Dark Fiber,344.64,Closed Lost,Not In Forecast,Lisa Chen,Direct,09/10/2025,11/06/2025
+OPP-02047,StarForge,SD-WAN,176.62,Closed Lost,Not In Forecast,Nicole Foster,Channel,06/20/2025,07/05/2025
+OPP-02048,CoreConnect,SD-WAN,93.56,Closed Lost,Not In Forecast,Lisa Chen,Channel,05/27/2025,08/15/2025
+OPP-02050,SwiftNode,Managed Services,82.09,Closed Lost,Not In Forecast,Lisa Chen,Agent,07/05/2025,12/21/2025
+OPP-02054,LinkStream,Cloud Connect,886.96,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,09/25/2024,01/13/2025
+OPP-02055,IronGate Tech,Dark Fiber,578.13,Closed Lost,Not In Forecast,David Park,Direct,11/30/2024,05/19/2025
+OPP-02061,PulseNet,Ethernet,30.88,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,06/30/2024,12/21/2024
+OPP-02062,VectorData,Colocation,3463.8,Closed Lost,Not In Forecast,Nicole Foster,Channel,05/03/2025,10/01/2025
+OPP-02064,Pinnacle IT,IP Transit,394.79,Closed Lost,Not In Forecast,David Park,Direct,09/01/2024,12/06/2024
+OPP-02071,OmniConnect,DDoS Protection,414.84,Closed Lost,Not In Forecast,Lisa Chen,Channel,09/26/2025,10/31/2025
+OPP-02072,FiberLink,Cloud Connect,641.23,Closed Lost,Not In Forecast,Jessica Kim,Channel,01/29/2026,03/14/2026
+OPP-02087,SkyBridge Networks,Managed Services,120.49,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,04/27/2025,08/21/2025
+OPP-02088,NexGen Telecom,DDoS Protection,685.29,Closed Lost,Not In Forecast,Jose Banales,Channel,03/26/2024,09/16/2024
+OPP-02090,GridForce,Managed Services,2274.23,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,09/25/2024,01/18/2025
+OPP-02093,FlexNet Solutions,Cloud Connect,1224.92,Closed Lost,Not In Forecast,Lisa Chen,Agent,03/09/2025,09/01/2025
+OPP-02095,SilverStream,Cloud Connect,782.11,Closed Lost,Not In Forecast,Mark Thompson,Direct,11/13/2024,03/12/2025
+OPP-02097,Zenith Systems,Dark Fiber,406.83,Closed Lost,Not In Forecast,Mark Thompson,Direct,04/05/2025,06/09/2025
+OPP-02102,Zenith Systems,MPLS,159.65,Closed Lost,Not In Forecast,Lisa Chen,Channel,11/29/2025,03/09/2026
+OPP-02104,Pinnacle IT,Managed Services,471.89,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,11/25/2025,03/12/2026
+OPP-02105,IronGate Tech,Managed Services,62.59,Closed Lost,Not In Forecast,Lisa Chen,Direct,10/19/2024,03/27/2025
+OPP-02106,Zenith Systems,SD-WAN,86.03,Closed Lost,Not In Forecast,David Park,Direct,04/26/2025,09/05/2025
+OPP-02108,EchoPoint,Cloud Connect,496.15,Closed Lost,Not In Forecast,Mark Thompson,Direct,03/18/2024,04/18/2024
+OPP-02110,NetScale Systems,MPLS,241.96,Closed Lost,Not In Forecast,Nicole Foster,Agent,06/12/2024,09/19/2024
+OPP-02111,PrimeRoute,Cloud Connect,264.58,Closed Lost,Not In Forecast,Mark Thompson,Channel,12/15/2025,01/16/2026
+OPP-02112,GridForce,Colocation,200.76,Closed Lost,Not In Forecast,Lisa Chen,Direct,06/03/2025,11/25/2025
+OPP-02116,HorizonIO,Dark Fiber,321.12,Closed Lost,Not In Forecast,Mark Thompson,Channel,08/18/2025,10/14/2025
+OPP-02117,IronGate Tech,Managed Services,110.58,Closed Lost,Not In Forecast,Chris Weber,Direct,03/18/2025,09/11/2025
+OPP-02118,Zenith Systems,SD-WAN,192.43,Closed Lost,Not In Forecast,Chris Weber,Agent,11/08/2025,01/15/2026
+OPP-02121,BluePeak,DDoS Protection,5983.4,Closed Lost,Not In Forecast,David Park,Direct,09/15/2025,10/19/2025
+OPP-02125,Cascade Networks,Colocation,62.57,Closed Lost,Not In Forecast,Jessica Kim,Direct,04/15/2025,05/19/2025
+OPP-02127,IronGate Tech,Managed Services,2258.82,Closed Lost,Not In Forecast,Nicole Foster,Channel,03/21/2024,09/10/2024
+OPP-02130,RedRock Data,Colocation,112.84,Closed Lost,Not In Forecast,Chris Weber,Channel,12/24/2024,01/09/2025
+OPP-02131,Acme Corp,Dark Fiber,255.67,Closed Lost,Not In Forecast,Chris Weber,Agent,05/30/2024,09/28/2024
+OPP-02133,GoldGrid,Managed Services,143.29,Closed Lost,Not In Forecast,David Park,Direct,09/16/2025,01/18/2026
+OPP-02137,NetScale Systems,MPLS,143.54,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/21/2024,01/25/2025
+OPP-02139,HorizonIO,Colocation,642.43,Closed Lost,Not In Forecast,Jose Banales,Agent,02/25/2025,08/08/2025
+OPP-02142,HorizonIO,IP Transit,355.31,Closed Lost,Not In Forecast,Jose Banales,Direct,07/02/2025,10/17/2025
+OPP-02143,GoldGrid,Cloud Connect,1605.18,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,10/10/2024,10/25/2024
+OPP-02144,Summit Cloud,Colocation,3239.48,Closed Lost,Not In Forecast,Mark Thompson,Agent,12/26/2024,02/06/2025
+OPP-02146,BluePeak,Managed Services,112.48,Closed Lost,Not In Forecast,David Park,Agent,10/22/2024,04/19/2025
+OPP-02148,TerraLink,Cloud Connect,147.17,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,08/12/2024,10/22/2024
+OPP-02149,Pinnacle IT,Wavelengths,1122.96,Closed Lost,Not In Forecast,Jessica Kim,Agent,02/11/2026,03/16/2026
+OPP-02151,SwiftNode,MPLS,318.01,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,10/11/2024,03/26/2025
+OPP-02155,Zenith Systems,Wavelengths,46.8,Closed Lost,Not In Forecast,Mark Thompson,Direct,01/30/2026,03/17/2026
+OPP-02156,ClearPath,Wavelengths,198.33,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,11/18/2025,12/12/2025
+OPP-02157,DigiPath,Dark Fiber,500.29,Closed Lost,Not In Forecast,Jessica Kim,Agent,10/05/2025,02/17/2026
+OPP-02158,ByteWorks,Ethernet,940.32,Closed Lost,Not In Forecast,David Park,Agent,06/26/2025,07/22/2025
+OPP-02159,NexGen Telecom,Cloud Connect,150.63,Closed Lost,Not In Forecast,Jose Banales,Channel,06/17/2025,07/05/2025
+OPP-02162,PrimeRoute,SD-WAN,2157.73,Closed Lost,Not In Forecast,David Park,Direct,11/05/2024,05/04/2025
+OPP-02164,NetScale Systems,Dark Fiber,746.19,Closed Lost,Not In Forecast,Nicole Foster,Agent,08/10/2024,10/23/2024
+OPP-02166,IronGate Tech,SD-WAN,339.54,Closed Lost,Not In Forecast,Jose Banales,Direct,08/18/2025,10/25/2025
+OPP-02167,DigiPath,Cloud Connect,815.42,Closed Lost,Not In Forecast,Nicole Foster,Channel,08/15/2024,12/20/2024
+OPP-02170,OmniConnect,SD-WAN,54.24,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,07/13/2025,10/01/2025
+OPP-02175,CopperLine,IP Transit,624.35,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,04/15/2025,06/16/2025
+OPP-02176,DigiPath,Colocation,2254.75,Closed Lost,Not In Forecast,Lisa Chen,Channel,06/05/2024,06/20/2024
+OPP-02177,CoreConnect,Cloud Connect,36.84,Closed Lost,Not In Forecast,Chris Weber,Direct,10/29/2024,01/20/2025
+OPP-02178,GoldGrid,MPLS,1945.39,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,12/10/2025,12/29/2025
+OPP-02180,TechFlow Inc,MPLS,225.16,Closed Lost,Not In Forecast,Mark Thompson,Direct,03/22/2025,07/26/2025
+OPP-02185,Zenith Systems,Managed Services,75.57,Closed Lost,Not In Forecast,Mark Thompson,Direct,11/12/2024,12/13/2024
+OPP-02194,ClearPath,Dark Fiber,241.67,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,05/05/2025,09/01/2025
+OPP-02199,SignalBridge,Ethernet,260.3,Closed Lost,Not In Forecast,Nicole Foster,Channel,09/24/2024,02/14/2025
+OPP-02200,Zenith Systems,SD-WAN,148.89,Closed Lost,Not In Forecast,David Park,Agent,05/31/2025,08/03/2025
+OPP-02206,IronGate Tech,Cloud Connect,49.64,Closed Lost,Not In Forecast,Lisa Chen,Channel,10/29/2025,02/17/2026
+OPP-02207,ClearPath,Ethernet,391.1,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/16/2025,02/26/2025
+OPP-02211,OmniConnect,Ethernet,626.12,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,11/23/2024,12/13/2024
+OPP-02212,RedRock Data,Ethernet,4900.11,Closed Lost,Not In Forecast,Jessica Kim,Direct,06/23/2024,09/16/2024
+OPP-02215,PrimeRoute,IP Transit,235.44,Closed Lost,Not In Forecast,Nicole Foster,Agent,09/29/2024,03/16/2025
+OPP-02217,VectorData,Colocation,1141.05,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,06/16/2024,12/06/2024
+OPP-02226,Apex Digital,Ethernet,248.26,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,11/13/2025,12/23/2025
+OPP-02227,LinkStream,Colocation,793.95,Closed Lost,Not In Forecast,Chris Weber,Direct,08/03/2024,09/12/2024
+OPP-02228,CopperLine,SD-WAN,562.41,Closed Lost,Not In Forecast,Jose Banales,Direct,01/08/2025,02/15/2025
+OPP-02233,CloudFirst,DDoS Protection,56.03,Closed Lost,Not In Forecast,Nicole Foster,Agent,03/05/2025,06/14/2025
+OPP-02242,Pinnacle IT,Cloud Connect,107.21,Closed Lost,Not In Forecast,Mark Thompson,Agent,04/26/2024,09/29/2024
+OPP-02243,PrimeRoute,Managed Services,291.62,Closed Lost,Not In Forecast,Nicole Foster,Direct,02/02/2025,04/07/2025
+OPP-02248,TechFlow Inc,DDoS Protection,640.83,Closed Lost,Not In Forecast,Lisa Chen,Channel,10/10/2025,02/21/2026
+OPP-02252,CloudFirst,SD-WAN,100.42,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,07/01/2025,09/15/2025
+OPP-02254,BluePeak,Colocation,180.81,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,08/24/2025,11/18/2025
+OPP-02265,PulseNet,IP Transit,626.94,Closed Lost,Not In Forecast,Jose Banales,Channel,10/20/2024,02/07/2025
+OPP-02266,GoldGrid,Ethernet,1367.67,Closed Lost,Not In Forecast,Jessica Kim,Agent,06/01/2025,07/11/2025
+OPP-02267,TerraLink,IP Transit,626.35,Closed Lost,Not In Forecast,Mark Thompson,Channel,03/30/2025,07/13/2025
+OPP-02268,SilverStream,SD-WAN,183.64,Closed Lost,Not In Forecast,Jose Banales,Agent,03/05/2025,05/14/2025
+OPP-02275,CoreConnect,DDoS Protection,128.32,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,06/11/2024,09/07/2024
+OPP-02278,Summit Cloud,DDoS Protection,36.75,Closed Lost,Not In Forecast,Chris Weber,Agent,10/10/2024,03/01/2025
+OPP-02281,PulseNet,SD-WAN,351.9,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,02/04/2026,03/07/2026
+OPP-02283,FlexNet Solutions,Cloud Connect,71.24,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,07/28/2024,01/04/2025
+OPP-02287,WavePoint,Ethernet,206.49,Closed Lost,Not In Forecast,David Park,Channel,08/04/2025,01/11/2026
+OPP-02289,GoldGrid,Colocation,811.97,Closed Lost,Not In Forecast,Mark Thompson,Direct,01/07/2026,03/02/2026
+OPP-02290,CloudFirst,MPLS,188.58,Closed Lost,Not In Forecast,David Park,Channel,03/30/2024,07/24/2024
+OPP-02291,GridForce,DDoS Protection,201.33,Closed Lost,Not In Forecast,Lisa Chen,Agent,08/06/2024,09/28/2024
+OPP-02300,OmniConnect,Colocation,2432.93,Closed Lost,Not In Forecast,Jose Banales,Direct,02/06/2025,05/29/2025
+OPP-02307,TerraLink,DDoS Protection,282.95,Closed Lost,Not In Forecast,Mark Thompson,Direct,02/13/2026,02/28/2026
+OPP-02308,PrimeRoute,DDoS Protection,7315.54,Closed Lost,Not In Forecast,Chris Weber,Agent,03/24/2024,05/16/2024
+OPP-02315,CopperLine,MPLS,241.28,Closed Lost,Not In Forecast,Jessica Kim,Direct,06/27/2025,10/24/2025
+OPP-02327,CopperLine,Dark Fiber,1474.85,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,01/14/2026,02/22/2026
+OPP-02330,HorizonIO,Colocation,56.53,Closed Lost,Not In Forecast,Jose Banales,Direct,11/22/2025,01/22/2026
+OPP-02331,GoldGrid,Dark Fiber,646.15,Closed Lost,Not In Forecast,Nicole Foster,Agent,06/16/2024,09/01/2024
+OPP-02338,EchoPoint,Ethernet,155.89,Closed Lost,Not In Forecast,Chris Weber,Direct,01/02/2026,02/27/2026
+OPP-02340,Titanium Labs,Ethernet,88.66,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/03/2026,02/24/2026
+OPP-02341,EchoPoint,MPLS,469.23,Closed Lost,Not In Forecast,Jose Banales,Channel,02/12/2025,05/25/2025
+OPP-02344,Pinnacle IT,Colocation,15407.04,Closed Lost,Not In Forecast,Nicole Foster,Direct,03/13/2025,07/07/2025
+OPP-02345,OmniConnect,Wavelengths,426.16,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,01/14/2026,02/21/2026
+OPP-02346,DataSync Labs,Dark Fiber,439.27,Closed Lost,Not In Forecast,Nicole Foster,Direct,08/03/2025,11/15/2025
+OPP-02348,Summit Cloud,DDoS Protection,228.56,Closed Lost,Not In Forecast,Jose Banales,Channel,03/05/2025,04/27/2025
+OPP-02358,VectorData,SD-WAN,54.7,Closed Lost,Not In Forecast,Lisa Chen,Agent,03/22/2025,04/14/2025
+OPP-02367,Quantum Networks,MPLS,244.75,Closed Lost,Not In Forecast,Lisa Chen,Channel,02/16/2026,02/23/2026
+OPP-02368,Atlas Computing,Dark Fiber,324.8,Closed Lost,Not In Forecast,Chris Weber,Direct,06/13/2025,08/31/2025
+OPP-02375,SilverStream,Ethernet,670.67,Closed Lost,Not In Forecast,Chris Weber,Channel,11/16/2024,12/28/2024
+OPP-02378,NexGen Telecom,DDoS Protection,5709.6,Closed Lost,Not In Forecast,Nicole Foster,Channel,01/27/2026,03/02/2026
+OPP-02382,Pinnacle IT,Wavelengths,384.99,Closed Lost,Not In Forecast,Jose Banales,Channel,01/11/2025,04/24/2025
+OPP-02385,HorizonIO,Cloud Connect,556.2,Closed Lost,Not In Forecast,Jose Banales,Direct,03/26/2024,09/11/2024
+OPP-02388,NexGen Telecom,Ethernet,473.86,Closed Lost,Not In Forecast,David Park,Channel,03/23/2025,06/06/2025
+OPP-02389,PulseNet,Dark Fiber,478.73,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,12/30/2025,03/10/2026
+OPP-02390,BluePeak,Dark Fiber,1123.2,Closed Lost,Not In Forecast,Lisa Chen,Agent,11/24/2024,03/16/2025
+OPP-02391,SilverStream,Dark Fiber,336.75,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/30/2024,05/20/2024
+OPP-02396,RedRock Data,Wavelengths,1331.61,Closed Lost,Not In Forecast,Lisa Chen,Channel,08/12/2025,12/11/2025
+OPP-02398,ByteWorks,Dark Fiber,749.1,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,07/20/2025,10/16/2025
+OPP-02400,IronGate Tech,Ethernet,1184.66,Closed Lost,Not In Forecast,Lisa Chen,Direct,06/25/2024,09/24/2024
+OPP-02406,SwiftNode,IP Transit,309.48,Closed Lost,Not In Forecast,Mark Thompson,Agent,05/02/2025,05/30/2025
+OPP-02412,LinkStream,Colocation,1336.78,Closed Lost,Not In Forecast,Nicole Foster,Agent,05/05/2024,06/18/2024
+OPP-02413,LinkStream,Dark Fiber,2973.34,Closed Lost,Not In Forecast,Jessica Kim,Direct,07/13/2024,11/04/2024
+OPP-02416,SkyBridge Networks,Colocation,725.0,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,08/21/2024,01/06/2025
+OPP-02417,PrimeRoute,Ethernet,44.01,Closed Lost,Not In Forecast,Nicole Foster,Agent,09/22/2024,12/28/2024
+OPP-02420,Apex Digital,Ethernet,364.34,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,01/24/2026,02/21/2026
+OPP-02423,Quantum Networks,DDoS Protection,2440.47,Closed Lost,Not In Forecast,Chris Weber,Agent,05/31/2025,10/08/2025
+OPP-02426,HorizonIO,Dark Fiber,204.88,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,10/05/2025,12/28/2025
+OPP-02427,WavePoint,Dark Fiber,332.68,Closed Lost,Not In Forecast,Mark Thompson,Agent,06/19/2024,08/03/2024
+OPP-02433,EchoPoint,Ethernet,934.7,Closed Lost,Not In Forecast,Nicole Foster,Agent,12/30/2024,06/24/2025
+OPP-02435,EchoPoint,MPLS,32.85,Closed Lost,Not In Forecast,Lisa Chen,Direct,12/03/2024,12/27/2024
+OPP-02438,Cascade Networks,MPLS,163.6,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,11/27/2025,03/08/2026
+OPP-02439,Apex Digital,Ethernet,250.33,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,07/23/2024,12/25/2024
+OPP-02441,FlexNet Solutions,MPLS,322.68,Closed Lost,Not In Forecast,Chris Weber,Agent,11/01/2025,01/21/2026
+OPP-02442,Atlas Computing,Dark Fiber,349.0,Closed Lost,Not In Forecast,Chris Weber,Agent,12/10/2024,06/02/2025
+OPP-02446,IronGate Tech,MPLS,1592.58,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,05/10/2025,10/19/2025
+OPP-02447,ByteWorks,Managed Services,312.72,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,09/18/2025,03/02/2026
+OPP-02449,IronGate Tech,IP Transit,824.42,Closed Lost,Not In Forecast,Chris Weber,Channel,01/09/2026,02/27/2026
+OPP-02453,LinkStream,SD-WAN,162.12,Closed Lost,Not In Forecast,David Park,Agent,04/08/2025,06/24/2025
+OPP-02463,Acme Corp,Dark Fiber,1923.54,Closed Lost,Not In Forecast,David Park,Channel,01/28/2026,02/19/2026
+OPP-02468,SkyBridge Networks,IP Transit,1547.69,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,03/21/2024,05/21/2024
+OPP-02475,Apex Digital,Colocation,1018.05,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,07/31/2025,01/02/2026
+OPP-02478,LinkStream,Wavelengths,570.54,Closed Lost,Not In Forecast,Nicole Foster,Direct,04/29/2024,05/28/2024
+OPP-02480,FiberLink,MPLS,5707.61,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,06/30/2024,08/28/2024
+OPP-02484,StarForge,SD-WAN,26.95,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,02/14/2025,05/17/2025
+OPP-02487,Cascade Networks,IP Transit,320.86,Closed Lost,Not In Forecast,Mark Thompson,Agent,08/15/2025,10/01/2025
+OPP-02489,Cascade Networks,Ethernet,475.47,Closed Lost,Not In Forecast,David Park,Channel,12/27/2025,02/16/2026
+OPP-02490,OmniConnect,Managed Services,1287.0,Closed Lost,Not In Forecast,Mark Thompson,Direct,02/28/2025,08/19/2025
+OPP-02491,RedRock Data,IP Transit,517.26,Closed Lost,Not In Forecast,David Park,Direct,02/23/2025,04/26/2025
+OPP-02492,DataSync Labs,Cloud Connect,80.84,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,01/06/2025,06/11/2025
+OPP-02493,TechFlow Inc,IP Transit,1188.04,Closed Lost,Not In Forecast,Mark Thompson,Channel,04/30/2025,10/17/2025
+OPP-02496,Summit Cloud,Managed Services,95.97,Closed Lost,Not In Forecast,Chris Weber,Channel,05/10/2024,09/08/2024
+OPP-02505,RedRock Data,DDoS Protection,179.76,Closed Lost,Not In Forecast,Jessica Kim,Agent,07/22/2025,10/13/2025
+OPP-02507,OmniConnect,Cloud Connect,82.07,Closed Lost,Not In Forecast,Nicole Foster,Agent,12/26/2024,02/01/2025
+OPP-02516,BluePeak,Dark Fiber,614.63,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,12/16/2024,04/13/2025
+OPP-02518,NetScale Systems,Wavelengths,196.51,Closed Lost,Not In Forecast,Nicole Foster,Agent,02/15/2026,02/20/2026
+OPP-02522,Titanium Labs,Wavelengths,50.49,Closed Lost,Not In Forecast,Nicole Foster,Agent,12/26/2024,03/27/2025
+OPP-02523,FiberLink,SD-WAN,3874.2,Closed Lost,Not In Forecast,Nicole Foster,Direct,09/16/2024,02/11/2025
+OPP-02525,DataSync Labs,Managed Services,1151.99,Closed Lost,Not In Forecast,Jose Banales,Channel,12/31/2025,03/10/2026
+OPP-02527,CopperLine,SD-WAN,252.77,Closed Lost,Not In Forecast,Nicole Foster,Direct,10/19/2024,02/03/2025
+OPP-02529,GoldGrid,SD-WAN,875.29,Closed Lost,Not In Forecast,Lisa Chen,Agent,09/11/2024,12/25/2024
+OPP-02532,CopperLine,Cloud Connect,331.46,Closed Lost,Not In Forecast,Jessica Kim,Agent,09/12/2025,12/03/2025
+OPP-02533,DigiPath,Ethernet,342.16,Closed Lost,Not In Forecast,Chris Weber,Direct,07/07/2025,08/17/2025
+OPP-02537,SwiftNode,Dark Fiber,387.48,Closed Lost,Not In Forecast,Chris Weber,Channel,11/19/2025,01/18/2026
+OPP-02538,Cascade Networks,Cloud Connect,841.07,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,01/27/2026,02/21/2026
+OPP-02542,RedRock Data,SD-WAN,106.35,Closed Lost,Not In Forecast,Nicole Foster,Direct,10/20/2025,02/17/2026
+OPP-02545,PulseNet,DDoS Protection,3413.19,Closed Lost,Not In Forecast,Lisa Chen,Agent,08/09/2024,12/31/2024
+OPP-02546,Cascade Networks,DDoS Protection,158.64,Closed Lost,Not In Forecast,Chris Weber,Agent,01/20/2026,03/18/2026
+OPP-02554,Acme Corp,DDoS Protection,152.34,Closed Lost,Not In Forecast,Jessica Kim,Channel,04/04/2025,04/19/2025
+OPP-02556,EchoPoint,Colocation,407.93,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,10/31/2024,11/26/2024
+OPP-02558,GoldGrid,Wavelengths,507.53,Closed Lost,Not In Forecast,Chris Weber,Direct,11/29/2024,05/08/2025
+OPP-02561,Atlas Computing,Dark Fiber,123.11,Closed Lost,Not In Forecast,Jessica Kim,Channel,04/29/2025,06/18/2025
+OPP-02563,Summit Cloud,Dark Fiber,590.91,Closed Lost,Not In Forecast,Mark Thompson,Agent,01/17/2025,03/22/2025
+OPP-02567,ClearPath,MPLS,670.37,Closed Lost,Not In Forecast,Jessica Kim,Direct,03/06/2025,07/04/2025
+OPP-02575,OmniConnect,DDoS Protection,125.15,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,10/29/2025,01/05/2026
+OPP-02580,ByteWorks,Managed Services,79.13,Closed Lost,Not In Forecast,Jessica Kim,Agent,11/17/2024,03/03/2025
+OPP-02583,TechFlow Inc,DDoS Protection,785.97,Closed Lost,Not In Forecast,Jose Banales,Channel,09/29/2024,01/09/2025
+OPP-02585,CloudFirst,Dark Fiber,174.1,Closed Lost,Not In Forecast,Chris Weber,Channel,03/01/2025,05/17/2025
+OPP-02593,Acme Corp,Managed Services,437.48,Closed Lost,Not In Forecast,Jose Banales,Direct,06/07/2024,07/30/2024
+OPP-02595,PrimeRoute,Colocation,322.68,Closed Lost,Not In Forecast,Jessica Kim,Agent,07/08/2025,10/12/2025
+OPP-02596,TechFlow Inc,Wavelengths,218.42,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,05/09/2024,07/21/2024
+OPP-02599,CloudFirst,Wavelengths,93.51,Closed Lost,Not In Forecast,David Park,Channel,12/17/2024,05/17/2025
+OPP-02606,CopperLine,DDoS Protection,654.26,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/15/2026,02/20/2026
+OPP-02607,Pinnacle IT,Managed Services,26.62,Closed Lost,Not In Forecast,Lisa Chen,Agent,01/16/2025,03/20/2025
+OPP-02613,PrimeRoute,Dark Fiber,255.92,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,04/27/2025,07/30/2025
+OPP-02614,NetScale Systems,SD-WAN,3399.63,Closed Lost,Not In Forecast,Jessica Kim,Channel,09/03/2025,11/25/2025
+OPP-02619,IronGate Tech,SD-WAN,191.21,Closed Lost,Not In Forecast,Jessica Kim,Channel,07/31/2025,10/17/2025
+OPP-02621,SilverStream,IP Transit,1318.68,Closed Lost,Not In Forecast,Jose Banales,Agent,10/05/2024,01/06/2025
+OPP-02628,Quantum Networks,IP Transit,737.07,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,06/19/2024,09/05/2024
+OPP-02630,DigiPath,Cloud Connect,336.54,Closed Lost,Not In Forecast,Jessica Kim,Channel,08/27/2025,02/19/2026
+OPP-02631,CoreConnect,SD-WAN,722.31,Closed Lost,Not In Forecast,Chris Weber,Direct,06/02/2024,11/01/2024
+OPP-02632,SkyBridge Networks,DDoS Protection,97.18,Closed Lost,Not In Forecast,Lisa Chen,Channel,02/01/2025,02/26/2025
+OPP-02635,SilverStream,IP Transit,4323.72,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/17/2025,07/03/2025
+OPP-02640,ByteWorks,Dark Fiber,134.72,Closed Lost,Not In Forecast,Chris Weber,Agent,01/02/2025,06/21/2025
+OPP-02646,SignalBridge,DDoS Protection,240.2,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,04/05/2025,07/03/2025
+OPP-02649,TerraLink,Wavelengths,207.9,Closed Lost,Not In Forecast,Chris Weber,Direct,02/03/2026,03/05/2026
+OPP-02651,PrimeRoute,Wavelengths,2254.45,Closed Lost,Not In Forecast,Jessica Kim,Agent,04/18/2025,06/11/2025
+OPP-02654,Atlas Computing,Managed Services,852.13,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,08/28/2025,02/20/2026
+OPP-02656,CopperLine,IP Transit,537.73,Closed Lost,Not In Forecast,Jessica Kim,Agent,10/09/2025,01/29/2026
+OPP-02662,SilverStream,IP Transit,216.04,Closed Lost,Not In Forecast,David Park,Agent,06/21/2024,08/25/2024
+OPP-02664,ByteWorks,IP Transit,197.79,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,08/14/2025,11/29/2025
+OPP-02668,TechFlow Inc,Ethernet,225.18,Closed Lost,Not In Forecast,Lisa Chen,Channel,11/07/2024,03/02/2025
+OPP-02670,NetScale Systems,Colocation,730.03,Closed Lost,Not In Forecast,Jose Banales,Channel,01/14/2025,05/13/2025
+OPP-02674,Atlas Computing,Dark Fiber,639.78,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,01/29/2025,07/15/2025
+OPP-02677,SwiftNode,SD-WAN,1407.01,Closed Lost,Not In Forecast,Lisa Chen,Direct,03/03/2025,06/21/2025
+OPP-02678,SignalBridge,Ethernet,837.19,Closed Lost,Not In Forecast,Nicole Foster,Direct,03/19/2024,04/17/2024
+OPP-02679,HorizonIO,MPLS,154.89,Closed Lost,Not In Forecast,Nicole Foster,Agent,07/10/2024,12/29/2024
+OPP-02684,SkyBridge Networks,Cloud Connect,369.36,Closed Lost,Not In Forecast,Ryan O'Brien,Agent,07/20/2024,11/11/2024
+OPP-02690,Quantum Networks,Cloud Connect,171.92,Closed Lost,Not In Forecast,Chris Weber,Direct,12/01/2024,05/24/2025
+OPP-02694,Apex Digital,DDoS Protection,212.17,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,04/29/2025,07/26/2025
+OPP-02698,WavePoint,DDoS Protection,362.04,Closed Lost,Not In Forecast,Jessica Kim,Direct,12/17/2025,03/07/2026
+OPP-02700,IronGate Tech,Colocation,114.0,Closed Lost,Not In Forecast,Chris Weber,Agent,09/01/2025,09/22/2025
+OPP-02702,TerraLink,IP Transit,3152.08,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/20/2024,09/08/2024
+OPP-02705,Atlas Computing,Ethernet,1165.99,Closed Lost,Not In Forecast,Jessica Kim,Agent,03/07/2025,04/08/2025
+OPP-02706,Titanium Labs,IP Transit,359.33,Closed Lost,Not In Forecast,David Park,Agent,09/09/2025,01/10/2026
+OPP-02708,TechFlow Inc,Dark Fiber,1116.09,Closed Lost,Not In Forecast,Ryan O'Brien,Direct,08/14/2024,01/23/2025
+OPP-02713,SignalBridge,MPLS,84.97,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,06/08/2024,07/01/2024
+OPP-02715,CloudFirst,Dark Fiber,1181.23,Closed Lost,Not In Forecast,Lisa Chen,Channel,03/20/2024,05/22/2024
+OPP-02719,TerraLink,Wavelengths,689.99,Closed Lost,Not In Forecast,Chris Weber,Channel,02/20/2025,07/26/2025
+OPP-02730,ByteWorks,Dark Fiber,1262.71,Closed Lost,Not In Forecast,David Park,Channel,02/15/2026,03/15/2026
+OPP-02734,NexGen Telecom,MPLS,334.33,Closed Lost,Not In Forecast,Nicole Foster,Agent,02/17/2025,06/12/2025
+OPP-02740,CopperLine,Colocation,330.89,Closed Lost,Not In Forecast,Lisa Chen,Agent,10/25/2025,02/26/2026
+OPP-02743,FiberLink,Managed Services,673.33,Closed Lost,Not In Forecast,Jessica Kim,Channel,09/16/2025,11/25/2025
+OPP-02744,TerraLink,MPLS,224.48,Closed Lost,Not In Forecast,Mark Thompson,Direct,09/27/2024,01/24/2025
+OPP-02745,CopperLine,MPLS,738.88,Closed Lost,Not In Forecast,Nicole Foster,Channel,08/06/2024,11/29/2024
+OPP-02746,Apex Digital,Ethernet,981.38,Closed Lost,Not In Forecast,Mark Thompson,Channel,06/22/2025,08/15/2025
+OPP-02751,Pinnacle IT,Dark Fiber,1103.15,Closed Lost,Not In Forecast,Chris Weber,Channel,08/18/2024,01/18/2025
+OPP-02759,ByteWorks,MPLS,1794.66,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,07/11/2024,07/26/2024
+OPP-02764,CoreConnect,SD-WAN,5724.05,Closed Lost,Not In Forecast,Jessica Kim,Channel,12/14/2024,04/20/2025
+OPP-02767,IronGate Tech,Wavelengths,451.01,Closed Lost,Not In Forecast,Mark Thompson,Agent,09/03/2025,10/03/2025
+OPP-02771,GridForce,Wavelengths,21.54,Closed Lost,Not In Forecast,Mark Thompson,Channel,04/05/2024,05/11/2024
+OPP-02775,FlexNet Solutions,DDoS Protection,285.54,Closed Lost,Not In Forecast,Sarah Mitchell,Agent,08/08/2025,01/12/2026
+OPP-02777,GoldGrid,IP Transit,191.95,Closed Lost,Not In Forecast,Jose Banales,Direct,11/25/2025,03/09/2026
+OPP-02778,Atlas Computing,Cloud Connect,800.47,Closed Lost,Not In Forecast,Lisa Chen,Agent,09/05/2024,12/17/2024
+OPP-02779,WavePoint,DDoS Protection,189.41,Closed Lost,Not In Forecast,Nicole Foster,Agent,07/11/2024,10/23/2024
+OPP-02795,SilverStream,DDoS Protection,417.26,Closed Lost,Not In Forecast,Mark Thompson,Agent,08/21/2024,11/15/2024
+OPP-02799,CloudFirst,Ethernet,88.29,Closed Lost,Not In Forecast,Jessica Kim,Agent,01/11/2026,03/08/2026
+OPP-02800,FlexNet Solutions,SD-WAN,441.9,Closed Lost,Not In Forecast,Jessica Kim,Channel,09/26/2025,11/27/2025
+OPP-02802,TerraLink,Ethernet,423.48,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,12/21/2025,02/24/2026
+OPP-02811,DataSync Labs,Dark Fiber,836.22,Closed Lost,Not In Forecast,David Park,Channel,12/29/2025,02/14/2026
+OPP-02814,Atlas Computing,Dark Fiber,201.54,Closed Lost,Not In Forecast,David Park,Direct,12/30/2025,03/05/2026
+OPP-02820,WavePoint,Colocation,15.05,Closed Lost,Not In Forecast,Lisa Chen,Direct,06/03/2024,06/27/2024
+OPP-02828,CloudFirst,Ethernet,373.27,Closed Lost,Not In Forecast,Jose Banales,Agent,09/29/2025,11/19/2025
+OPP-02829,HorizonIO,Dark Fiber,669.46,Closed Lost,Not In Forecast,Lisa Chen,Agent,09/06/2024,12/02/2024
+OPP-02830,FlexNet Solutions,Dark Fiber,28.98,Closed Lost,Not In Forecast,Mark Thompson,Agent,04/09/2024,09/18/2024
+OPP-02831,VectorData,Wavelengths,75.24,Closed Lost,Not In Forecast,Mark Thompson,Agent,09/02/2024,12/16/2024
+OPP-02832,Pinnacle IT,MPLS,2159.94,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,12/01/2024,01/07/2025
+OPP-02834,Summit Cloud,Cloud Connect,312.47,Closed Lost,Not In Forecast,Jessica Kim,Direct,09/24/2024,02/12/2025
+OPP-02836,FlexNet Solutions,MPLS,558.26,Closed Lost,Not In Forecast,David Park,Agent,05/28/2024,11/07/2024
+OPP-02838,WavePoint,Wavelengths,153.82,Closed Lost,Not In Forecast,Lisa Chen,Direct,12/19/2025,03/02/2026
+OPP-02839,CloudFirst,SD-WAN,425.64,Closed Lost,Not In Forecast,Sarah Mitchell,Channel,01/09/2025,02/02/2025
+OPP-02841,VectorData,Colocation,275.25,Closed Lost,Not In Forecast,Jessica Kim,Channel,08/22/2024,12/06/2024
+OPP-02844,Zenith Systems,Managed Services,1993.79,Closed Lost,Not In Forecast,Jose Banales,Direct,11/27/2025,02/12/2026
+OPP-02851,GridForce,DDoS Protection,291.24,Closed Lost,Not In Forecast,Nicole Foster,Agent,08/31/2025,12/03/2025
+OPP-02852,BluePeak,DDoS Protection,137.65,Closed Lost,Not In Forecast,David Park,Agent,06/16/2024,08/03/2024
+OPP-02863,EchoPoint,Wavelengths,1355.86,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,09/09/2025,03/03/2026
+OPP-02865,ClearPath,MPLS,109.62,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,04/18/2025,08/20/2025
+OPP-02867,CoreConnect,Managed Services,32.77,Closed Lost,Not In Forecast,Amy Rodriguez,Direct,05/25/2024,11/21/2024
+OPP-02868,SwiftNode,Ethernet,732.02,Closed Lost,Not In Forecast,David Park,Channel,09/22/2024,12/05/2024
+OPP-02873,Pinnacle IT,Cloud Connect,569.7,Closed Lost,Not In Forecast,Chris Weber,Agent,08/06/2024,12/05/2024
+OPP-02874,Apex Digital,DDoS Protection,1124.9,Closed Lost,Not In Forecast,David Park,Agent,10/12/2025,11/29/2025
+OPP-02876,DigiPath,Wavelengths,69.57,Closed Lost,Not In Forecast,Chris Weber,Direct,06/09/2024,07/20/2024
+OPP-02882,Atlas Computing,Wavelengths,1765.92,Closed Lost,Not In Forecast,Chris Weber,Channel,03/27/2024,09/09/2024
+OPP-02883,TechFlow Inc,Managed Services,200.49,Closed Lost,Not In Forecast,Jose Banales,Direct,11/01/2025,01/12/2026
+OPP-02884,SignalBridge,Dark Fiber,212.42,Closed Lost,Not In Forecast,Jessica Kim,Agent,08/23/2024,12/27/2024
+OPP-02887,Summit Cloud,Wavelengths,102.92,Closed Lost,Not In Forecast,Jessica Kim,Agent,07/31/2024,09/22/2024
+OPP-02888,CloudFirst,IP Transit,1784.55,Closed Lost,Not In Forecast,Chris Weber,Direct,12/04/2024,03/17/2025
+OPP-02889,SignalBridge,Cloud Connect,865.79,Closed Lost,Not In Forecast,Jessica Kim,Direct,04/27/2024,08/17/2024
+OPP-02891,DigiPath,IP Transit,26.33,Closed Lost,Not In Forecast,Amy Rodriguez,Agent,05/09/2025,10/24/2025
+OPP-02893,SignalBridge,Colocation,400.71,Closed Lost,Not In Forecast,Lisa Chen,Channel,02/26/2025,08/08/2025
+OPP-02895,CopperLine,SD-WAN,134.57,Closed Lost,Not In Forecast,Mark Thompson,Agent,12/16/2024,02/19/2025
+OPP-02896,GridForce,Ethernet,449.69,Closed Lost,Not In Forecast,Lisa Chen,Agent,12/27/2025,02/01/2026
+OPP-02900,SignalBridge,DDoS Protection,2180.66,Closed Lost,Not In Forecast,David Park,Direct,09/11/2025,12/27/2025
+OPP-02905,Titanium Labs,Colocation,432.71,Closed Lost,Not In Forecast,Chris Weber,Direct,08/15/2024,12/28/2024
+OPP-02906,TerraLink,IP Transit,77.92,Closed Lost,Not In Forecast,Mark Thompson,Direct,01/14/2025,03/22/2025
+OPP-02911,FlexNet Solutions,Colocation,314.18,Closed Lost,Not In Forecast,Jessica Kim,Channel,06/24/2024,12/04/2024
+OPP-02912,DigiPath,Dark Fiber,2122.85,Closed Lost,Not In Forecast,Nicole Foster,Direct,06/13/2025,08/20/2025
+OPP-02916,RedRock Data,Ethernet,148.93,Closed Lost,Not In Forecast,David Park,Channel,10/22/2024,01/04/2025
+OPP-02920,Apex Digital,Dark Fiber,41.04,Closed Lost,Not In Forecast,Mark Thompson,Direct,01/02/2026,02/28/2026
+OPP-02921,VectorData,Ethernet,190.69,Closed Lost,Not In Forecast,David Park,Direct,06/30/2024,10/14/2024
+OPP-02924,Quantum Networks,DDoS Protection,652.29,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,02/01/2025,05/16/2025
+OPP-02928,Cascade Networks,Dark Fiber,1067.82,Closed Lost,Not In Forecast,Sarah Mitchell,Direct,10/11/2025,11/09/2025
+OPP-02931,RedRock Data,Wavelengths,519.06,Closed Lost,Not In Forecast,Jessica Kim,Direct,08/31/2024,02/04/2025
+OPP-02938,CoreConnect,Dark Fiber,640.81,Closed Lost,Not In Forecast,Chris Weber,Direct,08/17/2025,02/02/2026
+OPP-02941,Titanium Labs,Cloud Connect,836.09,Closed Lost,Not In Forecast,Jose Banales,Channel,03/01/2025,06/25/2025
+OPP-02943,WavePoint,MPLS,205.74,Closed Lost,Not In Forecast,David Park,Direct,01/13/2026,02/16/2026
+OPP-02945,SilverStream,Cloud Connect,395.42,Closed Lost,Not In Forecast,Lisa Chen,Direct,12/23/2025,03/14/2026
+OPP-02946,Pinnacle IT,SD-WAN,223.1,Closed Lost,Not In Forecast,Chris Weber,Agent,06/17/2025,10/09/2025
+OPP-02947,Quantum Networks,Wavelengths,227.39,Closed Lost,Not In Forecast,Chris Weber,Channel,01/27/2025,07/13/2025
+OPP-02951,NetScale Systems,Managed Services,137.53,Closed Lost,Not In Forecast,Mark Thompson,Direct,11/06/2024,02/13/2025
+OPP-02956,IronGate Tech,Colocation,408.85,Closed Lost,Not In Forecast,Mark Thompson,Direct,04/30/2024,10/07/2024
+OPP-02960,CoreConnect,Cloud Connect,475.7,Closed Lost,Not In Forecast,Lisa Chen,Channel,11/28/2024,02/15/2025
+OPP-02966,Quantum Networks,SD-WAN,1590.09,Closed Lost,Not In Forecast,David Park,Channel,07/03/2025,10/05/2025
+OPP-02967,PrimeRoute,Ethernet,1027.92,Closed Lost,Not In Forecast,Lisa Chen,Direct,11/21/2024,02/14/2025
+OPP-02968,CopperLine,Managed Services,4608.91,Closed Lost,Not In Forecast,Mark Thompson,Agent,01/21/2025,04/03/2025
+OPP-02969,FlexNet Solutions,SD-WAN,3950.7,Closed Lost,Not In Forecast,Nicole Foster,Agent,12/19/2025,01/20/2026
+OPP-02974,LinkStream,DDoS Protection,159.31,Closed Lost,Not In Forecast,Ryan O'Brien,Channel,10/30/2024,02/25/2025
+OPP-02975,TerraLink,DDoS Protection,165.61,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,08/30/2024,02/01/2025
+OPP-02977,VectorData,Managed Services,62.11,Closed Lost,Not In Forecast,Mark Thompson,Channel,01/06/2026,02/19/2026
+OPP-02981,StarForge,Wavelengths,894.81,Closed Lost,Not In Forecast,Jessica Kim,Agent,09/10/2025,10/19/2025
+OPP-02984,RedRock Data,IP Transit,381.22,Closed Lost,Not In Forecast,Jessica Kim,Channel,03/22/2025,08/27/2025
+OPP-02986,StarForge,Colocation,80.1,Closed Lost,Not In Forecast,David Park,Direct,03/31/2024,08/18/2024
+OPP-02988,HorizonIO,SD-WAN,1105.91,Closed Lost,Not In Forecast,Mark Thompson,Agent,12/10/2024,05/23/2025
+OPP-02995,GoldGrid,Wavelengths,9506.54,Closed Lost,Not In Forecast,Jessica Kim,Agent,03/22/2024,09/03/2024
+OPP-02996,IronGate Tech,Colocation,900.33,Closed Lost,Not In Forecast,Amy Rodriguez,Channel,11/27/2025,03/11/2026

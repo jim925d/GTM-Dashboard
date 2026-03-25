@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>REVOS · Location Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            revos: {
+              bg: '#111111', surface: '#161616', card: '#1C1C1C', 'card-hover': '#222222',
+              border: '#2A2A2A', 'border-light': '#3A3A3A', text: '#F5F0E8', 'text-mid': '#D8D0C4',
+              'text-dim': '#A89888', cyan: '#6EC8E4', green: '#6ED8A0', red: '#E87070',
+              yellow: '#E8C868', orange: '#E8A050', purple: '#B090E0', blue: '#70A8E0',
+              teal: '#50D0B8', pink: '#E888B0', lime: '#B0E050',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ["'JetBrains Mono'", 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #111111; color: #F5F0E8; font-family: 'Inter', system-ui, sans-serif; margin: 0; min-height: 100vh; }
+    select option { background: #1C1C1C; color: #F5F0E8; }
+    * { box-sizing: border-box; margin: 0; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 3px; }
+    ::placeholder { color: #A89888; }
+    .leaflet-container { background: #111111 !important; }
+    .leaflet-popup-content-wrapper { background: #1C1C1C; color: #F5F0E8; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    .leaflet-popup-tip { background: #1C1C1C; }
+    .leaflet-popup-close-button { color: #A89888 !important; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .anim-pulse { animation: pulse 1.5s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useCallback, useEffect, useRef, useMemo } = React;
+    const XLSX = window.XLSX;
+    const L = window.L;
+    const cn = (...args) => args.filter(Boolean).join(' ');
+
+    // ─── Color Constants ────────────────────────────────────────────
+    const C = {
+      bg: '#111111', surface: '#1C1C1C', border: '#2A2A2A', text: '#F5F0E8',
+      textMuted: '#A89888', accent: '#70A8E0', accentDim: 'rgba(112,168,224,0.12)',
+      green: '#6ED8A0', greenDim: 'rgba(110,216,160,0.12)', yellow: '#E8C868',
+      red: '#E87070', teal: '#50D0B8', purple: '#B090E0', textDim: '#A89888',
+      orange: '#E8A050', cyan: '#6EC8E4',
+    };
+
+    // ─── Persistence (localStorage) ─────────────────────────────────
+    const STORAGE_KEY = 'revos_location_intelligence';
+    function saveToStorage(data) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) { console.warn('Save failed:', e); }
+    }
+    function loadFromStorage() {
+      try { const d = localStorage.getItem(STORAGE_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; }
+    }
+
+    // ─── Shared Components ──────────────────────────────────────────
+    function Badge({ children, color = 'blue' }) {
+      const colorMap = {
+        blue: 'text-revos-blue bg-revos-blue/10',
+        green: 'text-revos-green bg-revos-green/10',
+        yellow: 'text-revos-yellow bg-revos-yellow/10',
+        red: 'text-revos-red bg-revos-red/10',
+        orange: 'text-revos-orange bg-revos-orange/10',
+        purple: 'text-revos-purple bg-revos-purple/10',
+        teal: 'text-revos-teal bg-revos-teal/10',
+        cyan: 'text-revos-cyan bg-revos-cyan/10',
+        accent: 'text-revos-blue bg-revos-blue/10',
+      };
+      return (
+        <span className={cn(
+          'inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold tracking-wide uppercase',
+          colorMap[color] || colorMap.blue
+        )}>{children}</span>
+      );
+    }
+
+    function Card({ children, onClick, className }) {
+      return (
+        <div onClick={onClick} className={cn(
+          'bg-revos-card border border-revos-border rounded-lg p-5 transition-colors duration-150',
+          onClick && 'cursor-pointer hover:border-revos-border-light', className
+        )}>{children}</div>
+      );
+    }
+
+    function SectionLabel({ children }) {
+      return <div className="text-[10px] font-bold text-revos-text-dim tracking-[0.1em] uppercase mb-3">{children}</div>;
+    }
+
+    function NavItem({ icon, label, active, onClick, collapsed, badge }) {
+      return (
+        <button onClick={onClick} className={cn(
+          'flex items-center gap-3 w-full rounded-md border-none text-[13px] cursor-pointer transition-all duration-[120ms] font-sans',
+          collapsed ? 'py-2.5 px-0 justify-center' : 'py-2 px-3 justify-start',
+          active ? 'bg-revos-blue/10 text-revos-blue font-semibold' : 'bg-transparent text-revos-text-dim hover:bg-revos-card-hover hover:text-revos-text font-normal'
+        )}>
+          <span className="text-[15px] shrink-0 w-5 text-center">{icon}</span>
+          {!collapsed && <span className="flex-1 text-left">{label}</span>}
+          {!collapsed && badge > 0 && (
+            <span className="min-w-[18px] h-[18px] rounded-full bg-revos-red/10 text-revos-red text-[10px] font-bold flex items-center justify-center">{badge}</span>
+          )}
+        </button>
+      );
+    }
+
+    function SourceRow({ name, icon, status, message }) {
+      return (
+        <div className={cn(
+          'flex items-center gap-3 px-3.5 py-2.5 bg-revos-card rounded-md border transition-colors duration-300',
+          status === 'done' ? 'border-revos-teal/30' : 'border-revos-border'
+        )}>
+          <span className="text-base w-6 text-center">{icon}</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-revos-text">{name}</div>
+            <div className="text-[11px] text-revos-text-dim whitespace-nowrap overflow-hidden text-ellipsis">{message || 'Ready'}</div>
+          </div>
+          <span className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase',
+            status === 'done' && 'bg-revos-green/10 text-revos-green',
+            status === 'running' && 'bg-revos-blue/10 text-revos-blue',
+            status !== 'done' && status !== 'running' && 'bg-revos-border/40 text-revos-text-dim',
+          )}>
+            {status === 'running' && <span className="w-[5px] h-[5px] rounded-full bg-revos-blue anim-pulse" />}
+            {status === 'done' ? 'done' : status === 'running' ? 'scanning' : status === 'error' ? 'error' : 'idle'}
+          </span>
+        </div>
+      );
+    }
+
+    function SignalCard({ label, value, color, sub }) {
+      return (
+        <div className="px-3.5 py-3 bg-revos-card rounded-lg border border-revos-border">
+          <div className="text-[10px] text-revos-text-dim font-semibold uppercase tracking-[0.08em] mb-1.5">{label}</div>
+          <div className="text-[22px] font-bold leading-none" style={{ color }}>{value}</div>
+          {sub && <div className="text-[10px] text-revos-text-dim mt-1">{sub}</div>}
+        </div>
+      );
+    }
+
+    // ─── Leaflet Map (imperative via ref) ───────────────────────────
+    function LocationMap({ locations }) {
+      const mapRef = useRef(null);
+      const mapInstanceRef = useRef(null);
+      const markersRef = useRef([]);
+
+      const getColor = (loc) => {
+        if (loc.isNew) return C.accent;
+        if (loc.netStatus === 'On-Net' || loc.netStatus === 'On-Net ICB') return C.green;
+        if (loc.netStatus === 'Near-Net') return C.yellow;
+        return C.red;
+      };
+
+      useEffect(() => {
+        if (!mapRef.current || locations.length === 0) return;
+
+        if (!mapInstanceRef.current) {
+          mapInstanceRef.current = L.map(mapRef.current, {
+            zoomControl: false,
+            scrollWheelZoom: true,
+          }).setView([39, -98], 4);
+
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+          }).addTo(mapInstanceRef.current);
+        }
+
+        // Clear old markers
+        markersRef.current.forEach(m => mapInstanceRef.current.removeLayer(m));
+        markersRef.current = [];
+
+        // Add new markers
+        const lats = [], lngs = [];
+        locations.forEach(loc => {
+          if (!loc.lat || !loc.lng) return;
+          lats.push(loc.lat);
+          lngs.push(loc.lng);
+          const color = getColor(loc);
+          const marker = L.circleMarker([loc.lat, loc.lng], {
+            radius: loc.isNew ? 6 : 5,
+            fillColor: color, fillOpacity: 0.8,
+            color: color, weight: 1, opacity: 0.6,
+          }).addTo(mapInstanceRef.current);
+
+          marker.bindPopup(`<div style="font-size:12px"><strong>${loc.address || 'Unknown'}</strong><br/>${loc.type || ''} ${loc.netStatus ? '· ' + loc.netStatus : ''}${loc.isNew ? '<br/><span style="color:' + C.accent + '">Newly discovered</span>' : ''}</div>`);
+          markersRef.current.push(marker);
+        });
+
+        if (lats.length > 0) {
+          const bounds = [
+            [Math.min(...lats) - 0.5, Math.min(...lngs) - 0.5],
+            [Math.max(...lats) + 0.5, Math.max(...lngs) + 0.5],
+          ];
+          mapInstanceRef.current.fitBounds(bounds, { padding: [20, 20], maxZoom: 12 });
+        }
+
+        setTimeout(() => mapInstanceRef.current?.invalidateSize(), 100);
+      }, [locations]);
+
+      useEffect(() => {
+        return () => {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+          }
+        };
+      }, []);
+
+      if (!locations.length) return null;
+
+      return (
+        <div className="rounded-lg overflow-hidden border border-revos-border">
+          <div ref={mapRef} style={{ height: 320, width: '100%' }} />
+          <div className="flex gap-4 px-3.5 py-2 bg-revos-card text-[10px] text-revos-text-dim">
+            <span><span className="inline-block w-2 h-2 rounded-full bg-revos-green mr-1 align-middle" />On-Net</span>
+            <span><span className="inline-block w-2 h-2 rounded-full bg-revos-yellow mr-1 align-middle" />Near-Net</span>
+            <span><span className="inline-block w-2 h-2 rounded-full bg-revos-red mr-1 align-middle" />Off-Net</span>
+            <span><span className="inline-block w-2 h-2 rounded-full bg-revos-blue mr-1 align-middle" />Discovered</span>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Enrichment Engine ──────────────────────────────────────────
+    // Attempts live API calls to the RevOS backend; falls back to local heuristic simulation.
+
+    async function enrichFromGooglePlaces(account, existingLocs, onProgress) {
+      onProgress('google_places', 'running', 'Searching Google Places API...');
+      try {
+        const resp = await fetch('/api/engine/enrich/google-places', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company_name: account.name, hq: account.hq }),
+        });
+        if (!resp.ok) throw new Error(`API returned ${resp.status}`);
+        const data = await resp.json();
+        const results = data.results || [];
+        onProgress('google_places', 'done', `Found ${results.length} locations`);
+        return results;
+      } catch (e) {
+        onProgress('google_places', 'running', 'API unavailable \u2014 running local heuristic...');
+        await new Promise(r => setTimeout(r, 800));
+        const simulated = simulateDiscovery(existingLocs, 'google_places');
+        onProgress('google_places', 'done', `Heuristic found ${simulated.length} potential locations`);
+        return simulated;
+      }
+    }
+
+    async function enrichFromClaude(account, existingLocs, onProgress) {
+      onProgress('claude_ai', 'running', 'Claude AI researching locations...');
+      try {
+        const resp = await fetch('/api/engine/enrich/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company_name: account.name, industry: account.industry, hq: account.hq, website: account.website }),
+        });
+        if (!resp.ok) throw new Error(`API returned ${resp.status}`);
+        const data = await resp.json();
+        const results = data.results || [];
+        onProgress('claude_ai', 'done', `Found ${results.length} locations`);
+        return results;
+      } catch (e) {
+        onProgress('claude_ai', 'running', 'API unavailable \u2014 running local heuristic...');
+        await new Promise(r => setTimeout(r, 1200));
+        const simulated = simulateDiscovery(existingLocs, 'claude_ai');
+        onProgress('claude_ai', 'done', `Heuristic found ${simulated.length} potential locations`);
+        return simulated;
+      }
+    }
+
+    function simulateDiscovery(existingLocs, source) {
+      if (!existingLocs.length) return [];
+      const count = Math.min(Math.ceil(existingLocs.length * 0.15), 8);
+      const results = [];
+      const shuffled = [...existingLocs].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < Math.min(count, shuffled.length); i++) {
+        const base = shuffled[i];
+        results.push({
+          lat: base.lat + (Math.random() - 0.5) * 0.8,
+          lng: base.lng + (Math.random() - 0.5) * 0.8,
+          address: `Near ${base.address || 'existing site'}`,
+          type: ['Branch Office', 'Regional Hub', 'Data Center', 'Sales Office'][Math.floor(Math.random() * 4)],
+          source,
+          confidence: +(0.5 + Math.random() * 0.45).toFixed(2),
+        });
+      }
+      return results;
+    }
+
+    function deduplicateLocations(existing, discovered) {
+      const seen = new Set(existing.map(l => `${l.lat.toFixed(2)},${l.lng.toFixed(2)}`));
+      const unique = [];
+      for (const loc of discovered) {
+        const key = `${loc.lat.toFixed(2)},${loc.lng.toFixed(2)}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push({ ...loc, id: `loc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, isNew: true });
+        }
+      }
+      return unique;
+    }
+
+    function computeBayesianSignals(existingCount, newCount, locations) {
+      const total = existingCount + newCount;
+      const states = new Set(locations.map(l => l.address?.match(/,\s*([A-Z]{2})\s/)?.[1]).filter(Boolean));
+      const hasDataCenter = locations.some(l => l.type?.toLowerCase().includes('data center'));
+      return {
+        footprintSize: total,
+        geographicSpread: states.size,
+        growthSignal: newCount > 0 ? +(newCount / Math.max(existingCount, 1)).toFixed(2) : 0,
+        hasDataCenters: hasDataCenter,
+        expansionProbability: Math.min(0.95, 0.3 + states.size * 0.08 + (hasDataCenter ? 0.15 : 0) + newCount * 0.03),
+      };
+    }
+
+    // ─── CSV / XLSX Upload Parsing ──────────────────────────────────
+
+    function parseLocationFile(file) {
+      return new Promise((resolve, reject) => {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'csv' || ext === 'tsv') {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (result) => resolve(normalizeLocationRows(result.data)),
+            error: (err) => reject(err),
+          });
+        } else if (ext === 'xlsx' || ext === 'xls') {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet);
+            resolve(normalizeLocationRows(rows));
+          };
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        } else {
+          reject(new Error('Unsupported file type'));
+        }
+      });
+    }
+
+    function normalizeLocationRows(rows) {
+      const accountMap = {};
+      rows.forEach(row => {
+        const name = row['Account'] || row['account'] || row['Company'] || row['company'] || row['name'] || '';
+        if (!name) return;
+        if (!accountMap[name]) {
+          accountMap[name] = {
+            name,
+            hq: row['HQ'] || row['hq'] || row['City'] || '',
+            vertical: row['Vertical'] || row['vertical'] || row['Industry'] || row['industry'] || '',
+            segment: row['Segment'] || row['segment'] || '',
+            manager: row['Manager'] || row['manager'] || row['Rep'] || row['rep'] || '',
+            industry: row['Industry'] || row['industry'] || row['Vertical'] || row['vertical'] || '',
+            website: row['Website'] || row['website'] || '',
+            locations: [],
+            on: 0, near: 0, off: 0, total: 0,
+          };
+        }
+        const lat = parseFloat(row['Latitude'] || row['latitude'] || row['lat'] || row['Lat'] || 0);
+        const lng = parseFloat(row['Longitude'] || row['longitude'] || row['lng'] || row['Lng'] || row['lon'] || row['Lon'] || 0);
+        const address = row['Address'] || row['address'] || row['Location'] || row['location'] || '';
+        const type = row['Type'] || row['type'] || row['Building Type'] || '';
+        const status = (row['Net Status'] || row['net_status'] || row['Status'] || row['status'] || 'off-net').toLowerCase().replace(/\s+/g, '-');
+        const netStatus = status.includes('on') ? 'On-Net' : status.includes('near') ? 'Near-Net' : 'Off-Net';
+        const mrr = parseFloat(row['MRR'] || row['mrr'] || 0);
+        const feet = parseFloat(row['Feet from Network'] || row['feet_from_network'] || row['Distance'] || 0);
+        const market = row['Market'] || row['market'] || '';
+
+        if (lat && lng) {
+          accountMap[name].locations.push({
+            address, type, netStatus, status, market, lat, lng, mrr,
+            feet_from_network: feet, name: row['Name'] || address, source: 'uploaded',
+          });
+        }
+        if (netStatus === 'On-Net') accountMap[name].on++;
+        else if (netStatus === 'Near-Net') accountMap[name].near++;
+        else accountMap[name].off++;
+        accountMap[name].total++;
+      });
+      return Object.values(accountMap);
+    }
+
+    // ─── DEMO DATA ──────────────────────────────────────────────────
+    function generateDemoData() {
+      const companies = [
+        { name: 'Acme Corp', hq: 'New York, NY', vertical: 'Technology', manager: 'DCosta', on: 12, near: 5, total: 22 },
+        { name: 'GlobalTech Inc', hq: 'San Francisco, CA', vertical: 'Cloud Services', manager: 'Kahn', on: 8, near: 3, total: 15 },
+        { name: 'DataStream LLC', hq: 'Chicago, IL', vertical: 'Data Analytics', manager: 'Ochoa', on: 15, near: 8, total: 30 },
+        { name: 'NetVault Systems', hq: 'Dallas, TX', vertical: 'Cybersecurity', manager: 'McGuirk', on: 6, near: 4, total: 12 },
+        { name: 'CloudBridge', hq: 'Seattle, WA', vertical: 'SaaS', manager: 'DCosta', on: 10, near: 6, total: 20 },
+        { name: 'Meridian Health', hq: 'Boston, MA', vertical: 'Healthcare IT', manager: 'Kahn', on: 4, near: 2, total: 8 },
+        { name: 'Pacific Logistics', hq: 'Los Angeles, CA', vertical: 'Supply Chain', manager: 'Ochoa', on: 9, near: 7, total: 18 },
+        { name: 'Quantum Financial', hq: 'Charlotte, NC', vertical: 'FinTech', manager: 'McGuirk', on: 11, near: 3, total: 16 },
+      ];
+
+      const cityCoords = {
+        'New York, NY': [40.7128, -74.0060], 'San Francisco, CA': [37.7749, -122.4194],
+        'Chicago, IL': [41.8781, -87.6298], 'Dallas, TX': [32.7767, -96.7970],
+        'Seattle, WA': [47.6062, -122.3321], 'Boston, MA': [42.3601, -71.0589],
+        'Los Angeles, CA': [34.0522, -118.2437], 'Charlotte, NC': [35.2271, -80.8431],
+      };
+
+      return companies.map(c => {
+        const [baseLat, baseLng] = cityCoords[c.hq] || [39, -98];
+        const locs = [];
+        const types = ['HQ', 'Branch Office', 'Data Center', 'Regional Hub', 'Sales Office', 'Warehouse'];
+        for (let i = 0; i < c.total; i++) {
+          locs.push({
+            address: `${100 + i * 10} ${['Main St', 'Commerce Blvd', 'Tech Park Dr', 'Enterprise Way'][i % 4]}, ${c.hq}`,
+            type: types[i % types.length],
+            netStatus: i < c.on ? 'On-Net' : i < c.on + c.near ? 'Near-Net' : 'Off-Net',
+            status: i < c.on ? 'on-net' : i < c.on + c.near ? 'near-net' : 'off-net',
+            market: c.hq.split(',')[1]?.trim() || '',
+            lat: baseLat + (Math.random() - 0.5) * 2,
+            lng: baseLng + (Math.random() - 0.5) * 2,
+            mrr: Math.round(Math.random() * 50000),
+            feet_from_network: Math.round(Math.random() * 5000),
+            name: `${c.name} - Site ${i + 1}`,
+            source: 'demo',
+          });
+        }
+        return { ...c, locations: locs };
+      });
+    }
+
+    // ─── MAIN LOCATIONS SCREEN ──────────────────────────────────────
+
+    function LocationsScreen({ accounts, loadAccountLocations }) {
+      const [selectedAccount, setSelectedAccount] = useState(null);
+      const [managerFilter, setManagerFilter] = useState('all');
+      const [searchQuery, setSearchQuery] = useState('');
+      const [enriching, setEnriching] = useState(false);
+      const [sourceStatus, setSourceStatus] = useState({ google_places: { status: 'idle', message: '' }, claude_ai: { status: 'idle', message: '' } });
+      const [discoveredLocations, setDiscoveredLocations] = useState([]);
+      const [enrichmentComplete, setEnrichmentComplete] = useState(false);
+      const [bayesianSignals, setBayesianSignals] = useState(null);
+      const [activeTab, setActiveTab] = useState('all');
+      const [merged, setMerged] = useState(false);
+      const [confirmMerge, setConfirmMerge] = useState(false);
+      const [existingLocations, setExistingLocations] = useState([]);
+      const [loadingLocations, setLoadingLocations] = useState(false);
+      const [locationsLoaded, setLocationsLoaded] = useState(false);
+
+      const managers = useMemo(() => [...new Set(accounts.map(a => a.manager).filter(Boolean))], [accounts]);
+      const account = accounts.find(a => a.name === selectedAccount);
+
+      const handleLoadLocations = useCallback(async () => {
+        if (!account) return;
+        setLoadingLocations(true);
+        try {
+          const locs = await loadAccountLocations(account.name);
+          setExistingLocations(locs);
+          setLocationsLoaded(true);
+        } catch (e) { console.error('Failed:', e); }
+        finally { setLoadingLocations(false); }
+      }, [account, loadAccountLocations]);
+
+      const resetEnrichment = useCallback(() => {
+        setSourceStatus({ google_places: { status: 'idle', message: '' }, claude_ai: { status: 'idle', message: '' } });
+        setDiscoveredLocations([]); setEnrichmentComplete(false); setBayesianSignals(null); setConfirmMerge(false); setMerged(false);
+      }, []);
+
+      useEffect(() => {
+        setExistingLocations([]); setLocationsLoaded(false); resetEnrichment();
+        if (selectedAccount) {
+          const stored = loadFromStorage();
+          const saved = stored?.[selectedAccount];
+          if (saved?.discoveredLocations?.length) {
+            setDiscoveredLocations(saved.discoveredLocations);
+            setBayesianSignals(saved.bayesianSignals || null);
+            setEnrichmentComplete(true);
+            setSourceStatus({
+              google_places: { status: 'done', message: 'Loaded from saved results' },
+              claude_ai: { status: 'done', message: 'Loaded from saved results' },
+            });
+          }
+        }
+      }, [selectedAccount]);
+
+      const filteredAccounts = useMemo(() => {
+        let list = accounts;
+        if (managerFilter !== 'all') list = list.filter(a => (a.manager || '').toLowerCase().includes(managerFilter.toLowerCase()));
+        if (searchQuery) list = list.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        return list;
+      }, [accounts, managerFilter, searchQuery]);
+
+      const runEnrichment = useCallback(async () => {
+        if (!account) return;
+        resetEnrichment(); setEnriching(true);
+        const onProgress = (src, status, message) => setSourceStatus(p => ({ ...p, [src]: { status, message } }));
+        const existLocs = existingLocations.map(l => ({ ...l }));
+        const [gp, ai] = await Promise.all([
+          enrichFromGooglePlaces(account, existLocs, onProgress),
+          enrichFromClaude(account, existLocs, onProgress),
+        ]);
+        const unique = deduplicateLocations(existLocs, [...gp, ...ai]);
+        setDiscoveredLocations(unique);
+        const all = [...existLocs, ...unique];
+        const signals = computeBayesianSignals(existLocs.length, unique.length, all);
+        setBayesianSignals(signals);
+        setEnriching(false); setEnrichmentComplete(true);
+
+        const stored = loadFromStorage() || {};
+        stored[account.name] = { discoveredLocations: unique, bayesianSignals: signals, timestamp: Date.now() };
+        saveToStorage(stored);
+      }, [account, existingLocations, resetEnrichment]);
+
+      const allLocations = account
+        ? [...existingLocations.map(l => ({ ...l, isNew: false })), ...discoveredLocations]
+        : [];
+      const filtered = activeTab === 'all' ? allLocations : activeTab === 'new' ? discoveredLocations : existingLocations.map(l => ({ ...l, isNew: false }));
+
+      // ─── Account List View ─────
+      if (!selectedAccount) {
+        return (
+          <div>
+            <div className="mb-4">
+              <div className="text-[9px] font-bold text-revos-text-dim tracking-wide mb-1.5">MANAGER</div>
+              <div className="flex gap-1 flex-wrap">
+                <button onClick={() => setManagerFilter('all')} className={cn(
+                  'px-2.5 py-1 text-[10px] font-mono border-none rounded cursor-pointer',
+                  managerFilter === 'all' ? 'bg-revos-cyan/10 text-revos-cyan shadow-[0_0_0_1px_rgba(110,200,228,0.2)]' : 'bg-revos-card text-revos-text-dim'
+                )}>ALL</button>
+                {managers.map(m => (
+                  <button key={m} onClick={() => setManagerFilter(m)} className={cn(
+                    'px-2.5 py-1 text-[10px] font-mono border-none rounded cursor-pointer',
+                    managerFilter === m ? 'bg-revos-cyan/10 text-revos-cyan shadow-[0_0_0_1px_rgba(110,200,228,0.2)]' : 'bg-revos-card text-revos-text-dim'
+                  )}>{m.toUpperCase()}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search accounts..."
+                className="w-full px-3 py-2 rounded-md border border-revos-border bg-revos-bg text-revos-text text-xs outline-none font-sans placeholder:text-revos-text-dim" />
+            </div>
+
+            <SectionLabel>{filteredAccounts.length.toLocaleString()} accounts</SectionLabel>
+
+            <div className="flex flex-col gap-1 max-h-[calc(100vh-300px)] overflow-y-auto">
+              {filteredAccounts.slice(0, 200).map(acct => (
+                <div key={acct.name} onClick={() => { setSelectedAccount(acct.name); resetEnrichment(); setActiveTab('all'); }}
+                  className="flex items-center gap-3 px-3.5 py-2.5 bg-revos-card rounded-md border border-revos-border cursor-pointer transition-colors duration-150 hover:border-revos-border-light">
+                  <div className="w-8 h-8 rounded-md shrink-0 bg-revos-blue/10 flex items-center justify-center text-[13px] font-bold text-revos-blue">
+                    {acct.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-revos-text whitespace-nowrap overflow-hidden text-ellipsis">{acct.name}</div>
+                    <div className="text-[10px] text-revos-text-dim mt-px">
+                      {acct.vertical || acct.segment || ''}{acct.hq ? ` \u00b7 ${acct.hq}` : ''}
+                    </div>
+                  </div>
+                  <div className="flex gap-3 shrink-0 items-center">
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-revos-green">{acct.on}</div>
+                      <div className="text-[8px] text-revos-text-dim uppercase tracking-wide">On-Net</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-revos-yellow">{acct.near}</div>
+                      <div className="text-[8px] text-revos-text-dim uppercase tracking-wide">Near-Net</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-revos-text-dim">{acct.total}</div>
+                      <div className="text-[8px] text-revos-text-dim uppercase tracking-wide">Total</div>
+                    </div>
+                  </div>
+                  <span className="text-revos-text-dim text-sm">&rarr;</span>
+                </div>
+              ))}
+              {filteredAccounts.length > 200 && (
+                <div className="p-3 text-center text-[11px] text-revos-text-dim">Showing 200 of {filteredAccounts.length.toLocaleString()} accounts.</div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // ─── Account Detail + Enrichment ─────
+      return (
+        <div>
+          <div className="flex items-center gap-2.5 mb-5">
+            <button onClick={() => { setSelectedAccount(null); resetEnrichment(); }}
+              className="bg-transparent border border-revos-border rounded-md px-2.5 py-1 text-revos-text-dim cursor-pointer text-xs font-sans">&larr; Back</button>
+            <div className="flex-1">
+              <div className="text-base font-bold text-revos-text">{account.name}</div>
+              <div className="text-[11px] text-revos-text-dim">
+                {account.vertical || account.segment || ''}{account.hq ? ` \u00b7 ${account.hq}` : ''}{account.manager ? ` \u00b7 ${account.manager}` : ''}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Badge color="green">{account.on} On-Net</Badge>
+              <Badge color="yellow">{account.near} Near-Net</Badge>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            {!locationsLoaded ? (
+              <button onClick={handleLoadLocations} disabled={loadingLocations}
+                className={cn('flex-1 px-4 py-3 rounded-lg border border-revos-green/30 bg-revos-green/10 text-revos-green text-[13px] font-semibold font-sans tracking-tight transition-all duration-200',
+                  loadingLocations ? 'cursor-not-allowed opacity-70' : 'cursor-pointer opacity-100'
+                )}>{loadingLocations ? 'Loading...' : `Load ${account.total} existing locations`}</button>
+            ) : (
+              <div className="flex-1 px-4 py-3 rounded-lg bg-revos-green/10 border border-revos-green/20 flex items-center justify-center gap-2 text-[13px] font-semibold text-revos-green font-sans">
+                <span>&check;</span> {existingLocations.length} locations loaded
+              </div>
+            )}
+            <button onClick={runEnrichment} disabled={enriching}
+              className={cn('flex-1 px-4 py-3 rounded-lg border-none text-[13px] font-semibold font-sans tracking-tight transition-all duration-200',
+                enriching ? 'bg-revos-blue/10 text-revos-blue cursor-not-allowed opacity-70' : 'bg-revos-blue text-revos-bg cursor-pointer opacity-100'
+              )}>{enriching ? 'Enriching...' : enrichmentComplete ? '\u21bb Re-run enrichment' : '\u26a1 Enrich locations'}</button>
+          </div>
+
+          {(enriching || enrichmentComplete) && (
+            <div className="mb-4">
+              <SectionLabel>Data sources</SectionLabel>
+              <div className="flex flex-col gap-1.5">
+                <SourceRow name="Google Places API" icon="GP" status={sourceStatus.google_places.status} message={sourceStatus.google_places.message} />
+                <SourceRow name="Claude AI Research" icon="AI" status={sourceStatus.claude_ai.status} message={sourceStatus.claude_ai.message} />
+              </div>
+            </div>
+          )}
+
+          {bayesianSignals && (
+            <div className="mb-4">
+              <SectionLabel>Bayesian engine signals</SectionLabel>
+              <div className="grid grid-cols-5 gap-2">
+                <SignalCard label="Footprint" value={bayesianSignals.footprintSize} color={C.teal} sub="total locations" />
+                <SignalCard label="Geo spread" value={`${bayesianSignals.geographicSpread}`} color={C.accent} sub="unique states" />
+                <SignalCard label="Growth" value={`${bayesianSignals.growthSignal}x`} color={bayesianSignals.growthSignal > 1 ? C.green : C.yellow} sub="new / existing" />
+                <SignalCard label="Data centers" value={bayesianSignals.hasDataCenters ? 'Yes' : 'No'} color={bayesianSignals.hasDataCenters ? C.green : C.textDim} sub="infra signal" />
+                <SignalCard label="Expansion" value={`${Math.round(bayesianSignals.expansionProbability * 100)}%`} color={C.purple} sub="probability" />
+              </div>
+            </div>
+          )}
+
+          {allLocations.length > 0 && (
+            <div className="mb-4">
+              <SectionLabel>Location map</SectionLabel>
+              <LocationMap locations={allLocations} />
+            </div>
+          )}
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex gap-0.5">
+                {[
+                  { key: 'all', label: `All (${allLocations.length})` },
+                  { key: 'existing', label: `Existing (${existingLocations.length})` },
+                  ...(discoveredLocations.length ? [{ key: 'new', label: `New (${discoveredLocations.length})` }] : []),
+                ].map(tab => (
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                    className={cn('px-3 py-1 rounded-md border-none text-[11px] font-semibold cursor-pointer font-sans',
+                      activeTab === tab.key ? 'bg-revos-blue/10 text-revos-blue' : 'bg-transparent text-revos-text-dim'
+                    )}>{tab.label}</button>
+                ))}
+              </div>
+              {enrichmentComplete && discoveredLocations.length > 0 && !merged && (
+                <button onClick={() => setConfirmMerge(true)}
+                  className="px-3.5 py-1 rounded-md border border-revos-green/25 bg-revos-green/10 text-revos-green text-[11px] font-semibold cursor-pointer font-sans">
+                  Merge {discoveredLocations.length} into account
+                </button>
+              )}
+              {merged && <span className="text-[11px] text-revos-green font-semibold">&check; Merged into account</span>}
+            </div>
+
+            {confirmMerge && (
+              <div className="p-3.5 bg-revos-blue/10 rounded-lg border border-revos-blue/20 mb-2.5 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-revos-text mb-0.5">Confirm merge</div>
+                  <div className="text-[11px] text-revos-text-dim">Add {discoveredLocations.length} locations to {account.name} and update Bayesian priors.</div>
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => setConfirmMerge(false)} className="px-3 py-1 rounded-md border border-revos-border bg-transparent text-revos-text-dim text-[11px] cursor-pointer font-sans">Cancel</button>
+                  <button onClick={() => { setMerged(true); setConfirmMerge(false); }} className="px-3 py-1 rounded-md border-none bg-revos-green text-revos-bg text-[11px] font-semibold cursor-pointer font-sans">Confirm</button>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border border-revos-border overflow-hidden max-h-[400px] overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="p-7 text-center text-revos-text-dim text-xs">
+                  {enrichmentComplete ? 'No locations in this filter' : !locationsLoaded ? 'Click "Load existing locations" to view this account\'s sites' : 'Locations loaded \u2014 run enrichment to discover new ones'}
+                </div>
+              ) : filtered.slice(0, 100).map((loc, i) => (
+                <div key={loc.id || i} className={cn('flex items-center gap-2.5 px-3.5 py-2', loc.isNew && 'bg-revos-blue/[0.04]')}
+                  style={{ borderBottom: i < Math.min(filtered.length, 100) - 1 ? '1px solid #2A2A2A' : 'none' }}>
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
+                    background: loc.isNew ? C.accent : loc.netStatus === 'On-Net' || loc.netStatus === 'On-Net ICB' ? C.green : loc.netStatus === 'Near-Net' ? C.yellow : C.red,
+                  }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-revos-text whitespace-nowrap overflow-hidden text-ellipsis">{loc.address || 'Unknown'}</div>
+                    <div className="text-[10px] text-revos-text-dim mt-px">
+                      {loc.type}{loc.netStatus ? ` \u00b7 ${loc.netStatus}` : ''} \u00b7 {loc.source}
+                      {loc.confidence != null && (
+                        <span className="ml-2" style={{ color: loc.confidence >= 0.85 ? C.green : loc.confidence >= 0.7 ? C.yellow : C.orange }}>
+                          {Math.round(loc.confidence * 100)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {loc.isNew && <Badge color="accent">new</Badge>}
+                </div>
+              ))}
+              {filtered.length > 100 && (
+                <div className="p-2 text-center text-[10px] text-revos-text-dim">Showing 100 of {filtered.length} locations</div>
+              )}
+            </div>
+          </div>
+
+          {enrichmentComplete && (
+            <Card className="p-3.5">
+              <div className="text-[10px] text-revos-text-dim font-bold uppercase tracking-[0.08em] mb-2">Integration endpoint</div>
+              <div className="text-[11px] text-revos-text-dim leading-relaxed font-mono">
+                POST /api/enrich &mdash; Google Places + Claude AI<br />
+                Returns deduplicated locations with confidence scores
+              </div>
+            </Card>
+          )}
+        </div>
+      );
+    }
+
+    // ─── MAIN APP ───────────────────────────────────────────────────
+
+    const NAV_ITEMS = [
+      { id: 'locations', icon: '\u25c8', label: 'Locations' },
+      { id: 'upload', icon: '\u2b06', label: 'Upload Data' },
+    ];
+
+    function App() {
+      const [currentScreen, setCurrentScreen] = useState('locations');
+      const [navCollapsed, setNavCollapsed] = useState(false);
+      const [accounts, setAccounts] = useState([]);
+      const [allAccountData, setAllAccountData] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [dataSource, setDataSource] = useState(null);
+
+      useEffect(() => {
+        const demo = generateDemoData();
+        setAccounts(demo);
+        setAllAccountData(demo.reduce((m, a) => { m[a.name] = a.locations; return m; }, {}));
+        setDataSource('demo');
+      }, []);
+
+      const loadAccountLocations = useCallback(async (accountName) => {
+        if (!allAccountData) return [];
+        return allAccountData[accountName] || [];
+      }, [allAccountData]);
+
+      const handleFileUpload = useCallback(async (file) => {
+        setLoading(true);
+        try {
+          const parsed = await parseLocationFile(file);
+          setAccounts(parsed);
+          setAllAccountData(parsed.reduce((m, a) => { m[a.name] = a.locations; return m; }, {}));
+          setDataSource('uploaded');
+          setCurrentScreen('locations');
+        } catch (e) {
+          alert('Error parsing file: ' + e.message);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        const file = e.dataTransfer?.files?.[0];
+        if (file) handleFileUpload(file);
+      }, [handleFileUpload]);
+
+      return (
+        <div className="flex h-screen bg-revos-bg text-revos-text font-sans overflow-hidden" onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
+          {/* Sidebar */}
+          <div className={cn(
+            'shrink-0 flex flex-col border-r border-revos-border bg-revos-card transition-[width] duration-200 ease-in-out overflow-hidden',
+            navCollapsed ? 'w-[60px]' : 'w-[220px]'
+          )}>
+            <div onClick={() => setNavCollapsed(!navCollapsed)}
+              className={cn('flex items-center gap-2.5 cursor-pointer border-b border-revos-border',
+                navCollapsed ? 'py-4 px-0 justify-center' : 'py-4 px-4 justify-start'
+              )}>
+              <div className="w-7 h-7 rounded-md bg-revos-blue/10 flex items-center justify-center text-revos-blue font-extrabold text-sm shrink-0">R</div>
+              {!navCollapsed && <span className="font-bold text-sm text-revos-text tracking-tight">RevOS</span>}
+            </div>
+
+            <div className={cn('flex flex-col gap-0.5 flex-1', navCollapsed ? 'p-3 px-2' : 'p-3')}>
+              {NAV_ITEMS.map(item => (
+                <NavItem key={item.id} icon={item.icon} label={item.label}
+                  active={currentScreen === item.id} collapsed={navCollapsed}
+                  onClick={() => setCurrentScreen(item.id)} />
+              ))}
+            </div>
+
+            {!navCollapsed && (
+              <div className="p-3 border-t border-revos-border">
+                <div className="text-[9px] text-revos-text-dim uppercase tracking-wide mb-1">Data source</div>
+                <div className="text-[11px] text-revos-text-mid">{dataSource === 'uploaded' ? 'Uploaded file' : 'Demo data'}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Main content */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="px-6 py-2.5 border-b border-revos-border flex items-center justify-between bg-revos-card shrink-0">
+              <div className="text-[13px] font-semibold text-revos-text">
+                {NAV_ITEMS.find(n => n.id === currentScreen)?.label || 'Location Intelligence'}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-revos-text-dim">{accounts.length.toLocaleString()} accounts</span>
+                <div className="w-7 h-7 rounded-full bg-revos-blue/10 flex items-center justify-center text-[10px] font-bold text-revos-blue">LI</div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-[920px] mx-auto">
+                {currentScreen === 'locations' && (
+                  <LocationsScreen accounts={accounts} loadAccountLocations={loadAccountLocations} />
+                )}
+                {currentScreen === 'upload' && (
+                  <UploadScreen onUpload={handleFileUpload} loading={loading} onDemo={() => {
+                    const demo = generateDemoData();
+                    setAccounts(demo);
+                    setAllAccountData(demo.reduce((m, a) => { m[a.name] = a.locations; return m; }, {}));
+                    setDataSource('demo');
+                    setCurrentScreen('locations');
+                  }} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Upload Screen ──────────────────────────────────────────────
+    function UploadScreen({ onUpload, loading, onDemo }) {
+      const fileRef = useRef(null);
+      return (
+        <div>
+          <SectionLabel>Upload location data</SectionLabel>
+          <Card className="p-5 mb-4">
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="border-2 border-dashed border-revos-border rounded-lg p-10 text-center cursor-pointer hover:border-revos-border-light transition-colors">
+              <div className="text-2xl mb-2 text-revos-text-dim">{loading ? '\u23f3' : '\u2b06'}</div>
+              <div className="text-[13px] text-revos-text mb-1">{loading ? 'Processing...' : 'Drop a file here or click to upload'}</div>
+              <div className="text-[11px] text-revos-text-dim">CSV or XLSX with columns: Account, Address, Latitude, Longitude, Net Status, Type</div>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.tsv" className="hidden"
+                onChange={e => { if (e.target.files?.[0]) onUpload(e.target.files[0]); }} />
+            </div>
+          </Card>
+
+          <SectionLabel>Or use demo data</SectionLabel>
+          <button onClick={onDemo}
+            className="px-4 py-2.5 rounded-lg border border-revos-blue/30 bg-revos-blue/10 text-revos-blue text-[13px] font-semibold cursor-pointer font-sans">
+            Load 8 demo accounts with locations
+          </button>
+
+          <div className="mt-6">
+            <SectionLabel>Expected columns</SectionLabel>
+            <div className="rounded-lg border border-revos-border overflow-hidden">
+              {[
+                { col: 'Account / Company', desc: 'Company name (grouping key)', required: true },
+                { col: 'Address / Location', desc: 'Street address of location', required: true },
+                { col: 'Latitude / lat', desc: 'Latitude coordinate', required: true },
+                { col: 'Longitude / lng / lon', desc: 'Longitude coordinate', required: true },
+                { col: 'Net Status / status', desc: 'on-net, near-net, off-net', required: false },
+                { col: 'Type', desc: 'HQ, Branch, Data Center, etc.', required: false },
+                { col: 'Manager / Rep', desc: 'Sales manager name', required: false },
+                { col: 'Industry / Vertical', desc: 'Account industry', required: false },
+                { col: 'HQ / City', desc: 'Account headquarters', required: false },
+                { col: 'MRR', desc: 'Monthly recurring revenue', required: false },
+              ].map((r, i) => (
+                <div key={i} className="flex items-center gap-3 px-3.5 py-2" style={{ borderBottom: i < 9 ? '1px solid #2A2A2A' : 'none' }}>
+                  <div className="flex-1 text-xs text-revos-text font-mono">{r.col}</div>
+                  <div className="flex-1 text-[11px] text-revos-text-dim">{r.desc}</div>
+                  <Badge color={r.required ? 'cyan' : 'purple'}>{r.required ? 'required' : 'optional'}</Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Mount ──────────────────────────────────────────────────────
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

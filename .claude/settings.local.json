@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Copy-Item ''C:\\\\Users\\\\james\\\\OneDrive\\\\GTM Platform\\\\revos\\\\frontend\\\\data\\\\locations_geocoded.csv'' ''C:\\\\Users\\\\james\\\\OneDrive\\\\GTM Platform\\\\revos\\\\frontend\\\\data\\\\locations.csv'' -Force\")"
+    ]
+  }
+}

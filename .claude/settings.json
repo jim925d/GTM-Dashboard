@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-Process | Where-Object {$_Path -like ''*node*'' -or $_Path -like ''*vite*''} | Select-Object Id, ProcessName, Path\")"
+    ]
+  }
+}
