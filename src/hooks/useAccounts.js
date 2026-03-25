@@ -390,6 +390,9 @@ export default function useAccounts() {
             expDate: s.exp_date || s.contract_end_date || s.term_end || '',
             term: s.term_months || s.term || '',
             status: s.service_status || 'active',
+            locationA: s.location_a || '',
+            locationZ: s.location_z || '',
+            bandwidth: s.bandwidth || '',
           })),
       })
     }

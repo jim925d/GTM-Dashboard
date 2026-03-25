@@ -232,7 +232,71 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
         return enrichAccount(acct, acctDeals)
       })
 
-      const enrichedDeals = enrichedAccounts.flatMap(a => a.deal_predictions || [])
+      // ---- Product Affinity Heuristic ----
+      // Analyze what products accounts in the same vertical/market typically buy
+      // to identify whitespace (products they should have but don't)
+      const verticalProductMix = {}
+      const marketProductMix = {}
+
+      for (const acct of accounts) {
+        const vertical = acct.vertical || acct.mega_vertical || 'Unknown'
+        const locs = acct.locations || []
+        const market = (locs[0]?.market || locs[0]?.city || locs[0]?.name || 'Unknown').split(',')[0].trim()
+        const products = acct.products || []
+        const services = acct.services || []
+
+        if (!verticalProductMix[vertical]) verticalProductMix[vertical] = {}
+        if (!marketProductMix[market]) marketProductMix[market] = {}
+
+        // Count products from services (more granular) and fallback to products array
+        const counted = new Set()
+        for (const svc of services) {
+          const p = svc.product || 'Unknown'
+          if (p === 'Unknown') continue
+          verticalProductMix[vertical][p] = (verticalProductMix[vertical][p] || 0) + 1
+          marketProductMix[market][p] = (marketProductMix[market][p] || 0) + 1
+          counted.add(p.toLowerCase())
+        }
+        for (const p of products) {
+          if (counted.has(p.toLowerCase())) continue
+          verticalProductMix[vertical][p] = (verticalProductMix[vertical][p] || 0) + 1
+          marketProductMix[market][p] = (marketProductMix[market][p] || 0) + 1
+        }
+      }
+
+      // Second pass: compute loc_product_affinity per account
+      const finalAccounts = enrichedAccounts.map(acct => {
+        const vertical = acct.vertical || acct.mega_vertical || 'Unknown'
+        const locs = acct.locations || []
+        const market = (locs[0]?.market || locs[0]?.city || locs[0]?.name || 'Unknown').split(',')[0].trim()
+
+        const vertMix = verticalProductMix[vertical] || {}
+        const mktMix = marketProductMix[market] || {}
+        const currentProducts = new Set((acct.products || []).map(p => p.toLowerCase()))
+        // Also include products from active services
+        for (const svc of (acct.services || [])) {
+          if (svc.product) currentProducts.add(svc.product.toLowerCase())
+        }
+
+        const allProducts = new Set([...Object.keys(vertMix), ...Object.keys(mktMix)])
+        const vertTotal = Object.values(vertMix).reduce((s, v) => s + v, 0) || 1
+        const mktTotal = Object.values(mktMix).reduce((s, v) => s + v, 0) || 1
+
+        const affinity = {}
+        for (const p of allProducts) {
+          if (currentProducts.has(p.toLowerCase())) continue
+          const vertScore = (vertMix[p] || 0) / vertTotal
+          const mktScore = (mktMix[p] || 0) / mktTotal
+          const combined = vertScore * 0.6 + mktScore * 0.4
+          if (combined > 0.05) {
+            affinity[p] = Math.round(combined * 100) / 100
+          }
+        }
+
+        return { ...acct, loc_product_affinity: affinity }
+      })
+
+      const enrichedDeals = finalAccounts.flatMap(a => a.deal_predictions || [])
 
       const data = {
         version: 1,
@@ -240,13 +304,13 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
         engine_versions: {
           prediction: 'bayesian_beta_v1',
           event_context: 'calibrated_v1',
-          location_intel: 'not_connected',
+          location_intel: 'heuristic_v1',
         },
         metadata: {
-          total_accounts: enrichedAccounts.length,
+          total_accounts: finalAccounts.length,
           total_deals: enrichedDeals.length,
         },
-        accounts: enrichedAccounts,
+        accounts: finalAccounts,
         deals: enrichedDeals,
         events,
         backtest: BACKTEST,

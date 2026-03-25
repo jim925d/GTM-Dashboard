@@ -22,6 +22,8 @@ import {
   useEngineStatus,
   useEventFeed,
 } from '../lib/ModelingContext'
+import useAutoModelingRun from '../hooks/useAutoModelingRun'
+import useOutageEnrichedAccounts from '../hooks/useOutageEnrichedAccounts'
 
 // ─── Theme tokens (Shreyu-dark) ─────────────────────────────────────────────
 const CS = {
@@ -223,8 +225,12 @@ export default function GTMPremier({ accounts = [] }) {
   const { isLoading, isStale, lastRunAge } = useEngineStatus()
   const eventFeed = useEventFeed(90)
 
-  // Use enriched accounts if available, fall back to raw accounts
-  const accts = enrichedAccounts.length > 0 ? enrichedAccounts : accounts
+  // Auto-run modeling engine if accounts loaded but no snapshot yet
+  useAutoModelingRun(accounts)
+
+  // Bridge outage data onto accounts
+  const baseAccts = enrichedAccounts.length > 0 ? enrichedAccounts : accounts
+  const accts = useOutageEnrichedAccounts(baseAccts)
 
   const [view, setView] = useState('targets') // 'targets' | 'market'
   const [targetCount, setTargetCount] = useState(10)
@@ -764,95 +770,298 @@ function TargetRow({ target: t, rank, expanded, onToggle, navigateToMarket, even
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="grid grid-cols-2 gap-4 px-4 pb-4 pt-2 border-t" style={{ background: CS.cardAlt, borderColor: CS.border }}>
-          {/* Left column */}
-          <div className="space-y-3">
-            {/* Stats row */}
-            <div className="flex gap-4 font-mono text-[10px]">
-              <div><span style={{ color: CS.textFaint }}>TMR</span> <span className="font-semibold" style={{ color: CS.cyan }}>{fmt(tmr)}</span></div>
-              <div><span style={{ color: CS.textFaint }}>Deals</span> <span className="font-semibold" style={{ color: CS.text }}>{deals}</span></div>
-              <div><span style={{ color: CS.textFaint }}>NRR</span> <span className="font-semibold" style={{ color: nrr >= 1 ? CS.green : CS.red }}>{(nrr * 100).toFixed(0)}%</span></div>
-              <div><span style={{ color: CS.textFaint }}>Health</span> <span className="font-semibold" style={{ color: health >= 70 ? CS.green : health >= 40 ? CS.amber : CS.red }}>{health}</span></div>
-              <div><span style={{ color: CS.textFaint }}>Silent</span> <span className="font-semibold" style={{ color: daysSilent > 14 ? CS.amber : CS.textMuted }}>{daysSilent}d</span></div>
-            </div>
-
-            {/* Products */}
-            <div>
-              <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Products</div>
-              <div className="flex flex-wrap gap-1">
-                {(t.products || []).map(p => (
-                  <span key={p} className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: CS.surface, color: CS.textMuted }}>
-                    {p}
-                  </span>
-                ))}
-                {gaps.slice(0, 4).map(g => (
-                  <span key={g.product} className="font-mono text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: CS.purple + '15', color: CS.purple, border: `1px solid ${CS.purple}30` }}>
-                    + {g.product}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Conversation Strategy */}
-            <div className="rounded-lg p-3 border-l-[3px]" style={{ background: CS.purple + '08', borderColor: CS.purple }}>
-              <div className="font-mono text-[9px] uppercase tracking-wider mb-1 font-semibold" style={{ color: CS.purple }}>Conversation Strategy</div>
-              <div className="text-[12px] leading-relaxed" style={{ color: CS.textMuted }}>
-                {t._talkTrack}
-              </div>
-            </div>
-          </div>
-
-          {/* Right column */}
-          <div className="space-y-3">
-            {/* Overnight Intel */}
-            {t.latest_intel && (
-              <div className="rounded-lg p-3 border-l-[3px]" style={{ background: CS.blue + '08', borderColor: CS.blue }}>
-                <div className="font-mono text-[9px] uppercase tracking-wider mb-1 font-semibold" style={{ color: CS.blue }}>Overnight Intel</div>
-                <div className="text-[12px] leading-relaxed" style={{ color: CS.textMuted }}>
-                  {t.latest_intel}
-                </div>
-              </div>
-            )}
-
-            {/* Market Context */}
-            <div>
-              <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Market Context</div>
-              <div className="text-[12px] mb-1" style={{ color: CS.text }}>{t._market}</div>
-              <div className="text-[11px]" style={{ color: mod > 1.05 ? CS.green : mod < 0.98 ? CS.amber : CS.textFaint }}>
-                {t.event_context_summary || (mod > 1.05 ? 'Favorable market conditions' : mod < 0.98 ? 'Headwind market conditions' : 'Neutral market context')}
-              </div>
-            </div>
-
-            {/* Recent events */}
-            {recentEvents.length > 0 && (
-              <div>
-                <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Recent Events</div>
-                <div className="space-y-1">
-                  {recentEvents.map((e, i) => {
-                    const cat = EVENT_CAT_COLORS[e.category] || EVENT_CAT_COLORS.Macro
-                    return (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ color: cat.text, background: cat.bg }}>{e.category}</span>
-                        <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{e.date}</span>
-                        <span className="text-[11px] truncate" style={{ color: CS.textMuted }}>{e.headline || e.description}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* View market button */}
-            <button
-              onClick={() => navigateToMarket(t._market)}
-              className="font-mono text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
-              style={{ color: CS.cyan, background: CS.surface, border: `1px solid ${CS.border}` }}
-            >
-              View full {t._market} market →
-            </button>
-          </div>
-        </div>
+        <ExpandedTargetDetail target={t} tmr={tmr} deals={deals} nrr={nrr} health={health} daysSilent={daysSilent} mod={mod} gaps={gaps} recentEvents={recentEvents} navigateToMarket={navigateToMarket} />
       )}
+    </div>
+  )
+}
+
+// ─── Expanded Target Detail (with Location Intelligence) ─────────────────────
+
+function ExpandedTargetDetail({ target: t, tmr, deals, nrr, health, daysSilent, mod, gaps, recentEvents, navigateToMarket }) {
+  const locations = t.locations || []
+  const services = t.services || []
+  const onNetLocs = locations.filter(l => l.status === 'on-net')
+  const nearNetLocs = locations.filter(l => l.status === 'near-net')
+  const offNetLocs = locations.filter(l => l.status === 'off-net')
+
+  // Build a map of location → services billing there
+  // Match services to locations via locationA/locationZ fields
+  const locServiceMap = useMemo(() => {
+    const map = {}
+    for (const loc of locations) {
+      const key = (loc.name || '').toLowerCase()
+      map[key] = { loc, services: [], totalMrr: 0 }
+    }
+    for (const svc of services) {
+      const locA = (svc.locationA || '').toLowerCase()
+      const locZ = (svc.locationZ || '').toLowerCase()
+      // Try to match service to a location
+      for (const key of Object.keys(map)) {
+        if (key && (locA.includes(key) || key.includes(locA) || locZ.includes(key) || key.includes(locZ) ||
+            locA === key || locZ === key)) {
+          map[key].services.push(svc)
+          map[key].totalMrr += svc.mrr || 0
+          break
+        }
+      }
+    }
+    return map
+  }, [locations, services])
+
+  // Products billed (from services)
+  const billedProducts = useMemo(() => {
+    const prod = {}
+    for (const svc of services) {
+      const p = svc.product || 'Unknown'
+      if (!prod[p]) prod[p] = { count: 0, mrr: 0 }
+      prod[p].count++
+      prod[p].mrr += svc.mrr || 0
+    }
+    return Object.entries(prod).sort(([,a], [,b]) => b.mrr - a.mrr)
+  }, [services])
+
+  // Whitespace: products in loc_product_affinity not in current services
+  const currentProductSet = new Set(services.map(s => (s.product || '').toLowerCase()))
+  const whitespaceProducts = gaps.filter(g => !currentProductSet.has(g.product.toLowerCase()))
+
+  return (
+    <div className="px-4 pb-4 pt-2 border-t space-y-3" style={{ background: CS.cardAlt, borderColor: CS.border }}>
+      {/* Stats row */}
+      <div className="flex gap-4 font-mono text-[10px]">
+        <div><span style={{ color: CS.textFaint }}>TMR</span> <span className="font-semibold" style={{ color: CS.cyan }}>{fmt(tmr)}</span></div>
+        <div><span style={{ color: CS.textFaint }}>Deals</span> <span className="font-semibold" style={{ color: CS.text }}>{deals}</span></div>
+        <div><span style={{ color: CS.textFaint }}>NRR</span> <span className="font-semibold" style={{ color: nrr >= 1 ? CS.green : CS.red }}>{(nrr * 100).toFixed(0)}%</span></div>
+        <div><span style={{ color: CS.textFaint }}>Health</span> <span className="font-semibold" style={{ color: health >= 70 ? CS.green : health >= 40 ? CS.amber : CS.red }}>{health}</span></div>
+        <div><span style={{ color: CS.textFaint }}>Silent</span> <span className="font-semibold" style={{ color: daysSilent > 14 ? CS.amber : CS.textMuted }}>{daysSilent}d</span></div>
+        <div><span style={{ color: CS.textFaint }}>Locations</span> <span className="font-semibold" style={{ color: CS.text }}>{locations.length}</span></div>
+        <div><span style={{ color: CS.textFaint }}>On-Net</span> <span className="font-semibold" style={{ color: CS.green }}>{onNetLocs.length}</span></div>
+        <div><span style={{ color: CS.textFaint }}>Services</span> <span className="font-semibold" style={{ color: CS.cyan }}>{services.length}</span></div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {/* ─── Left: Location List ─── */}
+        <div className="col-span-2 space-y-2">
+          <div className="font-mono text-[9px] uppercase tracking-wider font-semibold" style={{ color: CS.textFaint }}>
+            Locations · Billing · Whitespace
+          </div>
+
+          {/* Location table */}
+          <div className="rounded-lg overflow-hidden border" style={{ borderColor: CS.border }}>
+            {/* Header */}
+            <div className="grid gap-2 px-3 py-1.5 font-mono text-[8px] uppercase tracking-wider" style={{ background: CS.surface, color: CS.textFaint, gridTemplateColumns: '2fr 80px 1fr 80px 1fr' }}>
+              <div>Location</div>
+              <div>Status</div>
+              <div>Billing Products</div>
+              <div className="text-right">MRR</div>
+              <div>Whitespace</div>
+            </div>
+
+            {/* On-net locations first */}
+            {onNetLocs.length > 0 && onNetLocs.map((loc, i) => {
+              const key = (loc.name || '').toLowerCase()
+              const entry = locServiceMap[key] || { services: [], totalMrr: 0 }
+              return (
+                <div key={`on-${i}`} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 80px 1fr 80px 1fr' }}>
+                  <div>
+                    <div className="text-[11px] font-semibold truncate" style={{ color: CS.text }}>{loc.name}</div>
+                    {loc.market && <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{loc.market}</div>}
+                  </div>
+                  <div>
+                    <span className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ color: CS.green, background: CS.green + '15' }}>
+                      On-Net
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-0.5">
+                    {entry.services.length > 0 ? entry.services.map((svc, j) => (
+                      <span key={j} className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: CS.surface, color: CS.cyan }}>
+                        {svc.product}{svc.bandwidth ? ` · ${svc.bandwidth}` : ''}
+                      </span>
+                    )) : (loc.mrr > 0 ? (
+                      <span className="font-mono text-[9px]" style={{ color: CS.cyan }}>Active billing</span>
+                    ) : (
+                      <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>—</span>
+                    ))}
+                  </div>
+                  <div className="text-right font-mono text-[10px] font-semibold" style={{ color: CS.cyan }}>
+                    {(entry.totalMrr || loc.mrr) > 0 ? fmt(entry.totalMrr || loc.mrr) : '—'}
+                  </div>
+                  <div className="flex flex-wrap gap-0.5">
+                    {whitespaceProducts.slice(0, 2).map(g => (
+                      <span key={g.product} className="font-mono text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ color: CS.purple, background: CS.purple + '12' }}>
+                        + {g.product}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Near-net locations */}
+            {nearNetLocs.length > 0 && nearNetLocs.map((loc, i) => {
+              const key = (loc.name || '').toLowerCase()
+              const entry = locServiceMap[key] || { services: [], totalMrr: 0 }
+              return (
+                <div key={`near-${i}`} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 80px 1fr 80px 1fr' }}>
+                  <div>
+                    <div className="text-[11px] font-semibold truncate" style={{ color: CS.text }}>{loc.name}</div>
+                    {loc.market && <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{loc.market}</div>}
+                  </div>
+                  <div>
+                    <span className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ color: CS.amber, background: CS.amber + '15' }}>
+                      Near-Net
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-0.5">
+                    {entry.services.length > 0 ? entry.services.map((svc, j) => (
+                      <span key={j} className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: CS.surface, color: CS.cyan }}>
+                        {svc.product}
+                      </span>
+                    )) : (
+                      <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>—</span>
+                    )}
+                  </div>
+                  <div className="text-right font-mono text-[10px] font-semibold" style={{ color: entry.totalMrr > 0 ? CS.cyan : CS.textFaint }}>
+                    {(entry.totalMrr || loc.mrr) > 0 ? fmt(entry.totalMrr || loc.mrr) : '—'}
+                  </div>
+                  <div className="flex flex-wrap gap-0.5">
+                    {whitespaceProducts.slice(0, 2).map(g => (
+                      <span key={g.product} className="font-mono text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ color: CS.purple, background: CS.purple + '12' }}>
+                        + {g.product}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Off-net locations (collapsed if many) */}
+            {offNetLocs.length > 0 && offNetLocs.slice(0, 3).map((loc, i) => (
+              <div key={`off-${i}`} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 80px 1fr 80px 1fr', opacity: 0.6 }}>
+                <div>
+                  <div className="text-[11px] truncate" style={{ color: CS.textMuted }}>{loc.name}</div>
+                  {loc.market && <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{loc.market}</div>}
+                </div>
+                <div>
+                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ color: CS.textFaint, background: CS.surface }}>
+                    Off-Net
+                  </span>
+                </div>
+                <div><span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>—</span></div>
+                <div className="text-right font-mono text-[10px]" style={{ color: CS.textFaint }}>—</div>
+                <div className="flex flex-wrap gap-0.5">
+                  {whitespaceProducts.slice(0, 1).map(g => (
+                    <span key={g.product} className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ color: CS.purple + '80', background: CS.purple + '08' }}>
+                      + {g.product}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {offNetLocs.length > 3 && (
+              <div className="px-3 py-1.5 border-t font-mono text-[9px]" style={{ borderColor: CS.border, color: CS.textFaint }}>
+                +{offNetLocs.length - 3} more off-net locations
+              </div>
+            )}
+
+            {locations.length === 0 && (
+              <div className="px-3 py-4 text-center font-mono text-[10px]" style={{ color: CS.textFaint }}>
+                No location data available
+              </div>
+            )}
+          </div>
+
+          {/* Active billing summary */}
+          {billedProducts.length > 0 && (
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Active Billing Summary</div>
+              <div className="flex flex-wrap gap-1.5">
+                {billedProducts.map(([prod, data]) => (
+                  <div key={prod} className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: CS.surface }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: PRODUCT_COLORS[prod] || CS.cyan }} />
+                    <span className="font-mono text-[10px]" style={{ color: CS.text }}>{prod}</span>
+                    <span className="font-mono text-[10px] font-semibold" style={{ color: CS.cyan }}>{fmt(data.mrr)}</span>
+                    <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>×{data.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Right: Strategy + Context ─── */}
+        <div className="space-y-3">
+          {/* Whitespace summary */}
+          {whitespaceProducts.length > 0 && (
+            <div className="rounded-lg p-3" style={{ background: CS.purple + '08', border: `1px solid ${CS.purple}20` }}>
+              <div className="font-mono text-[9px] uppercase tracking-wider mb-1.5 font-semibold" style={{ color: CS.purple }}>Whitespace Opportunity</div>
+              <div className="space-y-1">
+                {whitespaceProducts.map(g => (
+                  <div key={g.product} className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] font-semibold" style={{ color: CS.purple }}>+ {g.product}</span>
+                    <span className="font-mono text-[9px]" style={{ color: CS.textMuted }}>affinity {(g.score * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Conversation Strategy */}
+          <div className="rounded-lg p-3 border-l-[3px]" style={{ background: CS.purple + '08', borderColor: CS.purple }}>
+            <div className="font-mono text-[9px] uppercase tracking-wider mb-1 font-semibold" style={{ color: CS.purple }}>Conversation Strategy</div>
+            <div className="text-[12px] leading-relaxed" style={{ color: CS.textMuted }}>
+              {t._talkTrack}
+            </div>
+          </div>
+
+          {/* Overnight Intel */}
+          {t.latest_intel && (
+            <div className="rounded-lg p-3 border-l-[3px]" style={{ background: CS.blue + '08', borderColor: CS.blue }}>
+              <div className="font-mono text-[9px] uppercase tracking-wider mb-1 font-semibold" style={{ color: CS.blue }}>Overnight Intel</div>
+              <div className="text-[12px] leading-relaxed" style={{ color: CS.textMuted }}>
+                {t.latest_intel}
+              </div>
+            </div>
+          )}
+
+          {/* Market Context */}
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Market Context</div>
+            <div className="text-[12px] mb-1" style={{ color: CS.text }}>{t._market}</div>
+            <div className="text-[11px]" style={{ color: mod > 1.05 ? CS.green : mod < 0.98 ? CS.amber : CS.textFaint }}>
+              {t.event_context_summary || (mod > 1.05 ? 'Favorable market conditions' : mod < 0.98 ? 'Headwind market conditions' : 'Neutral market context')}
+            </div>
+          </div>
+
+          {/* Recent events */}
+          {recentEvents.length > 0 && (
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Recent Events</div>
+              <div className="space-y-1">
+                {recentEvents.map((e, i) => {
+                  const cat = EVENT_CAT_COLORS[e.category] || EVENT_CAT_COLORS.Macro
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ color: cat.text, background: cat.bg }}>{e.category}</span>
+                      <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{e.date}</span>
+                      <span className="text-[11px] truncate" style={{ color: CS.textMuted }}>{e.headline || e.description}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* View market button */}
+          <button
+            onClick={() => navigateToMarket(t._market)}
+            className="font-mono text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+            style={{ color: CS.cyan, background: CS.surface, border: `1px solid ${CS.border}` }}
+          >
+            View full {t._market} market →
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
