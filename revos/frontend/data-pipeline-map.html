@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RevOS Data Pipeline Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0B0E17; color: #C8D1E0; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; padding: 24px; overflow-x: auto; }
+  h1 { font-size: 18px; color: #00E5FF; margin-bottom: 4px; }
+  h2 { font-size: 14px; color: #BB86FC; margin: 32px 0 12px; border-bottom: 1px solid #1E2640; padding-bottom: 6px; }
+  h3 { font-size: 12px; color: #FFD740; margin: 16px 0 8px; }
+  .subtitle { font-size: 11px; color: #6B7A99; margin-bottom: 24px; }
+
+  .pipeline { display: flex; gap: 16px; align-items: flex-start; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 16px; }
+  .stage-box { background: #111827; border: 1px solid #1E2640; border-radius: 8px; padding: 14px; min-width: 260px; max-width: 320px; flex-shrink: 0; }
+  .stage-box.csv { border-color: #00E5FF40; }
+  .stage-box.parse { border-color: #FFD74040; }
+  .stage-box.build { border-color: #BB86FC40; }
+  .stage-box.hook { border-color: #00E09040; }
+  .stage-box.page { border-color: #FF6B6B40; }
+
+  .stage-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .stage-label.csv { color: #00E5FF; }
+  .stage-label.parse { color: #FFD740; }
+  .stage-label.build { color: #BB86FC; }
+  .stage-label.hook { color: #00E090; }
+  .stage-label.page { color: #FF6B6B; }
+
+  .arrow { display: flex; align-items: center; justify-content: center; font-size: 18px; color: #3A4A6B; flex-shrink: 0; padding-top: 30px; }
+
+  .field-list { margin: 4px 0 0 0; padding: 0; list-style: none; }
+  .field-list li { padding: 2px 0; font-size: 11px; color: #8B99B0; }
+  .field-list li .canon { color: #00E5FF; }
+  .field-list li .alias { color: #6B7A99; font-size: 10px; }
+  .field-list li .formula { color: #FFD740; font-size: 10px; }
+  .field-list li .source { color: #BB86FC; font-size: 10px; }
+  .field-list li .output { color: #00E090; }
+
+  .section { margin-bottom: 40px; }
+  .note { background: #1A1F33; border-left: 3px solid #FFD740; padding: 8px 12px; margin: 8px 0; font-size: 11px; color: #A0AABB; }
+  .warn { border-left-color: #FF6B6B; }
+
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  th, td { border: 1px solid #1E2640; padding: 6px 10px; text-align: left; font-size: 11px; }
+  th { background: #1A1F33; color: #BB86FC; font-weight: 600; }
+  td { color: #8B99B0; }
+  td code { color: #00E5FF; background: #0D1220; padding: 1px 4px; border-radius: 3px; font-size: 10px; }
+
+  .kpi-card { display: inline-block; background: #111827; border: 1px solid #1E2640; border-radius: 8px; padding: 10px 14px; margin: 4px; vertical-align: top; min-width: 220px; }
+  .kpi-name { color: #00E5FF; font-weight: 700; font-size: 12px; }
+  .kpi-formula { color: #FFD740; font-size: 10px; margin-top: 4px; }
+  .kpi-source { color: #6B7A99; font-size: 10px; margin-top: 2px; }
+
+  .flow-diagram { background: #0D1220; border: 1px solid #1E2640; border-radius: 8px; padding: 16px; margin: 12px 0; font-size: 11px; white-space: pre; line-height: 1.6; overflow-x: auto; }
+  .flow-diagram .file { color: #00E5FF; }
+  .flow-diagram .func { color: #FFD740; }
+  .flow-diagram .field { color: #BB86FC; }
+  .flow-diagram .arrow-txt { color: #3A4A6B; }
+  .flow-diagram .val { color: #00E090; }
+  .flow-diagram .comment { color: #4A5568; }
+
+  .expandable { cursor: pointer; }
+  .expandable::before { content: '\25B6 '; font-size: 9px; color: #3A4A6B; }
+  .expandable.open::before { content: '\25BC '; }
+  .expandable-content { display: none; margin-left: 12px; margin-top: 4px; }
+  .expandable.open + .expandable-content { display: block; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>RevOS Data Pipeline Map</h1>
+<div class="subtitle">CSV Files &rarr; Parsing &rarr; Account Building &rarr; Hooks &rarr; Dashboard KPIs &nbsp;|&nbsp; Generated 2026-03-13</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>1. High-Level Flow</h2>
+<div class="flow-diagram"><span class="comment">                  CSV FILES (on disk)                 PARSING                    ACCOUNT BUILDER              HOOKS                     DASHBOARDS</span>
+<span class="comment">                  ==================                 =======                    ===============              =====                     ==========</span>
+
+<span class="file">  customers.csv</span>  ──┐
+<span class="file">  funnel.csv</span>     ──┤                          <span class="func">parseCSV()</span>              <span class="func">buildAccountState()</span>
+<span class="file">  close_lost.csv</span> ──┼── <span class="arrow-txt">normalize.js</span> ──&rarr; <span class="field">canonical records</span> ──&rarr; <span class="field">account object</span> ──┐
+<span class="file">  quotes.csv</span>     ──┤   <span class="comment">FIELD_MAP</span>        <span class="comment">dynamicTyping</span>       <span class="comment">accountBuilder.js</span>   │
+<span class="file">  services.csv</span>   ──┤   <span class="comment">aliases&rarr;fields</span>   <span class="comment">header detect</span>       <span class="comment">groups by account</span>   │
+<span class="file">  locations.csv</span>  ──┤                                                            │
+<span class="file">  icb.csv</span>        ──┤                                                            │    <span class="func">useLocalData.js</span>     <span class="file">RepDashboard.jsx</span>
+<span class="file">  rep_profiles.csv</span>─┘                                                            ├──&rarr; <span class="comment">(local dev)</span>    ──┐
+                                                                                   │                       ├──&rarr; <span class="val">Seller KPIs</span>
+                                                                                   │    <span class="func">useAccounts.js</span>      │    <span class="val">Forecast KPIs</span>
+                                                                                   └──&rarr; <span class="comment">(browser upload)</span>──┘    <span class="val">GTM Overview</span>
+                                                                                                           │
+                                                                                        <span class="func">App.jsx</span>             │
+                                                                                        <span class="comment">hasLocalData ?</span>  ────┘
+                                                                                        <span class="comment">  local : uploaded</span>
+
+<span class="comment">  RULE: funnel.csv = bookings/forecast source | historical.csv = modeling ONLY | customers.csv = ARR (total_brr)</span></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>2. CSV Column Mapping (normalize.js FIELD_MAP)</h2>
+<div class="note">Each CSV column header is matched against aliases below. First match wins. <code>normalizeColumnName()</code> strips special chars, "(converted)" suffixes, "custacct" prefixes, and handles "Object : Field" Salesforce format.</div>
+
+<div class="two-col">
+<div>
+<h3>customers.csv</h3>
+<table>
+<tr><th>Canonical Field</th><th>CSV Column Aliases</th></tr>
+<tr><td><code>customer_account</code></td><td>customer account, account name, company</td></tr>
+<tr><td><code>account_id</code></td><td>account id, crm id, salesforce id</td></tr>
+<tr><td><code>mega_vertical</code></td><td>mega vertical, vertical, industry</td></tr>
+<tr><td><code>sub_vertical</code></td><td>sub vertical, sub-vertical, sub industry</td></tr>
+<tr><td><code>primary_rep</code></td><td>primary rep, assigned rep, account owner, ae</td></tr>
+<tr><td><code>rep_email</code></td><td>rep email, owner email, ae email</td></tr>
+<tr><td><code>account_manager</code></td><td>account manager, am, csm, funnel manager</td></tr>
+<tr><td><code>sales_owner</code></td><td>sales owner, sales rep owner, account sales owner</td></tr>
+<tr><td><code>executive_sponsor</code></td><td>executive sponsor, champion, sponsor</td></tr>
+<tr><td><code>customer_since</code></td><td>customer since, became customer</td></tr>
+<tr><td><code>annual_revenue</code></td><td>annual revenue, revenue, company revenue</td></tr>
+<tr><td><code>total_brr</code></td><td>total brr, brr, arr, total arr, billing recurring revenue</td></tr>
+<tr><td><code>employee_count</code></td><td>employee count, employees, headcount</td></tr>
+<tr><td><code>parent_company</code></td><td>parent company, parent, parent account</td></tr>
+<tr><td><code>territory</code></td><td>territory, region, sales territory, geo</td></tr>
+<tr><td><code>segment</code></td><td>segment, reporting segment, market segment</td></tr>
+<tr><td><code>account_tier</code></td><td>account tier, tier, priority</td></tr>
+</table>
+
+<h3>close_lost.csv</h3>
+<table>
+<tr><th>Canonical Field</th><th>CSV Column Aliases</th></tr>
+<tr><td><code>loss_reason</code></td><td>loss reason, close lost reason, reason lost</td></tr>
+<tr><td><code>competitor_won</code></td><td>competitor won, winning competitor, lost to</td></tr>
+<tr><td><code>stage_lost_from</code></td><td>stage lost from, lost from stage</td></tr>
+<tr><td><code>loss_notes</code></td><td>loss notes, notes, close lost notes</td></tr>
+</table>
+
+<h3>quotes.csv</h3>
+<table>
+<tr><th>Canonical Field</th><th>CSV Column Aliases</th></tr>
+<tr><td><code>quote_number</code></td><td>quote number, quote id, proposal number</td></tr>
+<tr><td><code>quoted_mrr</code></td><td>quoted mrr, quote mrr, quoted price</td></tr>
+<tr><td><code>quoted_tcv</code></td><td>quoted tcv, quote tcv, total quoted</td></tr>
+<tr><td><code>quote_date</code></td><td>quote date, date quoted, proposal date</td></tr>
+<tr><td><code>expiration_date</code></td><td>expiration date, expires, valid until</td></tr>
+<tr><td><code>quote_status</code></td><td>quote status, proposal status</td></tr>
+<tr><td><code>discount_pct</code></td><td>discount pct, discount, discount %</td></tr>
+<tr><td><code>list_mrr</code></td><td>list mrr, list price, rack rate, msrp</td></tr>
+<tr><td><code>competitor_quote</code></td><td>competitor quote, competitive price</td></tr>
+</table>
+</div>
+
+<div>
+<h3>funnel.csv (Pipeline + Closed Deals)</h3>
+<table>
+<tr><th>Canonical Field</th><th>CSV Column Aliases</th></tr>
+<tr><td><code>opportunity_id</code></td><td>opportunity id, opp id, sfdc opportunity id</td></tr>
+<tr><td><code>opportunity_name</code></td><td>opportunity name, deal name, opp name</td></tr>
+<tr><td><code>customer_account</code></td><td>customer account, account name, company</td></tr>
+<tr><td><code>mrr</code></td><td>total mrr, mrr, monthly recurring revenue, total mrr &amp; mar</td></tr>
+<tr><td><code>total_contract_value</code></td><td>total contract value, amount, tcv, npv</td></tr>
+<tr><td><code>stage</code></td><td>stage, deal stage, opportunity stage, stage name</td></tr>
+<tr><td><code>forecast_category</code></td><td>forecast category, forecast</td></tr>
+<tr><td><code>close_date</code></td><td>close date, expected close, date closed lost</td></tr>
+<tr><td><code>created_date</code></td><td>created date, create date, date created</td></tr>
+<tr><td><code>type</code></td><td>type, deal type, opportunity type</td></tr>
+<tr><td><code>rep</code></td><td style="color:#FF6B6B">rep, owner, deal owner, sales rep, representative, <b>opportunity owner</b>, opp owner</td></tr>
+<tr><td><code>created_by</code></td><td>created by</td></tr>
+<tr><td><code>competitor</code></td><td>competitor, competition</td></tr>
+<tr><td><code>sales_channel</code></td><td>sales channel, opp owner sales channel</td></tr>
+<tr><td><code>major_project</code></td><td>major project name, major project</td></tr>
+<tr><td><code>product_group</code></td><td>product group, product family, product</td></tr>
+</table>
+<div class="note warn"><b>FIX APPLIED:</b> "created by" was previously mapped to <code>rep</code>, causing Col 50 "Created By" to overwrite Col 22 "Opportunity Owner". Now split into separate <code>created_by</code> field.</div>
+
+<h3>services.csv</h3>
+<table>
+<tr><th>Canonical Field</th><th>CSV Column Aliases</th></tr>
+<tr><td><code>service_id</code></td><td>service id, circuit id, order id</td></tr>
+<tr><td><code>product_group</code></td><td>product group, product family, product</td></tr>
+<tr><td><code>service_status</code></td><td>service status, status, circuit status</td></tr>
+<tr><td><code>mrr</code></td><td>(shared) total mrr, mrr</td></tr>
+<tr><td><code>start_date</code></td><td>start date, install date, live date</td></tr>
+<tr><td><code>contract_end_date</code></td><td>contract end date, end date, term end</td></tr>
+<tr><td><code>disconnect_date</code></td><td>disconnect date, date disconnected</td></tr>
+<tr><td><code>term_months</code></td><td>term months, term, contract term</td></tr>
+<tr><td><code>bandwidth</code></td><td>bandwidth, capacity, speed</td></tr>
+<tr><td><code>location_a</code></td><td>location a, a-side, site a</td></tr>
+<tr><td><code>location_z</code></td><td>location z, z-side, site z</td></tr>
+</table>
+
+<h3>locations.csv</h3>
+<table>
+<tr><th>Canonical Field</th><th>CSV Column Aliases</th></tr>
+<tr><td><code>location_name</code></td><td>location name, site name, facility</td></tr>
+<tr><td><code>address</code></td><td>address, street address</td></tr>
+<tr><td><code>city</code></td><td>city, town</td></tr>
+<tr><td><code>state</code></td><td>state, province, region</td></tr>
+<tr><td><code>on_net_status</code></td><td>on-net status, on net status, network proximity</td></tr>
+<tr><td><code>monthly_revenue</code></td><td>monthly revenue, site mrr, location mrr</td></tr>
+<tr><td><code>latitude</code></td><td>latitude, lat</td></tr>
+<tr><td><code>longitude</code></td><td>longitude, lng, lon</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>3. Account Builder (accountBuilder.js)</h2>
+<div class="note">Groups parsed records by <code>customer_account</code> name, then calls <code>buildAccountState(customer, funnel, closeLost, quotes, services, locations)</code> per account.</div>
+
+<div class="flow-diagram"><span class="func">buildAccountState(customer, funnel, closeLost, quotes, services, locations)</span>
+
+<span class="comment">INPUTS (per account):</span>
+  <span class="field">customer</span>    = 1 row from customers.csv (or aggregated if multi-row)
+  <span class="field">funnel</span>      = all funnel.csv rows matching this account name
+  <span class="field">closeLost</span>   = all close_lost.csv rows matching this account
+  <span class="field">quotes</span>      = all quotes.csv rows
+  <span class="field">services</span>    = all services.csv rows
+  <span class="field">locations</span>   = all locations.csv rows
+
+<span class="comment">STAGE NORMALIZATION:</span>
+  <span class="val">"Closed Won"</span>, <span class="val">"closed-won"</span>, <span class="val">"Accepted"</span>, <span class="val">"5 - Accepted"</span>  &rarr;  <span class="val">"closed won"</span>
+  <span class="val">"Closed Lost"</span>, <span class="val">"Close Lost"</span>                        &rarr;  <span class="val">"closed lost"</span>
+  <span class="val">"1 - Discover"</span>, contains "discover"                 &rarr;  <span class="val">"Discover"</span>
+  <span class="val">"2 - Design"</span>, contains "design"                     &rarr;  <span class="val">"Design"</span>
+  <span class="val">"3 - Propose"</span>, contains "propose"                   &rarr;  <span class="val">"Propose"</span>
+  <span class="val">"4 - Negotiate"</span>, contains "negotiate"               &rarr;  <span class="val">"Negotiate"</span>
+
+<span class="comment">COMPUTED FIELDS:</span>
+  <span class="field">totalARR</span>          = <span class="val">customer.total_brr</span>                          <span class="comment">(from customers.csv ONLY)</span>
+  <span class="field">totalMRR</span>          = <span class="val">totalARR / 12</span>
+  <span class="field">activePipeline</span>    = funnel WHERE stage NOT IN [closed won, closed lost, '']
+  <span class="field">pipelineMRR</span>       = <span class="val">SUM(activePipeline.mrr)</span>
+  <span class="field">closedWon</span>         = funnel WHERE normalizeStage(stage) = 'closed won'
+  <span class="field">wonDeals</span>          = closedWon WHERE mrr >= 0
+  <span class="field">churnDeals</span>        = closedWon WHERE mrr < 0                  <span class="comment">(negative re-rates)</span>
+  <span class="field">winRate</span>           = <span class="val">wonDeals / (wonDeals + closeLost)</span>
+  <span class="field">riskScore</span>         = <span class="val">0..100 composite</span>                         <span class="comment">(silent days + losses + churn + disconnects + velocity)</span>
+  <span class="field">nrr</span>               = <span class="val">totalMRR / (totalMRR + downgradeMRR + disconnectMRR)</span>
+
+<span class="comment">OUTPUT ARRAYS:</span>
+  <span class="field">funnel_deals</span>      = activePipeline (open deals only)          <span class="comment">&rarr; becomes acc.active_deals</span>
+  <span class="field">funnel_closed</span>     = closedWon + closeLost from funnel.csv     <span class="comment">&rarr; SOURCE OF TRUTH for bookings</span>
+    Each deal: { product, mrr, stage, type, close, <span class="val">rep</span>, opportunity_id, sales_channel, created, <span class="val">forecast_category</span>, <span class="val">major_project</span> }
+  <span class="field">historical_deals</span>  = same as funnel_closed                     <span class="comment">&rarr; modeling/predictions ONLY</span></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>4. Hooks: useLocalData.js / useAccounts.js</h2>
+<div class="note">Two parallel data paths producing identical account shapes. <code>App.jsx</code> picks: <code>hasLocalData ? localAccounts : uploadedAccounts</code></div>
+
+<div class="flow-diagram"><span class="func">useLocalData.js</span> (Vite dev server &mdash; polls /local-data/manifest every 5s)
+  1. Fetches CSV file list from data/ folder
+  2. Detects table type from filename or column headers
+  3. Calls <span class="func">parseCSV()</span> for each file
+  4. Groups records by <span class="field">customer_account</span>
+  5. Calls <span class="func">buildAccountState()</span> per account
+  6. Maps into final account object:
+
+<span class="func">useAccounts.js</span> (Browser upload &mdash; drag-and-drop or file picker)
+  1. Reads FileList from drop/input event
+  2. Same detect + parse + build pipeline
+  3. Identical output shape
+
+<span class="comment">FINAL ACCOUNT OBJECT (both paths):</span>
+  {
+    <span class="field">id</span>: index,
+    <span class="field">name</span>: customer_account,
+    <span class="field">arr</span>: total_arr,                       <span class="comment">from customers.csv total_brr</span>
+    <span class="field">mrr</span>: total_mrr,                       <span class="comment">= arr / 12</span>
+    <span class="field">pipeline_mrr</span>: active_pipeline_mrr,
+    <span class="field">risk_score</span>: 0..100,
+    <span class="field">rep</span>: primary_rep,                     <span class="comment">from customers.csv</span>
+    <span class="field">manager</span>: account_manager,
+    <span class="field">sales_owner</span>: sales_owner,             <span class="comment">from customers.csv</span>
+    <span class="field">active_deals</span>: [                       <span class="comment">from funnel.csv, stage NOT closed</span>
+      { product, mrr, stage, <span class="val">forecast</span>: forecast_category, close: close_date,
+        <span class="val">rep</span>: rep, opportunity_id, sales_channel, created, <span class="val">major_project</span>, icb, icb_id }
+    ],
+    <span class="field">funnel_closed</span>: [                      <span class="comment">from funnel.csv, stage = closed won/lost</span>
+      { product, mrr, stage, type, close, <span class="val">rep</span>, opportunity_id, sales_channel,
+        created, <span class="val">forecast</span>: forecast_category, <span class="val">major_project</span> }
+    ],
+    <span class="field">historical_deals</span>: [...],              <span class="comment">for modeling ONLY</span>
+    <span class="field">locations</span>: [...],
+    <span class="field">losses</span>: { deals, disconnects, downgrades, ... },
+    ...
+  }</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>5. Dashboard KPI Formulas</h2>
+
+<h3>5a. Seller Dashboard (RepDashboard.jsx)</h3>
+<div class="note">Filters deals by <b>Opportunity Owner</b> (<code>d.rep</code> field) &mdash; NOT Account Sales Owner. Source: <b>funnel.csv ONLY</b>.</div>
+
+<div class="flow-diagram"><span class="comment">DATA SETUP:</span>
+  <span class="field">allActiveDeals</span>  = accounts.flatMap(acc &rarr; acc.<span class="val">active_deals</span>.filter(d.rep === selectedRep))
+  <span class="field">funnelClosed</span>    = accounts.flatMap(acc &rarr; acc.<span class="val">funnel_closed</span>.filter(d.rep === selectedRep))
+  <span class="field">allFunnelDeals</span>  = [...allActiveDeals, ...funnelClosed]       <span class="comment">combined for bookings calc</span>
+
+<span class="comment">BOOKING FILTER:</span>
+  <span class="func">isBooking(d)</span> =
+    <span class="val">normalizeForecast(d.forecast) === 'Closed'</span>    <span class="comment">forecast_category must be "Closed"</span>
+    AND <span class="val">!d.major_project</span>                           <span class="comment">major_project must be blank/empty</span>
+    AND <span class="val">d.mrr > 0</span>                                  <span class="comment">positive MRR only</span>
+
+<span class="comment">FORECAST NORMALIZATION:</span>
+  "closed", "closed won"    &rarr; <span class="val">"Closed"</span>
+  "commit"                  &rarr; <span class="val">"Commit"</span>
+  "best case"               &rarr; <span class="val">"Best Case"</span>
+  "longshot"                &rarr; <span class="val">"Longshot"</span>
+  anything else             &rarr; <span class="val">"Not In Forecast"</span></div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
+  <div class="kpi-card">
+    <div class="kpi-name">YTD Bookings</div>
+    <div class="kpi-formula">SUM(mrr) WHERE isBooking(d) AND close_date in [Jan 1 .. Dec 31]</div>
+    <div class="kpi-source">Source: allFunnelDeals (active + closed from funnel.csv)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">QTD Bookings</div>
+    <div class="kpi-formula">SUM(mrr) WHERE isBooking(d) AND close_date in [Q start .. Q end]</div>
+    <div class="kpi-source">Source: allFunnelDeals | Full quarter (not truncated to today)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">MTD Bookings</div>
+    <div class="kpi-formula">SUM(mrr) WHERE isBooking(d) AND close_date in [month start .. month end]</div>
+    <div class="kpi-source">Source: allFunnelDeals | Full month (not truncated to today)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Quota Attainment</div>
+    <div class="kpi-formula">periodBookings / periodQuota</div>
+    <div class="kpi-source">periodQuota = userTarget || rep_profiles.q{N}_quota || annualQuota/4<br>monthlyQuota = quarterlyQuota / 3</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Pace to Quota</div>
+    <div class="kpi-formula">periodBookings / expectedPeriod<br>expectedPeriod = periodQuota * (dayOfPeriod / daysInPeriod)</div>
+    <div class="kpi-source">Green: &ge;100% | Yellow: 75-99% | Red: &lt;75%</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Pipeline Coverage</div>
+    <div class="kpi-formula">weightedPipeline / targetRemaining<br>weightedPipeline = SUM(d.mrr * stageProb(d.stage))<br>targetRemaining = MAX(0, periodQuota - periodBookings)</div>
+    <div class="kpi-source">Stage probs: Discover 30.57%, Design 53.21%, Propose 66.23%, Negotiate 84.67%, Verbal 92.49%</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Book of Business</div>
+    <div class="kpi-formula">SUM(acc.arr) for repAccounts</div>
+    <div class="kpi-source">Source: customers.csv total_brr | repAccounts = accounts where sales_owner === rep</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Win Rate</div>
+    <div class="kpi-formula">closedWon / (closedWon + closedLost)</div>
+    <div class="kpi-source">Source: funnelClosed only | Excludes major_project &amp; negative MRR</div>
+  </div>
+</div>
+
+<h3>5b. Forecast Dashboard (ForecastDashboard.jsx)</h3>
+<div class="note">Filters to <b>Premier channel only</b> (<code>sales_channel = 'Premier'</code>). Aggregates across ALL accounts.</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
+  <div class="kpi-card">
+    <div class="kpi-name">Total MRR (Period)</div>
+    <div class="kpi-formula">SUM(mrr) WHERE isBooking(d) AND close in period</div>
+    <div class="kpi-source">Same isBooking filter as Seller Dashboard</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">YTD Bookings</div>
+    <div class="kpi-formula">SUM(mrr) WHERE isBooking(d) AND close in year</div>
+    <div class="kpi-source">Source: allFunnelDeals (Premier only)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Weighted Pipeline</div>
+    <div class="kpi-formula">SUM(d.mrr * stageProb(d.stage)) WHERE active deals, no major_project, mrr > 0</div>
+    <div class="kpi-source">Uses same stage win probabilities as Seller Dashboard</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">MRR Trajectory</div>
+    <div class="kpi-formula">By month: raw = SUM(mrr), forecast = SUM(mrr * stageProb)</div>
+    <div class="kpi-source">Closed deals use actual MRR; open deals use weighted MRR</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Quarterly Net New MRR</div>
+    <div class="kpi-formula">booked = SUM(mrr*12 WHERE mrr>=0)<br>churn = SUM(|mrr|*12 WHERE mrr<0)<br>net = booked - churn</div>
+    <div class="kpi-source">Per quarter from closedWonDeals (annualized to ARR)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Win Rate Trend</div>
+    <div class="kpi-formula">Per quarter: closedWon / (closedWon + closedLost)</div>
+    <div class="kpi-source">Excludes major_project deals</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Bookings by Type</div>
+    <div class="kpi-formula">New Logo | Expansion | Renewal | Other<br>Grouped by quarter, values = mrr * 12</div>
+    <div class="kpi-source">Type mapping: 'new'&rarr;New Logo, 'expansion/re-rate'&rarr;Expansion, 'renewal'&rarr;Renewal</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-name">Deal Size Distribution</div>
+    <div class="kpi-formula">Buckets: &lt;$1K, $1-5K, $5-10K, $10-25K, $25-50K, $50K+<br>Count of deals per bucket (ARR = mrr*12)</div>
+    <div class="kpi-source">Separate bars for Closed (YTD) and Pipeline (open)</div>
+  </div>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>6. Critical Data Rules</h2>
+<table style="max-width: 900px;">
+<tr><th style="width:200px">Rule</th><th>Detail</th></tr>
+<tr><td><code>Bookings Source</code></td><td><b>funnel.csv ONLY.</b> Never from historical.csv. Combined from <code>acc.active_deals</code> + <code>acc.funnel_closed</code>.</td></tr>
+<tr><td><code>ARR Source</code></td><td><b>customers.csv <code>total_brr</code> field ONLY.</b> Summed if multiple rows per account. Services MRR is context only.</td></tr>
+<tr><td><code>Rep Attribution</code></td><td>Bookings filter by <b>Opportunity Owner</b> (<code>d.rep</code>), NOT Account Sales Owner. Book of Business uses <code>acc.sales_owner</code>.</td></tr>
+<tr><td><code>Booking Filter</code></td><td><code>forecast_category = "Closed"</code> AND <code>major_project = blank</code> AND <code>mrr > 0</code>. No stage check needed.</td></tr>
+<tr><td><code>MRR vs ARR</code></td><td>Seller Dashboard shows <b>MRR</b> (monthly). Forecast Dashboard converts to <b>ARR</b> (mrr * 12) for some charts.</td></tr>
+<tr><td><code>Period Boundaries</code></td><td>QTD/MTD use <b>full period</b> (e.g., Mar 1 - Apr 1), not truncated to today.</td></tr>
+<tr><td><code>Channel Filter</code></td><td>Forecast Dashboard filters to <b>Premier</b> channel only. Seller Dashboard has no channel filter.</td></tr>
+<tr><td><code>Churn</code></td><td>Closed Won deals with <b>negative MRR</b> are classified as churn, not bookings.</td></tr>
+<tr><td><code>historical.csv</code></td><td>Used for backtest, learning curves, and calibration <b>ONLY</b>. Never for bookings or current KPIs.</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">
+<h2>7. File Reference</h2>
+<table style="max-width: 900px;">
+<tr><th>File</th><th>Role</th><th>Key Functions</th></tr>
+<tr><td><code>lib/normalize.js</code></td><td>CSV parsing + column mapping</td><td>FIELD_MAP, normalizeColumnName(), parseCSV(), detectHeaderRow()</td></tr>
+<tr><td><code>lib/accountBuilder.js</code></td><td>Account state computation</td><td>buildAccountState(), normalizeStage(), buildBacktestData(), buildCalibration()</td></tr>
+<tr><td><code>hooks/useLocalData.js</code></td><td>Local dev data loading</td><td>Polls /local-data/manifest, buildAccountsFromRaw()</td></tr>
+<tr><td><code>hooks/useAccounts.js</code></td><td>Browser upload path</td><td>ingestAllFiles(), rebuildAccounts()</td></tr>
+<tr><td><code>App.jsx</code></td><td>Route data to dashboards</td><td>hasLocalData ? local : uploaded</td></tr>
+<tr><td><code>pages/RepDashboard.jsx</code></td><td>Seller KPIs</td><td>isBooking(), normalizeForecast(), normalizeStage()</td></tr>
+<tr><td><code>pages/ForecastDashboard.jsx</code></td><td>Forecast KPIs</td><td>isPremier(), same isBooking() pattern</td></tr>
+<tr><td><code>lib/constants.js</code></td><td>Stage probabilities + theme</td><td>STAGE_WIN_PROB, stageProb()</td></tr>
+</table>
+</div>
+
+</body>
+</html>

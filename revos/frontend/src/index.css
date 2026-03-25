@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    /* Light theme — future use */
+    --background: 0 0% 100%;
+    --foreground: 220 13% 18%;
+    --card: 220 13% 95%;
+    --card-foreground: 220 13% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
+    --primary: 252 56% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 94%;
+    --secondary-foreground: 220 13% 18%;
+    --muted: 220 13% 90%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 13% 94%;
+    --accent-foreground: 220 13% 18%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 85%;
+    --input: 220 13% 85%;
+    --ring: 252 56% 67%;
+    --radius: 1rem;
+
+    --success: 160 60% 52%;
+    --pipeline: 217 91% 68%;
+    --quote: 258 77% 77%;
+    --warning: 43 96% 56%;
+  }
+
+  .dark {
+    /* Aceternity dark theme — matches constants.js T tokens */
+    --background: 224 56% 3%;            /* #06080F */
+    --foreground: 215 28% 93%;           /* #e6edf3 */
+    --card: 215 19% 11%;                 /* #161B22 */
+    --card-foreground: 215 28% 93%;
+    --popover: 215 19% 11%;
+    --popover-foreground: 215 28% 93%;
+    --primary: 252 56% 67%;              /* #7c5aff — accent */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 14% 13%;            /* #1C2128 — cardHover */
+    --secondary-foreground: 215 28% 93%;
+    --muted: 215 14% 16%;               /* #21262D — border */
+    --muted-foreground: 215 9% 58%;      /* #8b949e — textDim */
+    --accent: 215 14% 13%;
+    --accent-foreground: 215 28% 93%;
+    --destructive: 0 87% 70%;            /* #f87171 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 14% 16%;              /* #21262D */
+    --input: 215 14% 16%;
+    --ring: 252 56% 67%;
+
+    /* RevOS custom */
+    --success: 160 60% 52%;              /* #34d399 */
+    --pipeline: 217 91% 68%;             /* #60a5fa */
+    --quote: 258 77% 77%;               /* #a78bfa */
+    --warning: 43 96% 56%;               /* #fbbf24 */
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'IBM Plex Sans', -apple-system, system-ui, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #06080F;
+}
+::-webkit-scrollbar-thumb {
+  background: #21262D;
+  border-radius: 3px;
+}
+
+@keyframes locPulse {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+}

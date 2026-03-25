@@ -20,6 +20,11 @@ Thumbs.db
 # Vite
 *.local
 
+# Python
+__pycache__/
+*.pyc
+*.db
+
 # Large files (exceed GitHub 100MB limit)
 *.zip
 revos/frontend/data/engagements.csv
