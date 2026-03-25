@@ -13,6 +13,7 @@
  */
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react'
+import { saveEnriched, loadEnriched, ENGINE_VERSION } from './persistenceLayer'
 
 const ModelingContext = createContext(null)
 
@@ -91,11 +92,10 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
           }
         }
       } catch {
-        // Backend not available — try localStorage
+        // Backend not available — try IndexedDB, then localStorage fallback
         try {
-          const stored = localStorage.getItem('revos_modeling_snapshot')
-          if (stored) {
-            const data = JSON.parse(stored)
+          const data = await loadEnriched()
+          if (data && data.accounts) {
             setSnapshot(data)
             if (data.events) setEvents(data.events)
             setSnapshotInfo({
@@ -103,6 +103,21 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
               metadata: data.metadata,
               has_data: true,
             })
+          } else {
+            // Legacy localStorage fallback
+            const stored = localStorage.getItem('revos_modeling_snapshot')
+            if (stored) {
+              const parsed = JSON.parse(stored)
+              setSnapshot(parsed)
+              if (parsed.events) setEvents(parsed.events)
+              setSnapshotInfo({
+                generated_at: parsed.generated_at,
+                metadata: parsed.metadata,
+                has_data: true,
+              })
+              // Migrate to IndexedDB
+              saveEnriched(parsed).catch(() => {})
+            }
           }
         } catch { /* no local cache */ }
       }
@@ -132,8 +147,7 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
         has_data: true,
       })
 
-      try { localStorage.setItem('revos_modeling_snapshot', JSON.stringify(data)) }
-      catch { /* non-critical */ }
+      saveEnriched(data).catch(() => {})
 
       return data
     } catch (err) {
@@ -309,6 +323,7 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
         metadata: {
           total_accounts: finalAccounts.length,
           total_deals: enrichedDeals.length,
+          engine_version: ENGINE_VERSION,
         },
         accounts: finalAccounts,
         deals: enrichedDeals,
@@ -319,8 +334,7 @@ export function ModelingProvider({ children, eventLedger = [], locationData = {}
       setSnapshot(data)
       setSnapshotInfo({ generated_at: data.generated_at, metadata: data.metadata, has_data: true })
 
-      try { localStorage.setItem('revos_modeling_snapshot', JSON.stringify(data)) }
-      catch { /* non-critical */ }
+      saveEnriched(data).catch(() => {})
 
       return data
     } finally {

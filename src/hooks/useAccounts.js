@@ -1,18 +1,24 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState, normalizeStage } from '../lib/accountBuilder'
+import {
+  saveRawTables, loadRawTables, mergeRawTables,
+  saveJsonData, loadJsonData,
+  saveMeta, hasPersistedData, clearAll,
+} from '../lib/persistenceLayer'
 
 /**
- * All data stays in browser memory only.
- * Nothing is sent to any server. CSV files are read via FileReader API,
- * parsed in-browser, and stored in React state.
+ * All data stays in your browser (IndexedDB + React state).
+ * Nothing is sent to any server. CSV/XLSX files are parsed in-browser
+ * and persisted locally so they survive page reloads.
  */
 export default function useAccounts() {
   const [accounts, setAccounts] = useState([])
   const [isDemo, setIsDemo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const hydratedRef = useRef(false)
 
   // Raw table data — stored in memory only, never transmitted
   const [rawData, setRawData] = useState({
@@ -30,6 +36,35 @@ export default function useAccounts() {
     engagements: {},
     engagements_2026: {},
   })
+
+  // ── Auto-hydrate from IndexedDB on mount ──
+  useEffect(() => {
+    if (hydratedRef.current) return
+    hydratedRef.current = true
+
+    const hydrate = async () => {
+      try {
+        const hasPersisted = await hasPersistedData()
+        if (!hasPersisted) return
+
+        setLoading(true)
+        const [raw, json] = await Promise.all([loadRawTables(), loadJsonData()])
+
+        const hasRows = Object.values(raw).some(arr => arr.length > 0)
+        if (!hasRows) return
+
+        setRawData(raw)
+        setJsonData(json)
+        rebuildAccounts(raw, json)
+        console.log('[useAccounts] Hydrated from IndexedDB')
+      } catch (err) {
+        console.warn('[useAccounts] IndexedDB hydration failed:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    hydrate()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const readFileAsText = (file) => {
     return new Promise((resolve, reject) => {
@@ -114,12 +149,18 @@ export default function useAccounts() {
 
       const detectedType = tabType === 'auto' ? detectTabType(records[0]) : tabType
 
-      setRawData((prev) => {
-        const updated = { ...prev, [detectedType]: [...prev[detectedType], ...records] }
-        // Rebuild accounts from raw data
-        rebuildAccounts(updated)
-        return updated
+      const updated = await new Promise((resolve) => {
+        setRawData((prev) => {
+          const next = { ...prev, [detectedType]: [...prev[detectedType], ...records] }
+          rebuildAccounts(next)
+          resolve(next)
+          return next
+        })
       })
+
+      // Persist to IndexedDB (non-blocking)
+      mergeRawTables({ [detectedType]: records }).catch(() => {})
+      saveMeta({ lastUpload: file.name, recordCounts: { [detectedType]: updated[detectedType].length } }).catch(() => {})
 
       return {
         accounts_count: new Set(records.map((r) => r.customer_account).filter(Boolean)).size,
@@ -154,6 +195,9 @@ export default function useAccounts() {
 
       setRawData(newRaw)
       rebuildAccounts(newRaw)
+
+      // Persist to IndexedDB (non-blocking)
+      saveRawTables(newRaw).catch(() => {})
 
       const allAccounts = new Set()
       for (const records of Object.values(newRaw)) {
@@ -475,6 +519,16 @@ export default function useAccounts() {
       setJsonData(newJson)
       rebuildAccounts(newRaw, newJson)
 
+      // Persist to IndexedDB (non-blocking)
+      const sourceFiles = Array.from(fileList).map(f => f.name)
+      const recordCounts = {}
+      for (const [k, v] of Object.entries(newRaw)) { recordCounts[k] = v.length }
+      Promise.all([
+        saveRawTables(newRaw),
+        saveJsonData(newJson),
+        saveMeta({ sourceFiles, recordCounts }),
+      ]).catch(err => console.warn('[useAccounts] Persist failed:', err))
+
       const allAccounts = new Set()
       for (const records of Object.values(newRaw)) {
         for (const r of records) {
@@ -497,6 +551,7 @@ export default function useAccounts() {
     setAccounts([])
     setIsDemo(false)
     setError(null)
+    clearAll().catch(() => {})
   }, [])
 
   return { accounts, isDemo, loading, error, rawData, ingestLocalCSV, ingestMultiCSV, ingestAllFiles, clearData }
