@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { cn } from "@/lib/utils";
-import { saveLocations, loadLocations } from "../lib/engineStore";
+import { saveLocations, loadLocations, saveEngineResult, loadEngineResult } from "../lib/engineStore";
 
 const MANAGERS = ["DCosta", "Kahn", "Ochoa", "McGuirk"];
 
@@ -676,7 +676,44 @@ function LocationsScreen({ accounts, loading, loadAccountLocations }) {
             </div>
             <div className="flex gap-1.5">
               <button onClick={() => setConfirmMerge(false)} className="px-3 py-1 rounded-md border border-revos-border bg-transparent text-revos-text-dim text-[11px] cursor-pointer font-sans">Cancel</button>
-              <button onClick={() => { setMerged(true); setConfirmMerge(false); }} className="px-3 py-1 rounded-md border-none bg-revos-green text-revos-bg text-[11px] font-semibold cursor-pointer font-sans">Confirm</button>
+              <button onClick={async () => {
+                setMerged(true); setConfirmMerge(false);
+                // Merge discovered locations into locations.json
+                try {
+                  const locJSON = await loadEngineResult('locations.json') || {};
+                  const acctName = account.name;
+                  const existing = locJSON[acctName] || [];
+                  // Convert discovered locations to compact format matching locations.json
+                  const newLocs = discoveredLocations.map(l => {
+                    const loc = {
+                      n: String(l.name || 'Unknown'),
+                      t: String(l.type || 'Office'),
+                      a: String(l.address || ''),
+                      s: 'off-net',
+                      mk: '',
+                    };
+                    if (l.lat && l.lng) {
+                      loc.la = Math.round(l.lat * 10000) / 10000;
+                      loc.lo = Math.round(l.lng * 10000) / 10000;
+                    }
+                    return loc;
+                  });
+                  // Deduplicate by lat/lng against existing
+                  const seenCoords = new Set(existing.filter(e => e.la && e.lo).map(e => `${e.la},${e.lo}`));
+                  const unique = newLocs.filter(l => {
+                    if (!l.la || !l.lo) return true;
+                    const key = `${l.la},${l.lo}`;
+                    if (seenCoords.has(key)) return false;
+                    seenCoords.add(key);
+                    return true;
+                  });
+                  locJSON[acctName] = [...existing, ...unique];
+                  await saveEngineResult('locations.json', locJSON);
+                  console.log(`[LocationIntel] Merged ${unique.length} new locations into locations.json for ${acctName}`);
+                } catch (e) {
+                  console.warn('[LocationIntel] Failed to merge into locations.json:', e);
+                }
+              }} className="px-3 py-1 rounded-md border-none bg-revos-green text-revos-bg text-[11px] font-semibold cursor-pointer font-sans">Confirm</button>
             </div>
           </div>
         )}
