@@ -384,19 +384,23 @@ export default function GTMPremier({ accounts = [] }) {
       // Aggregate deals
       const deals = acct.active_deals || []
 
-      // Closed MRR from historical_deals — only Closed Won / Accepted with positive MRR
-      for (const d of (acct.historical_deals || [])) {
+      // Closed MRR — Closed Won / Accepted, positive MRR, last 12 months
+      // Sources: historical_deals (historical.json) + funnel_closed (funnel.csv current year)
+      const allClosed = [...(acct.historical_deals || []), ...(acct.funnel_closed || [])]
+      const seenClose = new Set()
+      for (const d of allClosed) {
         if (normalizeStage(d.stage) !== 'closed won') continue
         const dealMrr = d.mrr || 0
         if (dealMrr <= 0) continue
-        // Only count deals closed in last 12 months
-        if (d.close) {
-          const cd = new Date(d.close)
-          if (!isNaN(cd.getTime())) {
-            const monthsAgo = (now.getFullYear() - cd.getFullYear()) * 12 + (now.getMonth() - cd.getMonth())
-            if (monthsAgo > 12 || monthsAgo < 0) continue
-          }
-        }
+        if (!d.close) continue
+        const cd = new Date(d.close)
+        if (isNaN(cd.getTime())) continue
+        const monthsAgo = (now.getFullYear() - cd.getFullYear()) * 12 + (now.getMonth() - cd.getMonth())
+        if (monthsAgo > 12 || monthsAgo < 0) continue
+        // Deduplicate by close date + mrr (same deal may appear in both sources)
+        const key = `${d.close}|${dealMrr}`
+        if (seenClose.has(key)) continue
+        seenClose.add(key)
         m.closedDeals++
         m.closedMRR += dealMrr
       }
@@ -568,7 +572,7 @@ export default function GTMPremier({ accounts = [] }) {
     }))
   }, [markets, chartExpanded])
 
-  // Bookings trend — Closed Won / Accepted deals with positive MRR from historical_deals
+  // Bookings trend — Closed Won / Accepted, positive MRR, from historical_deals + funnel_closed
   const bookingsTrend = useMemo(() => {
     const months = trendExpanded ? 12 : 6
     const now = new Date()
@@ -577,15 +581,22 @@ export default function GTMPremier({ accounts = [] }) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const label = d.toLocaleDateString('en-US', { month: 'short' })
       let mrr = 0
+      const seen = new Set()
       for (const a of accts) {
-        for (const deal of (a.historical_deals || [])) {
+        const allDeals = [...(a.historical_deals || []), ...(a.funnel_closed || [])]
+        for (const deal of allDeals) {
           if (!deal.close) continue
           const cd = new Date(deal.close)
           if (isNaN(cd.getTime())) continue
           if (cd.getMonth() !== d.getMonth() || cd.getFullYear() !== d.getFullYear()) continue
           if (normalizeStage(deal.stage) !== 'closed won') continue
           const dealMrr = deal.mrr || 0
-          if (dealMrr > 0) mrr += dealMrr
+          if (dealMrr <= 0) continue
+          // Deduplicate
+          const key = `${a.name}|${deal.close}|${dealMrr}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          mrr += dealMrr
         }
       }
       data.push({ month: label, mrr: Math.round(mrr) })
