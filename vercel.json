@@ -1,11 +1,6 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "docs",
-  "framework": "vite",
-  "functions": {
-    "api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  }
+  "buildCommand": "cd revos/frontend && npm install && npm run build",
+  "outputDirectory": "revos/frontend/dist",
+  "framework": null,
+  "installCommand": "cd revos/frontend && npm install"
 }
