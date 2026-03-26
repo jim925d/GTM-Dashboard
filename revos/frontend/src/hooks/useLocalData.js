@@ -230,21 +230,29 @@ export default function useLocalData() {
       const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
       const xlsxTypes = new Set()
 
-      // 1) Load XLSX files first
+      // 1) Load XLSX files — skip if CSVs are available (they're lighter on memory)
+      const csvFiles = files.filter(f => f.type === 'csv' || f.name.endsWith('.csv'))
       const xlsxFiles = files.filter(f => f.type === 'xlsx')
-      for (const file of xlsxFiles) {
-        const buf = await readFileFromHandle(file._handle, true)
-        const xlsxData = await parseXlsxFromBuffer(buf)
-        for (const [tabType, records] of Object.entries(xlsxData)) {
-          if (raw[tabType]) {
-            raw[tabType] = [...raw[tabType], ...records]
-            xlsxTypes.add(tabType)
+      const hasCsvData = csvFiles.length >= 2 // if multiple CSVs exist, prefer them over XLSX
+      if (!hasCsvData) {
+        for (const file of xlsxFiles) {
+          // Skip XLSX files larger than 50MB to avoid OOM
+          if (file.size > 50 * 1024 * 1024) {
+            console.warn(`[RevOS] Skipping ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) — too large for browser. Use individual CSVs instead.`)
+            continue
+          }
+          const buf = await readFileFromHandle(file._handle, true)
+          const xlsxData = await parseXlsxFromBuffer(buf)
+          for (const [tabType, records] of Object.entries(xlsxData)) {
+            if (raw[tabType]) {
+              raw[tabType] = [...raw[tabType], ...records]
+              xlsxTypes.add(tabType)
+            }
           }
         }
       }
 
       // 2) Load CSV files — skip types already loaded from XLSX
-      const csvFiles = files.filter(f => f.type === 'csv' || f.name.endsWith('.csv'))
       for (const file of csvFiles) {
         let tabType = tabTypeFromFileName(file.name)
         if (tabType && xlsxTypes.has(tabType)) continue
@@ -311,18 +319,26 @@ export default function useLocalData() {
       const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
       const xlsxTypes = new Set()
 
+      // Skip XLSX if CSVs are available (lighter on memory) or if file > 50MB
+      const csvFiles = files.filter(f => f.name.endsWith('.csv'))
       const xlsxFiles = files.filter(f => f.name.endsWith('.xlsx') || f.type === 'xlsx')
-      for (const file of xlsxFiles) {
-        const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
-        for (const [tabType, records] of Object.entries(xlsxData)) {
-          if (raw[tabType]) {
-            raw[tabType] = [...raw[tabType], ...records]
-            xlsxTypes.add(tabType)
+      const hasCsvData = csvFiles.length >= 2
+      if (!hasCsvData) {
+        for (const file of xlsxFiles) {
+          if (file.size > 50 * 1024 * 1024) {
+            console.warn(`[RevOS] Skipping ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) — too large for browser. Use individual CSVs instead.`)
+            continue
+          }
+          const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
+          for (const [tabType, records] of Object.entries(xlsxData)) {
+            if (raw[tabType]) {
+              raw[tabType] = [...raw[tabType], ...records]
+              xlsxTypes.add(tabType)
+            }
           }
         }
       }
 
-      const csvFiles = files.filter(f => f.name.endsWith('.csv'))
       for (const file of csvFiles) {
         let tabType = tabTypeFromFileName(file.name)
         if (tabType && xlsxTypes.has(tabType)) continue
