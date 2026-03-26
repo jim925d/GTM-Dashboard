@@ -65,7 +65,9 @@ function localDataPlugin() {
             return { name: f, modified: stat.mtimeMs, size: stat.size, realName: f, type: 'xlsx' }
           })
           let csvFiles = allFiles.filter(f => f.endsWith('.csv'))
-          // No longer excluding CSVs — they take priority over pre-built JSON at runtime
+          // Exclude locations CSVs — too large for browser, use pre-built locations.json
+          const csvTooBig = ['locations', 'locations_geocoded']
+          csvFiles = csvFiles.filter(f => !csvTooBig.includes(f.replace('.csv', '').toLowerCase()))
           // If a _geocoded variant exists, use it instead of the original
           const geocoded = csvFiles.filter(f => f.includes('_geocoded'))
           const originals = geocoded.map(f => f.replace('_geocoded', ''))

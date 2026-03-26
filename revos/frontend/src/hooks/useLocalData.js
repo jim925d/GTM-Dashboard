@@ -162,7 +162,10 @@ async function verifyPermission(handle) {
 // List data files from a directory handle
 async function listFilesFromHandle(dirHandle) {
   const files = []
+  // JSON fallback files — loaded separately, not via manifest
   const jsonFallbacks = new Set(['locations', 'historical', 'engagements', 'engagements_2026'])
+  // CSVs too large for browser parsing — always use pre-built JSON instead
+  const csvTooBig = new Set(['locations', 'locations_geocoded'])
   for await (const entry of dirHandle.values()) {
     if (entry.kind !== 'file') continue
     const name = entry.name
@@ -174,6 +177,8 @@ async function listFilesFromHandle(dirHandle) {
     if (name.startsWith('~$')) continue
     // Skip JSON fallback files (loaded separately only if CSV not present)
     if (isJSON && jsonFallbacks.has(name.replace('.json', '').toLowerCase())) continue
+    // Skip oversized CSVs — use pre-built JSON for locations
+    if (isCSV && csvTooBig.has(name.replace('.csv', '').toLowerCase())) continue
     const file = await entry.getFile()
     files.push({
       name: name.replace('_geocoded', ''),
@@ -252,11 +257,11 @@ export default function useLocalData() {
       }
 
       // 3) Load pre-built JSON files as fallback — only when CSV/XLSX didn't provide the data
-      const hasCSVLocations = raw.locations.length > 0 || xlsxTypes.has('locations')
+      // Locations always use JSON (CSV too large for browser)
       const hasCSVFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
       const hasCSVEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
       const hasCSVEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
-      const locationsJSON = hasCSVLocations ? {} : await readJSONFromDir(dirHandle, 'locations.json')
+      const locationsJSON = await readJSONFromDir(dirHandle, 'locations.json')
       const historicalJSON = hasCSVFunnel ? {} : await readJSONFromDir(dirHandle, 'historical.json')
       const engagements2025 = hasCSVEngagements ? {} : await readJSONFromDir(dirHandle, 'engagements.json')
       const engagements2026 = hasCSVEngagements2026 ? {} : await readJSONFromDir(dirHandle, 'engagements_2026.json')
@@ -331,7 +336,7 @@ export default function useLocalData() {
       }
 
       // JSON fallbacks — only when CSV/XLSX didn't provide the data
-      const hasLocations = raw.locations.length > 0 || xlsxTypes.has('locations')
+      // Locations always use JSON (CSV too large for browser)
       const hasFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
       const hasEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
       const hasEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
@@ -339,7 +344,7 @@ export default function useLocalData() {
       let historicalJSON = {}
       let engagements2025 = {}
       let engagements2026 = {}
-      if (!hasLocations) { try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {} }
+      try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {}
       if (!hasFunnel) { try { const r = await fetch('/local-data/historical.json'); if (r.ok) historicalJSON = await r.json() } catch {} }
       if (!hasEngagements) { try { const r = await fetch('/local-data/engagements.json'); if (r.ok) engagements2025 = await r.json() } catch {} }
       if (!hasEngagements2026) { try { const r = await fetch('/local-data/engagements_2026.json'); if (r.ok) engagements2026 = await r.json() } catch {} }
