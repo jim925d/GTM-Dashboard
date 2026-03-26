@@ -652,28 +652,27 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       learning: buildLearningData([...funnel, ...closeLost]),
       locations: jsonLocations.length > 0
         ? jsonLocations.map(l => ({
-            name: l.n || 'Unknown',
-            type: l.t || 'Office',
-            address: l.a || '',
+            name: String(l.n || 'Unknown'),
+            type: String(l.t || 'Office'),
+            address: String(l.a || ''),
             lat: l.la || null,
             lng: l.lo || null,
-            status: l.s || 'off-net',
+            status: String(l.s || 'off-net'),
             mrr: l.m || 0,
             addressable_spend: l.as || 0,
-            classification: l.c || '',
+            classification: String(l.c || ''),
             feet_from_network: l.ft || 0,
-            market: l.mk || '',
+            market: String(l.mk || ''),
           }))
         : state.locations.map((l) => {
-            let netStatus = (l.on_net_status || l.status || 'off-net').toLowerCase()
-            // "Not on Zayo Network" must NOT match as on-net — check for negation first
+            let netStatus = String(l.on_net_status || l.status || 'off-net').toLowerCase()
             if (netStatus.includes('not on') || netStatus.includes('not connected')) netStatus = 'off-net'
             else if (netStatus.includes('on zayo') || netStatus.includes('on-net') || netStatus === 'on net') netStatus = 'on-net'
             else if (netStatus.includes('near') || netStatus.includes('near-net')) netStatus = 'near-net'
             else netStatus = 'off-net'
             return {
-              name: l.location_name || l.name || 'Unknown',
-              type: l.location_type || l.type || 'Office',
+              name: String(l.location_name || l.name || 'Unknown'),
+              type: String(l.location_type || l.type || 'Office'),
               address: '',
               lat: parseFloat(l.latitude || l.lat) || null,
               lng: parseFloat(l.longitude || l.lng) || null,
