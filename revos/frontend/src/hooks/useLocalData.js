@@ -1,23 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState, buildBacktestData, buildLearningData, buildCalibration, normalizeStage } from '../lib/accountBuilder'
 
 /**
- * Auto-loads CSV files from the local data/ folder.
+ * Auto-loads CSV/XLSX/JSON files from local data.
  *
- * FILE NAMING CONVENTION — place CSVs in frontend/data/:
- *   customers.csv    → Customer master data
- *   funnel.csv       → Active pipeline deals
- *   close_lost.csv   → Deals lost
- *   quotes.csv       → Proposals
- *   services.csv     → Installed base
- *   locations.csv    → Customer sites
+ * DATA SOURCES (in priority order):
+ *   1. File System Access API — user picks a local folder via browser prompt
+ *      (works on Vercel / any static host, Chrome/Edge only)
+ *   2. Local server — Vite dev plugin or serve.js serves /local-data/* endpoints
+ *   3. Drag-and-drop upload — fallback for other browsers
  *
- * Or use any filename — the system auto-detects the table type from column headers.
- *
- * Polls every 5 seconds for file changes (Xappex updates → instant refresh).
- * ALL DATA STAYS LOCAL — served by Vite dev server from your filesystem.
+ * ALL DATA STAYS LOCAL — nothing is uploaded to any server.
  */
 
 const KNOWN_TABS = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations', 'icb', 'rep_profiles']
@@ -85,10 +80,7 @@ function xlsxSheetToTabType(sheetName) {
 // Sheets to skip during XLSX parsing — too large for browser, use pre-built JSON instead
 const XLSX_SKIP_SHEETS = new Set(['locations'])
 
-async function parseXlsxFile(url) {
-  const res = await fetch(url)
-  if (!res.ok) return {}
-  const buf = await res.arrayBuffer()
+async function parseXlsxFromBuffer(buf) {
   // First pass: read only sheet names to determine which to parse
   const wbMeta = XLSX.read(buf, { type: 'array', bookSheets: true })
   const sheetsToLoad = wbMeta.SheetNames.filter(name => {
@@ -103,7 +95,6 @@ async function parseXlsxFile(url) {
     if (!tabType) continue
     const ws = wb.Sheets[sheetName]
     if (!ws) continue
-    // Convert sheet to CSV text, then use existing parseCSV for field normalization
     const csvText = XLSX.utils.sheet_to_csv(ws)
     const records = parseCSV(csvText)
     if (!records.length) continue
@@ -113,6 +104,105 @@ async function parseXlsxFile(url) {
   return result
 }
 
+async function parseXlsxFile(url) {
+  const res = await fetch(url)
+  if (!res.ok) return {}
+  const buf = await res.arrayBuffer()
+  return parseXlsxFromBuffer(buf)
+}
+
+// ── File System Access API helpers ──────────────────────────────────────────
+// Persist the directory handle in IndexedDB so users don't re-pick every session
+
+const IDB_NAME = 'revos-fs'
+const IDB_STORE = 'handles'
+const IDB_KEY = 'dataDir'
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function saveHandleToIDB(handle) {
+  const db = await openIDB()
+  const tx = db.transaction(IDB_STORE, 'readwrite')
+  tx.objectStore(IDB_STORE).put(handle, IDB_KEY)
+  return new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject })
+}
+
+async function loadHandleFromIDB() {
+  try {
+    const db = await openIDB()
+    const tx = db.transaction(IDB_STORE, 'readonly')
+    const req = tx.objectStore(IDB_STORE).get(IDB_KEY)
+    return new Promise((resolve) => { req.onsuccess = () => resolve(req.result || null); req.onerror = () => resolve(null) })
+  } catch { return null }
+}
+
+async function clearHandleFromIDB() {
+  try {
+    const db = await openIDB()
+    const tx = db.transaction(IDB_STORE, 'readwrite')
+    tx.objectStore(IDB_STORE).delete(IDB_KEY)
+  } catch {}
+}
+
+async function verifyPermission(handle) {
+  if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true
+  if ((await handle.requestPermission({ mode: 'readwrite' })) === 'granted') return true
+  return false
+}
+
+// List data files from a directory handle
+async function listFilesFromHandle(dirHandle) {
+  const files = []
+  const jsonExcludes = new Set(['locations', 'locations_geocoded', 'historical', 'engagements', 'engagement_2026'])
+  for await (const entry of dirHandle.values()) {
+    if (entry.kind !== 'file') continue
+    const name = entry.name
+    const isCSV = name.endsWith('.csv')
+    const isXlsx = name.endsWith('.xlsx') || name.endsWith('.xls')
+    const isJSON = name.endsWith('.json')
+    if (!isCSV && !isXlsx && !isJSON) continue
+    // Skip temp files
+    if (name.startsWith('~$')) continue
+    // Skip JSON excludes for manifest (we load them separately)
+    if (isJSON && jsonExcludes.has(name.replace('.json', '').toLowerCase())) continue
+    // Skip CSV files that have pre-built JSON equivalents
+    if (isCSV && jsonExcludes.has(name.replace('.csv', '').replace('_geocoded', '').toLowerCase())) continue
+    const file = await entry.getFile()
+    files.push({
+      name: name.replace('_geocoded', ''),
+      realName: name,
+      modified: file.lastModified,
+      size: file.size,
+      type: isXlsx ? 'xlsx' : isJSON ? 'json' : 'csv',
+      _handle: entry,
+    })
+  }
+  return files
+}
+
+// Read a file's content from a file handle
+async function readFileFromHandle(fileHandle, asBuffer = false) {
+  const file = await fileHandle.getFile()
+  if (asBuffer) return file.arrayBuffer()
+  return file.text()
+}
+
+// Read a JSON file from the directory handle
+async function readJSONFromDir(dirHandle, filename) {
+  try {
+    const fh = await dirHandle.getFileHandle(filename)
+    const text = await readFileFromHandle(fh)
+    return JSON.parse(text)
+  } catch { return {} }
+}
+
 export default function useLocalData() {
   const [localFiles, setLocalFiles] = useState([])
   const [localAccounts, setLocalAccounts] = useState(null) // null = not loaded yet
@@ -120,39 +210,26 @@ export default function useLocalData() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [dataDir, setDataDirState] = useState('')
+  const [fsMode, setFsMode] = useState(null) // 'fs-api' | 'server' | null
+  const dirHandleRef = useRef(null)
 
-  // On mount, restore saved data dir from localStorage and send to server
-  useEffect(() => {
-    const saved = localStorage.getItem('revos_data_dir')
-    if (saved) {
-      fetch('/local-data/data-dir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dir: saved }),
-      }).then(r => r.json()).then(d => {
-        if (d.ok) setDataDirState(d.dataDir)
-        else localStorage.removeItem('revos_data_dir')
-      }).catch(() => {})
-    }
-    // Also fetch the current server data dir
-    fetch('/local-data/data-dir').then(r => r.json()).then(d => {
-      if (d.dataDir && !saved) setDataDirState(d.dataDir)
-    }).catch(() => {})
-  }, [])
-
-  const loadAllFiles = useCallback(async (files) => {
+  // ── File System Access API: load files directly from user's folder ────────
+  const loadFromFSHandle = useCallback(async (dirHandle) => {
     setLoading(true)
     setError(null)
     try {
-      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
+      const files = await listFilesFromHandle(dirHandle)
+      setLocalFiles(files)
+      setDataDirState(dirHandle.name)
 
-      // Track which data types were loaded from XLSX (these take priority)
+      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
       const xlsxTypes = new Set()
 
-      // 1) Load XLSX files first — they take priority over individual CSVs
-      const xlsxFiles = files.filter(f => f.name.endsWith('.xlsx') || f.type === 'xlsx')
+      // 1) Load XLSX files first
+      const xlsxFiles = files.filter(f => f.type === 'xlsx')
       for (const file of xlsxFiles) {
-        const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
+        const buf = await readFileFromHandle(file._handle, true)
+        const xlsxData = await parseXlsxFromBuffer(buf)
         for (const [tabType, records] of Object.entries(xlsxData)) {
           if (raw[tabType]) {
             raw[tabType] = [...raw[tabType], ...records]
@@ -162,55 +239,23 @@ export default function useLocalData() {
       }
 
       // 2) Load CSV files — skip types already loaded from XLSX
-      const csvFiles = files.filter(f => f.name.endsWith('.csv'))
+      const csvFiles = files.filter(f => f.type === 'csv' || f.name.endsWith('.csv'))
       for (const file of csvFiles) {
         let tabType = tabTypeFromFileName(file.name)
-        // Skip CSVs whose data type was already loaded from XLSX
         if (tabType && xlsxTypes.has(tabType)) continue
-
-        const res = await fetch(`/local-data/file?name=${encodeURIComponent(file.name)}`)
-        if (!res.ok) continue
-        const text = await res.text()
+        const text = await readFileFromHandle(file._handle)
         const records = parseCSV(text)
         if (!records.length) continue
-
-        if (!tabType) {
-          tabType = detectTabTypeFromRecord(records[0])
-        }
-        // Skip if XLSX already provided this type
+        if (!tabType) tabType = detectTabTypeFromRecord(records[0])
         if (xlsxTypes.has(tabType)) continue
-
         raw[tabType] = [...raw[tabType], ...records]
       }
 
-      // Load pre-built JSON files (locations + historical + engagements)
-      // Only load JSON if XLSX didn't provide the data
-      let locationsJSON = {}
-      let historicalJSON = {}
-      let engagements2025 = {}
-      let engagements2026 = {}
-      try {
-        const locRes = await fetch('/local-data/locations.json')
-        if (locRes.ok) locationsJSON = await locRes.json()
-      } catch {}
-      if (!xlsxTypes.has('funnel')) {
-        try {
-          const histRes = await fetch('/local-data/historical.json')
-          if (histRes.ok) historicalJSON = await histRes.json()
-        } catch {}
-      }
-      if (!xlsxTypes.has('engagements')) {
-        try {
-          const eng25Res = await fetch('/local-data/engagements.json')
-          if (eng25Res.ok) engagements2025 = await eng25Res.json()
-        } catch {}
-      }
-      if (!xlsxTypes.has('engagements_2026')) {
-        try {
-          const eng26Res = await fetch('/local-data/engagements_2026.json')
-          if (eng26Res.ok) engagements2026 = await eng26Res.json()
-        } catch {}
-      }
+      // 3) Load pre-built JSON files directly from the folder
+      const locationsJSON = await readJSONFromDir(dirHandle, 'locations.json')
+      const historicalJSON = xlsxTypes.has('funnel') ? {} : await readJSONFromDir(dirHandle, 'historical.json')
+      const engagements2025 = xlsxTypes.has('engagements') ? {} : await readJSONFromDir(dirHandle, 'engagements.json')
+      const engagements2026 = xlsxTypes.has('engagements_2026') ? {} : await readJSONFromDir(dirHandle, 'engagements_2026.json')
 
       setLocalRawData(raw)
       const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
@@ -222,21 +267,96 @@ export default function useLocalData() {
     }
   }, [])
 
-  // Load data from the current data folder (called once on mount + on manual refresh)
-  const loadData = useCallback(async () => {
+  // Connect a local folder via File System Access API
+  const connectFolder = useCallback(async () => {
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
+      dirHandleRef.current = dirHandle
+      await saveHandleToIDB(dirHandle)
+      setFsMode('fs-api')
+      await loadFromFSHandle(dirHandle)
+      return { ok: true }
+    } catch (err) {
+      if (err.name === 'AbortError') return { error: 'cancelled' }
+      return { error: err.message }
+    }
+  }, [loadFromFSHandle])
+
+  // Disconnect the local folder
+  const disconnectFolder = useCallback(async () => {
+    dirHandleRef.current = null
+    await clearHandleFromIDB()
+    setFsMode(null)
+    setLocalAccounts(null)
+    setLocalFiles([])
+    setLocalRawData(null)
+    setDataDirState('')
+  }, [])
+
+  // ── Server mode: load files via fetch from /local-data/* ──────────────────
+  const loadAllFilesFromServer = useCallback(async (files) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
+      const xlsxTypes = new Set()
+
+      const xlsxFiles = files.filter(f => f.name.endsWith('.xlsx') || f.type === 'xlsx')
+      for (const file of xlsxFiles) {
+        const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
+        for (const [tabType, records] of Object.entries(xlsxData)) {
+          if (raw[tabType]) {
+            raw[tabType] = [...raw[tabType], ...records]
+            xlsxTypes.add(tabType)
+          }
+        }
+      }
+
+      const csvFiles = files.filter(f => f.name.endsWith('.csv'))
+      for (const file of csvFiles) {
+        let tabType = tabTypeFromFileName(file.name)
+        if (tabType && xlsxTypes.has(tabType)) continue
+        const res = await fetch(`/local-data/file?name=${encodeURIComponent(file.name)}`)
+        if (!res.ok) continue
+        const text = await res.text()
+        const records = parseCSV(text)
+        if (!records.length) continue
+        if (!tabType) tabType = detectTabTypeFromRecord(records[0])
+        if (xlsxTypes.has(tabType)) continue
+        raw[tabType] = [...raw[tabType], ...records]
+      }
+
+      let locationsJSON = {}
+      let historicalJSON = {}
+      let engagements2025 = {}
+      let engagements2026 = {}
+      try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {}
+      if (!xlsxTypes.has('funnel')) { try { const r = await fetch('/local-data/historical.json'); if (r.ok) historicalJSON = await r.json() } catch {} }
+      if (!xlsxTypes.has('engagements')) { try { const r = await fetch('/local-data/engagements.json'); if (r.ok) engagements2025 = await r.json() } catch {} }
+      if (!xlsxTypes.has('engagements_2026')) { try { const r = await fetch('/local-data/engagements_2026.json'); if (r.ok) engagements2026 = await r.json() } catch {} }
+
+      setLocalRawData(raw)
+      const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
+      setLocalAccounts(accounts)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadDataFromServer = useCallback(async () => {
     try {
       const res = await fetch('/local-data/manifest')
-      if (!res.ok) return
+      if (!res.ok) return false
       const { files } = await res.json()
       setLocalFiles(files || [])
-
-      if (!files || files.length === 0) return
-
-      await loadAllFiles(files)
+      if (files && files.length > 0) await loadAllFilesFromServer(files)
+      return true
     } catch {
-      // Vite plugin not running (production build) — that's fine
+      return false
     }
-  }, [loadAllFiles])
+  }, [loadAllFilesFromServer])
 
   const setDataDir = useCallback(async (dir) => {
     try {
@@ -250,29 +370,87 @@ export default function useLocalData() {
       setDataDirState(data.dataDir)
       localStorage.setItem('revos_data_dir', dir)
       setLocalAccounts(null)
-      // Small delay so server registers the new dir before we fetch manifest
       await new Promise(r => setTimeout(r, 100))
-      await loadData()
+      await loadDataFromServer()
       return { ok: true, dataDir: data.dataDir }
     } catch (err) {
       return { error: err.message }
     }
-  }, [loadData])
+  }, [loadDataFromServer])
 
-  // Load once on mount
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  // ── Unified refresh ───────────────────────────────────────────────────────
+  const refresh = useCallback(async () => {
+    if (dirHandleRef.current) {
+      await loadFromFSHandle(dirHandleRef.current)
+    } else {
+      await loadDataFromServer()
+    }
+  }, [loadFromFSHandle, loadDataFromServer])
 
   // Track whether the local server is available
   const [serverAvailable, setServerAvailable] = useState(null) // null = unknown
 
-  // Detect server availability on mount
+  // ── On mount: try restoring saved handle, then fall back to server ────────
   useEffect(() => {
-    fetch('/local-data/manifest')
-      .then(r => { if (r.ok) setServerAvailable(true); else setServerAvailable(false) })
-      .catch(() => setServerAvailable(false))
-  }, [])
+    let cancelled = false
+    async function init() {
+      // 1) Try restoring File System Access handle from IndexedDB
+      const savedHandle = await loadHandleFromIDB()
+      if (savedHandle && !cancelled) {
+        try {
+          const hasPermission = await verifyPermission(savedHandle)
+          if (hasPermission && !cancelled) {
+            dirHandleRef.current = savedHandle
+            setFsMode('fs-api')
+            setServerAvailable(false)
+            await loadFromFSHandle(savedHandle)
+            return
+          }
+        } catch {
+          // Permission denied or handle invalid — fall through to server
+        }
+      }
+
+      // 2) Try local server
+      if (!cancelled) {
+        const saved = localStorage.getItem('revos_data_dir')
+        if (saved) {
+          fetch('/local-data/data-dir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dir: saved }),
+          }).then(r => r.json()).then(d => {
+            if (d.ok && !cancelled) setDataDirState(d.dataDir)
+            else localStorage.removeItem('revos_data_dir')
+          }).catch(() => {})
+        }
+
+        try {
+          const res = await fetch('/local-data/manifest')
+          if (res.ok && !cancelled) {
+            setServerAvailable(true)
+            setFsMode('server')
+            const { files } = await res.json()
+            setLocalFiles(files || [])
+            if (files && files.length > 0) await loadAllFilesFromServer(files)
+            // Also get data dir
+            fetch('/local-data/data-dir').then(r => r.json()).then(d => {
+              if (d.dataDir && !cancelled) setDataDirState(d.dataDir)
+            }).catch(() => {})
+            return
+          }
+        } catch {}
+
+        // 3) No data source available
+        if (!cancelled) setServerAvailable(false)
+      }
+    }
+    init()
+    return () => { cancelled = true }
+  }, [loadFromFSHandle, loadAllFilesFromServer])
+
+  // Check if File System Access API is supported
+  const fsApiSupported = typeof window !== 'undefined' && 'showDirectoryPicker' in window
 
   return {
     localFiles,
@@ -282,8 +460,13 @@ export default function useLocalData() {
     error,
     dataDir,
     setDataDir,
-    refresh: loadData,
+    refresh,
     serverAvailable,
+    // File System Access API
+    fsApiSupported,
+    fsMode,
+    connectFolder,
+    disconnectFolder,
   }
 }
 

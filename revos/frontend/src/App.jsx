@@ -35,7 +35,7 @@ import GTMPremier from './pages/GTMPremier'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
-  const { localAccounts, localFiles, localRawData, loading: localLoading, dataDir, setDataDir, refresh, serverAvailable } = useLocalData()
+  const { localAccounts, localFiles, localRawData, loading: localLoading, dataDir, setDataDir, refresh, serverAvailable, fsApiSupported, fsMode, connectFolder, disconnectFolder } = useLocalData()
   const [showDirPicker, setShowDirPicker] = useState(false)
   const [dirInput, setDirInput] = useState('')
   const [dirError, setDirError] = useState('')
@@ -681,8 +681,27 @@ export default function App() {
           Account Intelligence Platform
         </h1>
         <p className="text-revos-text-mid text-sm mb-8 text-center max-w-[500px]">
-          Drop your data folder contents below to get started. All processing happens in your browser — nothing is uploaded to any server.
+          Connect your local data folder to get started. All processing happens in your browser — nothing is uploaded to any server.
         </p>
+
+        {fsApiSupported && (
+          <button
+            onClick={async () => {
+              setDropStatus({ type: 'loading', message: 'Connecting folder...' })
+              const result = await connectFolder()
+              if (result.error === 'cancelled') setDropStatus(null)
+              else if (result.error) setDropStatus({ type: 'error', message: result.error })
+              else setDropStatus({ type: 'success', message: 'Data folder connected' })
+            }}
+            className="mb-6 px-8 py-3 rounded-lg cursor-pointer font-mono text-sm font-semibold bg-revos-cyan/10 border-2 border-revos-cyan text-revos-cyan hover:bg-revos-cyan/20 transition-all duration-200"
+          >
+            Connect Data Folder
+          </button>
+        )}
+
+        <div className="font-mono text-[10px] text-revos-text-dim mb-4">
+          {fsApiSupported ? 'or drop individual files below' : 'Drop files below or click to select'}
+        </div>
 
         <div
           onClick={() => {
@@ -780,18 +799,31 @@ export default function App() {
         <div className="w-[220px] border-r border-revos-border bg-revos-surface flex flex-col shrink-0 min-h-0 overflow-hidden">
           {/* Data source panel */}
           <div className="p-2 border-b border-revos-border shrink-0">
-            {/* Data folder selector */}
+            {/* Data folder selector — prefer FS API, fall back to server path input */}
             <div className="mb-1.5">
-              <button
-                onClick={() => { setShowDirPicker(!showDirPicker); setDirError(''); if (!dirInput && dataDir) setDirInput(dataDir) }}
-                className="w-full px-2 py-1.5 rounded-[5px] cursor-pointer font-mono text-[9px] font-semibold bg-revos-card border border-revos-border text-revos-cyan flex items-center gap-1.5 transition-[border-color] duration-150 hover:border-revos-cyan"
-              >
-                <span className="text-xs">📂</span>
-                {dataDir ? 'Change Data Folder' : 'Select Data Folder'}
-              </button>
+              {fsApiSupported ? (
+                <button
+                  onClick={async () => {
+                    const result = await connectFolder()
+                    if (result.error && result.error !== 'cancelled') setDirError(result.error)
+                  }}
+                  className="w-full px-2 py-1.5 rounded-[5px] cursor-pointer font-mono text-[9px] font-semibold bg-revos-card border border-revos-border text-revos-cyan flex items-center gap-1.5 transition-[border-color] duration-150 hover:border-revos-cyan"
+                >
+                  <span className="text-xs">📂</span>
+                  {fsMode === 'fs-api' ? 'Change Data Folder' : 'Connect Data Folder'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setShowDirPicker(!showDirPicker); setDirError(''); if (!dirInput && dataDir) setDirInput(dataDir) }}
+                  className="w-full px-2 py-1.5 rounded-[5px] cursor-pointer font-mono text-[9px] font-semibold bg-revos-card border border-revos-border text-revos-cyan flex items-center gap-1.5 transition-[border-color] duration-150 hover:border-revos-cyan"
+                >
+                  <span className="text-xs">📂</span>
+                  {dataDir ? 'Change Data Folder' : 'Select Data Folder'}
+                </button>
+              )}
               {dataDir && !showDirPicker && (
                 <div className="font-mono text-[8px] text-revos-text-dim mt-[3px] break-all">
-                  {dataDir}
+                  {fsMode === 'fs-api' ? `Local: ${dataDir}` : dataDir}
                 </div>
               )}
               {showDirPicker && (
