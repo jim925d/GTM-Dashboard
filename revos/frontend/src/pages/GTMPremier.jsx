@@ -26,6 +26,7 @@ import {
 } from '../lib/ModelingContext'
 import useAutoModelingRun from '../hooks/useAutoModelingRun'
 import useOutageEnrichedAccounts from '../hooks/useOutageEnrichedAccounts'
+import { normalizeStage } from '../lib/accountBuilder'
 
 // ─── Theme tokens (Shreyu-dark) ─────────────────────────────────────────────
 const CS = {
@@ -331,6 +332,7 @@ export default function GTMPremier({ accounts = [] }) {
   // ─── Derive markets by grouping accounts by primary city/location ────────
   const { markets, allTargets, kpis } = useMemo(() => {
     const marketMap = {}
+    const now = new Date()
 
     for (const acct of accts) {
       // Determine market city from locations or use a fallback
@@ -381,14 +383,20 @@ export default function GTMPremier({ accounts = [] }) {
 
       // Aggregate deals
       const deals = acct.active_deals || []
-      const closedDeals = acct.funnel_closed || []
 
-      for (const d of closedDeals) {
-        const stage = (d.stage || '').toLowerCase()
-        if (stage.includes('lost') || stage.includes('loss')) continue
-        if (!stage.includes('won') && (d.type || '').toLowerCase() !== 'won') continue
+      // Closed MRR from historical_deals — only Closed Won / Accepted with positive MRR
+      for (const d of (acct.historical_deals || [])) {
+        if (normalizeStage(d.stage) !== 'closed won') continue
         const dealMrr = d.mrr || 0
         if (dealMrr <= 0) continue
+        // Only count deals closed in last 12 months
+        if (d.close) {
+          const cd = new Date(d.close)
+          if (!isNaN(cd.getTime())) {
+            const monthsAgo = (now.getFullYear() - cd.getFullYear()) * 12 + (now.getMonth() - cd.getMonth())
+            if (monthsAgo > 12 || monthsAgo < 0) continue
+          }
+        }
         m.closedDeals++
         m.closedMRR += dealMrr
       }
@@ -560,7 +568,7 @@ export default function GTMPremier({ accounts = [] }) {
     }))
   }, [markets, chartExpanded])
 
-  // Bookings trend — only Closed Won deals with positive MRR, matched by close date
+  // Bookings trend — Closed Won / Accepted deals with positive MRR from historical_deals
   const bookingsTrend = useMemo(() => {
     const months = trendExpanded ? 12 : 6
     const now = new Date()
@@ -570,20 +578,12 @@ export default function GTMPremier({ accounts = [] }) {
       const label = d.toLocaleDateString('en-US', { month: 'short' })
       let mrr = 0
       for (const a of accts) {
-        // Check funnel_closed (from funnel.csv) and historical_deals (from historical.json)
-        const allDeals = [...(a.funnel_closed || []), ...(a.historical_deals || [])]
-        for (const deal of allDeals) {
+        for (const deal of (a.historical_deals || [])) {
           if (!deal.close) continue
           const cd = new Date(deal.close)
           if (isNaN(cd.getTime())) continue
           if (cd.getMonth() !== d.getMonth() || cd.getFullYear() !== d.getFullYear()) continue
-          const stage = (deal.stage || '').toLowerCase()
-          // Only count Closed Won deals with positive MRR
-          if (!stage.includes('closed won') && !stage.includes('close - Loss')) {
-            if (!stage.includes('won')) continue
-          }
-          // Must exclude Closed Lost
-          if (stage.includes('lost') || stage.includes('loss')) continue
+          if (normalizeStage(deal.stage) !== 'closed won') continue
           const dealMrr = deal.mrr || 0
           if (dealMrr > 0) mrr += dealMrr
         }
