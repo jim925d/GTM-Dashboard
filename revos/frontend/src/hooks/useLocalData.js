@@ -159,11 +159,106 @@ async function verifyPermission(handle) {
   return false
 }
 
+// ── IndexedDB Account Cache — stores built accounts keyed by a file fingerprint ─
+const CACHE_STORE = 'cache'
+const CACHE_KEY = 'accounts'
+
+function computeFingerprint(files) {
+  // Create a stable fingerprint from file metadata (name + size + modified)
+  const parts = files
+    .filter(f => f.type !== 'json') // only fingerprint source data files
+    .map(f => `${f.name}:${f.size || 0}:${Math.floor(f.modified || 0)}`)
+    .sort()
+  return parts.join('|')
+}
+
+function openCacheDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('revos-cache', 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(CACHE_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function getCachedAccounts(fingerprint) {
+  try {
+    const db = await openCacheDB()
+    const tx = db.transaction(CACHE_STORE, 'readonly')
+    const req = tx.objectStore(CACHE_STORE).get(CACHE_KEY)
+    return new Promise((resolve) => {
+      req.onsuccess = () => {
+        const cached = req.result
+        if (cached && cached.fingerprint === fingerprint) {
+          console.log('[RevOS] Cache HIT — loading accounts from IndexedDB')
+          resolve(cached)
+        } else {
+          console.log('[RevOS] Cache MISS — will parse data files')
+          resolve(null)
+        }
+      }
+      req.onerror = () => resolve(null)
+    })
+  } catch { return null }
+}
+
+async function setCachedAccounts(fingerprint, accounts, rawData) {
+  try {
+    const db = await openCacheDB()
+    const tx = db.transaction(CACHE_STORE, 'readwrite')
+    tx.objectStore(CACHE_STORE).put({ fingerprint, accounts, rawData, ts: Date.now() }, CACHE_KEY)
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject })
+    console.log('[RevOS] Accounts cached to IndexedDB')
+  } catch (err) {
+    console.warn('[RevOS] Failed to cache accounts:', err.message)
+  }
+}
+
+async function clearAccountCache() {
+  try {
+    const db = await openCacheDB()
+    const tx = db.transaction(CACHE_STORE, 'readwrite')
+    tx.objectStore(CACHE_STORE).delete(CACHE_KEY)
+  } catch {}
+}
+
+// ── Data Bundle helpers — expands columnar format back to record objects ─────
+function expandBundle(bundle) {
+  if (!bundle || bundle._v !== 2 || !bundle.tables) return null
+  const raw = {}
+  for (const [tabType, table] of Object.entries(bundle.tables)) {
+    const records = []
+    const { h: headers, r: rows, extra } = table
+    // Primary rows
+    for (const row of rows) {
+      const record = {}
+      for (let i = 0; i < headers.length; i++) {
+        if (row[i]) record[headers[i]] = row[i]
+      }
+      if (Object.keys(record).length > 0) records.push(record)
+    }
+    // Extra rows (different column set merged into same tabType)
+    if (extra) {
+      for (const { h: xHeaders, r: xRows } of extra) {
+        for (const row of xRows) {
+          const record = {}
+          for (let i = 0; i < xHeaders.length; i++) {
+            if (row[i]) record[xHeaders[i]] = row[i]
+          }
+          if (Object.keys(record).length > 0) records.push(record)
+        }
+      }
+    }
+    raw[tabType] = records
+  }
+  return raw
+}
+
 // List data files from a directory handle
 async function listFilesFromHandle(dirHandle) {
   const files = []
   // JSON fallback files — loaded separately, not via manifest
-  const jsonFallbacks = new Set(['locations', 'historical', 'engagements', 'engagements_2026'])
+  const jsonFallbacks = new Set(['locations', 'historical', 'engagements', 'engagements_2026', 'data-bundle'])
   // CSVs too large for browser parsing — always use pre-built JSON instead
   const csvTooBig = new Set(['locations', 'locations_geocoded'])
   for await (const entry of dirHandle.values()) {
@@ -227,50 +322,71 @@ export default function useLocalData() {
       setLocalFiles(files)
       setDataDirState(dirHandle.name)
 
-      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
-      const xlsxTypes = new Set()
+      // ── Cache check: skip all parsing if file fingerprint matches ──
+      const fingerprint = computeFingerprint(files)
+      const cached = await getCachedAccounts(fingerprint)
+      if (cached) {
+        setLocalRawData(cached.rawData)
+        setLocalAccounts(cached.accounts)
+        return
+      }
 
-      // 1) Load XLSX files — skip if CSVs are available (they're lighter on memory)
-      const csvFiles = files.filter(f => f.type === 'csv' || f.name.endsWith('.csv'))
-      const xlsxFiles = files.filter(f => f.type === 'xlsx')
-      const hasCsvData = csvFiles.length >= 2 // if multiple CSVs exist, prefer them over XLSX
-      if (!hasCsvData) {
-        for (const file of xlsxFiles) {
-          // Skip XLSX files larger than 50MB to avoid OOM
-          if (file.size > 50 * 1024 * 1024) {
-            console.warn(`[RevOS] Skipping ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) — too large for browser. Use individual CSVs instead.`)
-            continue
+      // ── Try data-bundle.json first (pre-built, much faster than CSV parsing) ──
+      let raw = null
+      try {
+        const bundleJSON = await readJSONFromDir(dirHandle, 'data-bundle.json')
+        if (bundleJSON && bundleJSON._v === 2) {
+          const expanded = expandBundle(bundleJSON)
+          if (expanded && expanded.customers && expanded.customers.length > 0) {
+            raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], ...expanded }
+            console.log('[RevOS] Loaded data from pre-built bundle')
           }
-          const buf = await readFileFromHandle(file._handle, true)
-          const xlsxData = await parseXlsxFromBuffer(buf)
-          for (const [tabType, records] of Object.entries(xlsxData)) {
-            if (raw[tabType]) {
-              raw[tabType] = [...raw[tabType], ...records]
-              xlsxTypes.add(tabType)
+        }
+      } catch {}
+
+      // ── Fallback: parse individual CSV/XLSX files ──
+      if (!raw) {
+        raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
+        const xlsxTypes = new Set()
+
+        // 1) Load XLSX files — skip if CSVs are available (lighter on memory)
+        const csvFiles = files.filter(f => f.type === 'csv' || f.name.endsWith('.csv'))
+        const xlsxFiles = files.filter(f => f.type === 'xlsx')
+        const hasCsvData = csvFiles.length >= 2
+        if (!hasCsvData) {
+          for (const file of xlsxFiles) {
+            if (file.size > 50 * 1024 * 1024) {
+              console.warn(`[RevOS] Skipping ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) — too large for browser.`)
+              continue
+            }
+            const buf = await readFileFromHandle(file._handle, true)
+            const xlsxData = await parseXlsxFromBuffer(buf)
+            for (const [tabType, records] of Object.entries(xlsxData)) {
+              if (raw[tabType]) { raw[tabType] = [...raw[tabType], ...records]; xlsxTypes.add(tabType) }
             }
           }
         }
-      }
 
-      // 2) Load CSV files — skip types already loaded from XLSX
-      for (const file of csvFiles) {
-        let tabType = tabTypeFromFileName(file.name)
-        if (tabType && xlsxTypes.has(tabType)) continue
-        const text = await readFileFromHandle(file._handle)
-        const records = parseCSV(text)
-        if (!records.length) continue
-        if (!tabType) tabType = detectTabTypeFromRecord(records[0])
-        if (xlsxTypes.has(tabType)) continue
-        raw[tabType] = [...raw[tabType], ...records]
+        // 2) Load CSV files
+        for (const file of csvFiles) {
+          let tabType = tabTypeFromFileName(file.name)
+          if (tabType && xlsxTypes.has(tabType)) continue
+          const text = await readFileFromHandle(file._handle)
+          const records = parseCSV(text)
+          if (!records.length) continue
+          if (!tabType) tabType = detectTabTypeFromRecord(records[0])
+          if (xlsxTypes.has(tabType)) continue
+          raw[tabType] = [...raw[tabType], ...records]
+        }
       }
 
       // 3) Locations always use pre-built JSON (CSV too large for browser)
       const locationsJSON = await readJSONFromDir(dirHandle, 'locations.json')
 
       // 4) Other JSON fallbacks — only when CSV/XLSX didn't provide the data
-      const hasCSVFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
-      const hasCSVEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
-      const hasCSVEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
+      const hasCSVFunnel = raw.funnel.length > 0
+      const hasCSVEngagements = raw.engagements.length > 0
+      const hasCSVEngagements2026 = raw.engagements_2026.length > 0
       const historicalJSON = hasCSVFunnel ? {} : await readJSONFromDir(dirHandle, 'historical.json')
       const engagements2025 = hasCSVEngagements ? {} : await readJSONFromDir(dirHandle, 'engagements.json')
       const engagements2026 = hasCSVEngagements2026 ? {} : await readJSONFromDir(dirHandle, 'engagements_2026.json')
@@ -278,6 +394,9 @@ export default function useLocalData() {
       setLocalRawData(raw)
       const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
       setLocalAccounts(accounts)
+
+      // ── Cache the result for next load ──
+      await setCachedAccounts(fingerprint, accounts, raw)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -304,6 +423,7 @@ export default function useLocalData() {
   const disconnectFolder = useCallback(async () => {
     dirHandleRef.current = null
     await clearHandleFromIDB()
+    await clearAccountCache()
     setFsMode(null)
     setLocalAccounts(null)
     setLocalFiles([])
@@ -316,50 +436,74 @@ export default function useLocalData() {
     setLoading(true)
     setError(null)
     try {
-      const raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
-      const xlsxTypes = new Set()
+      // ── Cache check ──
+      const fingerprint = computeFingerprint(files)
+      const cached = await getCachedAccounts(fingerprint)
+      if (cached) {
+        setLocalRawData(cached.rawData)
+        setLocalAccounts(cached.accounts)
+        return
+      }
 
-      // Skip XLSX if CSVs are available (lighter on memory) or if file > 50MB
-      const csvFiles = files.filter(f => f.name.endsWith('.csv'))
-      const xlsxFiles = files.filter(f => f.name.endsWith('.xlsx') || f.type === 'xlsx')
-      const hasCsvData = csvFiles.length >= 2
-      if (!hasCsvData) {
-        for (const file of xlsxFiles) {
-          if (file.size > 50 * 1024 * 1024) {
-            console.warn(`[RevOS] Skipping ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) — too large for browser. Use individual CSVs instead.`)
-            continue
-          }
-          const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
-          for (const [tabType, records] of Object.entries(xlsxData)) {
-            if (raw[tabType]) {
-              raw[tabType] = [...raw[tabType], ...records]
-              xlsxTypes.add(tabType)
+      // ── Try data-bundle.json first ──
+      let raw = null
+      try {
+        const r = await fetch('/local-data/file?name=data-bundle.json')
+        if (r.ok) {
+          const bundleJSON = await r.json()
+          if (bundleJSON && bundleJSON._v === 2) {
+            const expanded = expandBundle(bundleJSON)
+            if (expanded && expanded.customers && expanded.customers.length > 0) {
+              raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], ...expanded }
+              console.log('[RevOS] Loaded data from pre-built bundle')
             }
           }
         }
+      } catch {}
+
+      // ── Fallback: individual CSV/XLSX files ──
+      if (!raw) {
+        raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
+        const xlsxTypes = new Set()
+
+        const csvFiles = files.filter(f => f.name.endsWith('.csv'))
+        const xlsxFiles = files.filter(f => f.name.endsWith('.xlsx') || f.type === 'xlsx')
+        const hasCsvData = csvFiles.length >= 2
+        if (!hasCsvData) {
+          for (const file of xlsxFiles) {
+            if (file.size > 50 * 1024 * 1024) {
+              console.warn(`[RevOS] Skipping ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) — too large for browser.`)
+              continue
+            }
+            const xlsxData = await parseXlsxFile(`/local-data/file?name=${encodeURIComponent(file.realName || file.name)}`)
+            for (const [tabType, records] of Object.entries(xlsxData)) {
+              if (raw[tabType]) { raw[tabType] = [...raw[tabType], ...records]; xlsxTypes.add(tabType) }
+            }
+          }
+        }
+
+        for (const file of csvFiles) {
+          let tabType = tabTypeFromFileName(file.name)
+          if (tabType && xlsxTypes.has(tabType)) continue
+          const res = await fetch(`/local-data/file?name=${encodeURIComponent(file.name)}`)
+          if (!res.ok) continue
+          const text = await res.text()
+          const records = parseCSV(text)
+          if (!records.length) continue
+          if (!tabType) tabType = detectTabTypeFromRecord(records[0])
+          if (xlsxTypes.has(tabType)) continue
+          raw[tabType] = [...raw[tabType], ...records]
+        }
       }
 
-      for (const file of csvFiles) {
-        let tabType = tabTypeFromFileName(file.name)
-        if (tabType && xlsxTypes.has(tabType)) continue
-        const res = await fetch(`/local-data/file?name=${encodeURIComponent(file.name)}`)
-        if (!res.ok) continue
-        const text = await res.text()
-        const records = parseCSV(text)
-        if (!records.length) continue
-        if (!tabType) tabType = detectTabTypeFromRecord(records[0])
-        if (xlsxTypes.has(tabType)) continue
-        raw[tabType] = [...raw[tabType], ...records]
-      }
-
-      // Locations always use pre-built JSON (CSV too large for browser)
+      // Locations always use pre-built JSON
       let locationsJSON = {}
       try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {}
 
-      // Other JSON fallbacks — only when CSV/XLSX didn't provide the data
-      const hasFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
-      const hasEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
-      const hasEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
+      // Other JSON fallbacks
+      const hasFunnel = raw.funnel.length > 0
+      const hasEngagements = raw.engagements.length > 0
+      const hasEngagements2026 = raw.engagements_2026.length > 0
       let historicalJSON = {}
       let engagements2025 = {}
       let engagements2026 = {}
@@ -370,6 +514,9 @@ export default function useLocalData() {
       setLocalRawData(raw)
       const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
       setLocalAccounts(accounts)
+
+      // ── Cache the result ──
+      await setCachedAccounts(fingerprint, accounts, raw)
     } catch (err) {
       setError(err.message)
     } finally {

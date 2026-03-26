@@ -32,4 +32,5 @@ revos/frontend/data/engagement_2026.csv
 revos/frontend/data/locations.csv
 revos/frontend/data/locations_geocoded.csv
 revos/frontend/data/GTM Updates.xlsx
+revos/frontend/data/data-bundle.json
 revos/frontend/scripts/.geocache/
