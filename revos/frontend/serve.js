@@ -84,8 +84,7 @@ const server = http.createServer(async (req, res) => {
     try {
       if (!fs.existsSync(dataDir)) return jsonRes(res, { files: [], dataDir })
       let dataFiles = fs.readdirSync(dataDir).filter((f) => f.endsWith('.csv') || f.endsWith('.xlsx') || f.endsWith('.xls'))
-      const jsonExcludes = ['locations', 'locations_geocoded', 'historical', 'engagements', 'engagement_2026']
-      dataFiles = dataFiles.filter((f) => !jsonExcludes.includes(f.replace(/\.(csv|xlsx|xls)$/, '').toLowerCase()))
+      // No longer excluding CSVs — they take priority over pre-built JSON at runtime
       const geocoded = dataFiles.filter((f) => f.includes('_geocoded'))
       const originals = geocoded.map((f) => f.replace('_geocoded', ''))
       dataFiles = dataFiles.filter((f) => !originals.includes(f) || !geocoded.includes(f.replace('.csv', '_geocoded.csv')))

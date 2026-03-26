@@ -27,6 +27,8 @@ function tabTypeFromFileName(name) {
   if (base.includes('quote') || base.includes('proposal')) return 'quotes'
   if (base.includes('service') || base.includes('circuit') || base.includes('install')) return 'services'
   if (base.includes('location') || base.includes('site')) return 'locations'
+  if (base.includes('engagement') && base.includes('2026')) return 'engagements_2026'
+  if (base.includes('engagement')) return 'engagements'
   if (base.includes('icb')) return 'icb'
   if (base.includes('rep_profile') || base.includes('rep_quota')) return 'rep_profiles'
   return null // will auto-detect from columns
@@ -160,7 +162,7 @@ async function verifyPermission(handle) {
 // List data files from a directory handle
 async function listFilesFromHandle(dirHandle) {
   const files = []
-  const jsonExcludes = new Set(['locations', 'locations_geocoded', 'historical', 'engagements', 'engagement_2026'])
+  const jsonFallbacks = new Set(['locations', 'historical', 'engagements', 'engagements_2026'])
   for await (const entry of dirHandle.values()) {
     if (entry.kind !== 'file') continue
     const name = entry.name
@@ -170,10 +172,8 @@ async function listFilesFromHandle(dirHandle) {
     if (!isCSV && !isXlsx && !isJSON) continue
     // Skip temp files
     if (name.startsWith('~$')) continue
-    // Skip JSON excludes for manifest (we load them separately)
-    if (isJSON && jsonExcludes.has(name.replace('.json', '').toLowerCase())) continue
-    // Skip CSV files that have pre-built JSON equivalents
-    if (isCSV && jsonExcludes.has(name.replace('.csv', '').replace('_geocoded', '').toLowerCase())) continue
+    // Skip JSON fallback files (loaded separately only if CSV not present)
+    if (isJSON && jsonFallbacks.has(name.replace('.json', '').toLowerCase())) continue
     const file = await entry.getFile()
     files.push({
       name: name.replace('_geocoded', ''),
@@ -251,11 +251,15 @@ export default function useLocalData() {
         raw[tabType] = [...raw[tabType], ...records]
       }
 
-      // 3) Load pre-built JSON files directly from the folder
-      const locationsJSON = await readJSONFromDir(dirHandle, 'locations.json')
-      const historicalJSON = xlsxTypes.has('funnel') ? {} : await readJSONFromDir(dirHandle, 'historical.json')
-      const engagements2025 = xlsxTypes.has('engagements') ? {} : await readJSONFromDir(dirHandle, 'engagements.json')
-      const engagements2026 = xlsxTypes.has('engagements_2026') ? {} : await readJSONFromDir(dirHandle, 'engagements_2026.json')
+      // 3) Load pre-built JSON files as fallback — only when CSV/XLSX didn't provide the data
+      const hasCSVLocations = raw.locations.length > 0 || xlsxTypes.has('locations')
+      const hasCSVFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
+      const hasCSVEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
+      const hasCSVEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
+      const locationsJSON = hasCSVLocations ? {} : await readJSONFromDir(dirHandle, 'locations.json')
+      const historicalJSON = hasCSVFunnel ? {} : await readJSONFromDir(dirHandle, 'historical.json')
+      const engagements2025 = hasCSVEngagements ? {} : await readJSONFromDir(dirHandle, 'engagements.json')
+      const engagements2026 = hasCSVEngagements2026 ? {} : await readJSONFromDir(dirHandle, 'engagements_2026.json')
 
       setLocalRawData(raw)
       const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
@@ -326,14 +330,19 @@ export default function useLocalData() {
         raw[tabType] = [...raw[tabType], ...records]
       }
 
+      // JSON fallbacks — only when CSV/XLSX didn't provide the data
+      const hasLocations = raw.locations.length > 0 || xlsxTypes.has('locations')
+      const hasFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
+      const hasEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
+      const hasEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
       let locationsJSON = {}
       let historicalJSON = {}
       let engagements2025 = {}
       let engagements2026 = {}
-      try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {}
-      if (!xlsxTypes.has('funnel')) { try { const r = await fetch('/local-data/historical.json'); if (r.ok) historicalJSON = await r.json() } catch {} }
-      if (!xlsxTypes.has('engagements')) { try { const r = await fetch('/local-data/engagements.json'); if (r.ok) engagements2025 = await r.json() } catch {} }
-      if (!xlsxTypes.has('engagements_2026')) { try { const r = await fetch('/local-data/engagements_2026.json'); if (r.ok) engagements2026 = await r.json() } catch {} }
+      if (!hasLocations) { try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {} }
+      if (!hasFunnel) { try { const r = await fetch('/local-data/historical.json'); if (r.ok) historicalJSON = await r.json() } catch {} }
+      if (!hasEngagements) { try { const r = await fetch('/local-data/engagements.json'); if (r.ok) engagements2025 = await r.json() } catch {} }
+      if (!hasEngagements2026) { try { const r = await fetch('/local-data/engagements_2026.json'); if (r.ok) engagements2026 = await r.json() } catch {} }
 
       setLocalRawData(raw)
       const accounts = buildAccountsFromRaw(raw, locationsJSON, historicalJSON, engagements2025, engagements2026)
