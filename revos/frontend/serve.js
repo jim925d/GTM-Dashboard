@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { request as httpsRequest } from 'node:https'
+import { execFile } from 'node:child_process'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 5173
@@ -120,6 +121,20 @@ const server = http.createServer(async (req, res) => {
       : fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
     res.writeHead(200, { 'Content-Type': ct, 'Access-Control-Allow-Origin': '*' })
     res.end(isXlsx ? fs.readFileSync(filePath) : fs.readFileSync(filePath, 'utf-8'))
+    return
+  }
+
+  // --- /local-data/rebuild-bundle ---
+  if (p === '/local-data/rebuild-bundle' && req.method === 'POST') {
+    const script = path.join(__dirname, 'scripts', 'build-data-bundle.cjs')
+    if (!fs.existsSync(script)) return jsonRes(res, { error: 'Build script not found' }, 404)
+    const start = Date.now()
+    execFile('node', [script], { cwd: __dirname, timeout: 60000 }, (err, stdout, stderr) => {
+      if (err) return jsonRes(res, { error: err.message, stderr }, 500)
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+      console.log(`[RevOS] Bundle rebuilt in ${elapsed}s`)
+      jsonRes(res, { ok: true, elapsed: `${elapsed}s`, output: stdout.trim() })
+    })
     return
   }
 

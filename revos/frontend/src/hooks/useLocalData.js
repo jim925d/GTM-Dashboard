@@ -559,10 +559,39 @@ export default function useLocalData() {
 
   // ── Unified refresh ───────────────────────────────────────────────────────
   const refresh = useCallback(async () => {
+    // Clear cache so refresh always re-parses
+    await clearAccountCache()
     if (dirHandleRef.current) {
       await loadFromFSHandle(dirHandleRef.current)
     } else {
       await loadDataFromServer()
+    }
+  }, [loadFromFSHandle, loadDataFromServer])
+
+  // ── Rebuild data bundle (runs Node build script via local server) ────────
+  const [rebuilding, setRebuilding] = useState(false)
+  const rebuildBundle = useCallback(async () => {
+    setRebuilding(true)
+    try {
+      const res = await fetch('/local-data/rebuild-bundle', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        console.error('[RevOS] Bundle rebuild failed:', data.error)
+        return { error: data.error || 'Rebuild failed' }
+      }
+      console.log('[RevOS] Bundle rebuilt:', data)
+      // Clear cache and reload with new bundle
+      await clearAccountCache()
+      if (dirHandleRef.current) {
+        await loadFromFSHandle(dirHandleRef.current)
+      } else {
+        await loadDataFromServer()
+      }
+      return { ok: true, ...data }
+    } catch (err) {
+      return { error: err.message }
+    } finally {
+      setRebuilding(false)
     }
   }, [loadFromFSHandle, loadDataFromServer])
 
@@ -646,6 +675,9 @@ export default function useLocalData() {
     fsMode,
     connectFolder,
     disconnectFolder,
+    // Bundle rebuild
+    rebuildBundle,
+    rebuilding,
   }
 }
 

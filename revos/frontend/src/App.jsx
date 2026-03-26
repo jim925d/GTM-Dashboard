@@ -35,7 +35,7 @@ import GTMPremier from './pages/GTMPremier'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
-  const { localAccounts, localFiles, localRawData, loading: localLoading, dataDir, setDataDir, refresh, serverAvailable, fsApiSupported, fsMode, connectFolder, disconnectFolder } = useLocalData()
+  const { localAccounts, localFiles, localRawData, loading: localLoading, dataDir, setDataDir, refresh, serverAvailable, fsApiSupported, fsMode, connectFolder, disconnectFolder, rebuildBundle, rebuilding } = useLocalData()
   const [showDirPicker, setShowDirPicker] = useState(false)
   const [dirInput, setDirInput] = useState('')
   const [dirError, setDirError] = useState('')
@@ -867,16 +867,32 @@ export default function App() {
               <div className="px-2 py-1.5 rounded-md mb-1.5 font-mono text-[9px] bg-revos-green/[0.03] border border-revos-green/[0.13]">
                 <div className="text-revos-green mb-[3px] flex justify-between items-center">
                   <span>{localFiles.length} FILES LOADED</span>
-                  <button
-                    onClick={() => refresh()}
-                    disabled={localLoading}
-                    className={cn(
-                      "px-1.5 py-0.5 rounded-[3px] font-mono text-[8px] font-semibold bg-transparent text-revos-cyan border border-revos-cyan/[0.27]",
-                      localLoading ? "cursor-default opacity-50" : "cursor-pointer"
-                    )}
-                  >
-                    {localLoading ? 'LOADING...' : 'REFRESH'}
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={async () => {
+                        const result = await rebuildBundle()
+                        if (result.error) console.error('Rebuild failed:', result.error)
+                      }}
+                      disabled={rebuilding || localLoading}
+                      title="Rebuild data bundle from CSVs for faster loads"
+                      className={cn(
+                        "px-1.5 py-0.5 rounded-[3px] font-mono text-[8px] font-semibold bg-transparent text-revos-yellow border border-revos-yellow/[0.27]",
+                        rebuilding || localLoading ? "cursor-default opacity-50" : "cursor-pointer"
+                      )}
+                    >
+                      {rebuilding ? 'BUILDING...' : 'REBUILD'}
+                    </button>
+                    <button
+                      onClick={() => refresh()}
+                      disabled={localLoading}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded-[3px] font-mono text-[8px] font-semibold bg-transparent text-revos-cyan border border-revos-cyan/[0.27]",
+                        localLoading ? "cursor-default opacity-50" : "cursor-pointer"
+                      )}
+                    >
+                      {localLoading ? 'LOADING...' : 'REFRESH'}
+                    </button>
+                  </div>
                 </div>
                 {localFiles.map((f) => (
                   <div key={f.name} className="text-revos-text-dim text-[8px]">

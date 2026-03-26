@@ -185,6 +185,27 @@ function localDataPlugin() {
           res.end(fs.readFileSync(filePath, 'utf-8'))
         }
       })
+
+      // POST /local-data/rebuild-bundle — run build-data-bundle.cjs
+      server.middlewares.use('/local-data/rebuild-bundle', (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end('POST only'); return }
+        const { execFile } = require('child_process')
+        const script = path.resolve(__dirname, 'scripts', 'build-data-bundle.cjs')
+        if (!fs.existsSync(script)) {
+          res.setHeader('Content-Type', 'application/json')
+          res.statusCode = 404
+          res.end(JSON.stringify({ error: 'Build script not found' }))
+          return
+        }
+        const start = Date.now()
+        execFile('node', [script], { cwd: __dirname, timeout: 60000 }, (err, stdout, stderr) => {
+          res.setHeader('Content-Type', 'application/json')
+          if (err) { res.statusCode = 500; res.end(JSON.stringify({ error: err.message, stderr })); return }
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+          console.log(`[RevOS] Bundle rebuilt in ${elapsed}s`)
+          res.end(JSON.stringify({ ok: true, elapsed: `${elapsed}s`, output: stdout.trim() }))
+        })
+      })
     },
   }
 }
