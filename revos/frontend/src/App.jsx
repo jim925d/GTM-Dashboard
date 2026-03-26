@@ -483,7 +483,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <EngagementDashboard accounts={accounts} />
+          <EngagementDashboard accounts={accounts} rawData={localRawData} />
         </div>
       </div>
     )

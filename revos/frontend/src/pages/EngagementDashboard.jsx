@@ -22,7 +22,6 @@ const ENG_TYPES = [
   { key: "calls", type: "Call", label: "Calls", color: COLORS.call },
   { key: "meetings", type: "Meeting", label: "Meetings", color: COLORS.meeting },
 ];
-const MEGA_VERTICALS = ["Finance", "Media & Internet", "Software & Tech", "Data Centers", "Business & Consumer Services", "Carrier", "Retail", "Healthcare", "Manufacturing", "Transportation", "Hospitality & Entertainment", "Public Sector", "Education"];
 
 // ─── Column Alias Definitions ─────────────────────────────────────
 // Exact Salesforce report headers are listed FIRST in each alias array.
@@ -276,106 +275,6 @@ function resolveAccountIds(rows, accounts, hierarchy) {
   };
 }
 
-// ─── Demo Data ────────────────────────────────────────────────────
-function generateDemoData(sellerNames) {
-  const reps = sellerNames && sellerNames.length > 0
-    ? sellerNames
-    : ["Sarah Chen", "Marcus Johnson", "Elena Rodriguez", "James Park"];
-  // Stage distribution modeled from real funnel.csv data (766 opps)
-  const stageWeights = [
-    { stage: "Discover", weight: 0.13, prob: 0.10 },
-    { stage: "Design Solution", weight: 0.23, prob: 0.30 },
-    { stage: "Propose", weight: 0.17, prob: 0.50 },
-    { stage: "Negotiate", weight: 0.07, prob: 0.70 },
-    { stage: "Verbal Agreement", weight: 0.04, prob: 0.90 },
-    { stage: "Accepted", weight: 0.33, prob: 0.95 },
-    { stage: "Closed Won", weight: 0.03, prob: 1.0 },
-  ];
-  const pickStage = () => {
-    let r = Math.random(), cum = 0;
-    for (const s of stageWeights) { cum += s.weight; if (r < cum) return s; }
-    return stageWeights[0];
-  };
-  const months = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"];
-  const accounts = [], engagements = [], pipeline = [], quotes = [];
-  const products = ["DIA 100M", "SD-WAN Pro", "UCaaS 50-seat", "Dark Fiber 2-strand", "MPLS Gold", "SIP Trunk 24ch", "Wavelength 10G", "IP Transit", "Ethernet 1G"];
-  const acctNames = [
-    "Meridian Telecom", "Apex Wireless", "Northstar Fiber", "Cascade Networks",
-    "Summit Communications", "Horizon Cable", "Pinnacle Broadband", "Atlas Tower Co",
-    "Vantage MVNO", "Crestline Wireless", "BluePeak Networks", "Ironridge Fiber",
-    "Clearwater Comms", "Stonebridge Cable", "Ridgeline Towers", "Oakmont Wireless",
-    "Silverlake Broadband", "Westfield Networks", "Copperline Fiber", "Granite Telecom",
-    "Evergreen Comms", "Redwood Wireless", "Lakeview Cable", "Mountainview Networks",
-  ];
-  acctNames.forEach((name, i) => {
-    const rep = reps[i % reps.length];
-    const mv = MEGA_VERTICALS[i % MEGA_VERTICALS.length];
-    const brr = Math.round((50 + Math.random() * 450) * 1000);
-    accounts.push({ customer_account: name, mega_vertical: mv, rep, total_brr: brr });
-    // Engagements
-    months.forEach((m) => {
-      const base = i % 3 === 0 ? 6 : i % 3 === 1 ? 4 : 2;
-      if (Math.random() < 0.15) return;
-      [...Array(Math.floor(Math.random() * base * 2) + 1).fill("Email"),
-       ...Array(Math.floor(Math.random() * base) + (i % 3 === 0 ? 2 : 0)).fill("Call"),
-       ...Array(Math.floor(Math.random() * (base / 2)) + (i % 4 === 0 ? 1 : 0)).fill("Meeting"),
-      ].forEach((type) => {
-        const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, "0");
-        engagements.push({ customer_account: name, date: `${m}-${day}`, type, rep });
-      });
-    });
-    // Pipeline — 1-3 opps per account with realistic stage distribution & MRR
-    const oppCount = Math.random() < 0.15 ? 0 : Math.random() < 0.5 ? 1 : Math.random() < 0.8 ? 2 : 3;
-    const oppTypes = ["Upgrade", "Expansion", "New Logo", "Renewal", "Add-on", "Cross-sell"];
-    for (let o = 0; o < oppCount; o++) {
-      const s = pickStage();
-      // MRR ranges: small deals $800-$3K, mid $3K-$12K, large $12K-$28K
-      const tier = Math.random();
-      const mrr = tier < 0.4
-        ? Math.round(800 + Math.random() * 2200)    // small
-        : tier < 0.8
-        ? Math.round(3000 + Math.random() * 9000)   // mid
-        : Math.round(12000 + Math.random() * 16000); // large
-      const closeMo = s.stage === "Closed Won" || s.stage === "Accepted"
-        ? months[Math.floor(Math.random() * 3)]
-        : months[Math.floor(Math.random() * 3) + 3];
-      pipeline.push({
-        customer_account: name,
-        opportunity_name: `${name} - ${oppTypes[(i + o) % oppTypes.length]}`,
-        stage: s.stage, amount: mrr,
-        weighted_amount: Math.round(mrr * s.prob),
-        close_date: `${closeMo}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, "0")}`,
-        rep,
-        created_date: months[Math.floor(Math.random() * 3) + 3] + `-${String(Math.floor(Math.random() * 28) + 1).padStart(2, "0")}`,
-      });
-    }
-    // Also add some Close - Lost deals (3% of total, ~2 per 24 accounts)
-    if (i % 12 === 3 || i % 12 === 9) {
-      const mrr = Math.round(1500 + Math.random() * 6000);
-      pipeline.push({
-        customer_account: name,
-        opportunity_name: `${name} - Lost Deal`,
-        stage: "Close - Lost", amount: mrr, weighted_amount: 0,
-        close_date: months[Math.floor(Math.random() * 3)] + "-15",
-        rep,
-        created_date: months[3] + "-05",
-      });
-    }
-    // Quotes — 2-5 per engaged account
-    const qc = Math.random() < 0.1 ? 0 : Math.floor(Math.random() * 4) + 1;
-    for (let q = 0; q < qc; q++) {
-      const qm = months[Math.floor(Math.random() * months.length)];
-      quotes.push({
-        customer_account: name,
-        quote_date: `${qm}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, "0")}`,
-        product: products[Math.floor(Math.random() * products.length)],
-        term_months: [12, 24, 36, 60][Math.floor(Math.random() * 4)],
-        rep,
-      });
-    }
-  });
-  return { accounts, engagements, pipeline, quotes };
-}
 
 // ─── Utilities ────────────────────────────────────────────────────
 const fmt = (n) => { if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`; return `$${n}`; };
@@ -775,9 +674,8 @@ function CoverageHeatmap({ accounts, engagements, pipeline, months, onAccountCli
 }
 
 // ─── Main Dashboard ───────────────────────────────────────────────
-export default function EngagementDashboard({ accounts: externalAccounts = [] }) {
+export default function EngagementDashboard({ accounts: externalAccounts = [], rawData = null }) {
   const [view, setView] = useState("rep");
-  const [dataMode, setDataMode] = useState("demo");
   const [countMode, setCountMode] = useState("total");
   const [timeRange, setTimeRange] = useState("all");
   const [selectedRep, setSelectedRep] = useState(null);
@@ -788,29 +686,101 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
   const [resolveReport, setResolveReport] = useState(null); // { tableKey, stats }
   const [showDiag, setShowDiag] = useState(false);
 
-  // Extract unique seller names from external accounts (data folder)
-  const sellerNames = useMemo(() => {
-    if (!externalAccounts || externalAccounts.length === 0) return []
-    return [...new Set(
-      externalAccounts.map(a => (a.sales_owner || a.rep || '').trim()).filter(Boolean)
-    )].sort((a, b) => {
-      const aLast = a.split(/\s+/).pop().toLowerCase()
-      const bLast = b.split(/\s+/).pop().toLowerCase()
-      return aLast.localeCompare(bLast)
-    })
-  }, [externalAccounts])
+  // ── Build live data from loaded accounts + rawData ──────────────
+  const folderData = useMemo(() => {
+    if (!externalAccounts || externalAccounts.length === 0) return null;
 
-  const demo = useMemo(() => generateDemoData(sellerNames), [sellerNames]);
+    // Accounts → { customer_account, mega_vertical, rep, total_brr }
+    const accounts = externalAccounts.map(a => ({
+      customer_account: a.name || a.customer_account || '',
+      mega_vertical: a.vertical || a.mega_vertical || '',
+      rep: a.sales_owner || a.rep || '',
+      total_brr: a.tmr || a.total_brr || 0,
+    })).filter(a => a.customer_account);
+
+    // Pipeline → from active_deals + funnel_closed on each account
+    const pipeline = [];
+    for (const a of externalAccounts) {
+      const acctName = a.name || '';
+      const rep = a.sales_owner || a.rep || '';
+      for (const d of (a.active_deals || [])) {
+        pipeline.push({
+          customer_account: acctName,
+          opportunity_name: d.product || 'Unknown',
+          stage: d.stage || '',
+          amount: parseFloat(d.mrr) || 0,
+          close_date: normalizeDate(d.close || ''),
+          rep: d.rep || rep,
+          created_date: normalizeDate(d.created || ''),
+        });
+      }
+      for (const d of (a.funnel_closed || [])) {
+        pipeline.push({
+          customer_account: acctName,
+          opportunity_name: d.product || 'Unknown',
+          stage: d.stage || '',
+          amount: parseFloat(d.mrr) || 0,
+          close_date: normalizeDate(d.close || ''),
+          rep: d.rep || rep,
+          created_date: normalizeDate(d.created || ''),
+        });
+      }
+    }
+
+    // Quotes → from rawData.quotes if available
+    let quotes = [];
+    if (rawData && rawData.quotes && rawData.quotes.length > 0) {
+      quotes = rawData.quotes.map(q => ({
+        customer_account: q.customer_account || '',
+        quote_date: normalizeDate(q.created_date || q.quote_date || ''),
+        product: q.product_group || q.product || '',
+        term_months: parseInt(q.term_months) || 0,
+        rep: q.primary_rep || q.created_by || q.rep || '',
+      })).filter(q => q.customer_account);
+    }
+
+    // Engagements → reconstruct from account engagement events
+    const engagements = [];
+    for (const a of externalAccounts) {
+      const acctName = a.name || '';
+      const rep = a.sales_owner || a.rep || '';
+      if (a.engagement && a.engagement.events) {
+        for (const ev of a.engagement.events) {
+          const dateStr = normalizeDate(ev.d || '');
+          if (!dateStr) continue;
+          engagements.push({
+            customer_account: acctName,
+            date: dateStr,
+            type: normalizeEngType(ev.t || ev.s || ''),
+            rep: rep,
+          });
+        }
+      }
+    }
+
+    // Hierarchy → from rawData.hierarchy if available
+    let hierarchy = [];
+    if (rawData && rawData.hierarchy && rawData.hierarchy.length > 0) {
+      hierarchy = rawData.hierarchy.map(h => ({
+        child_name: h.type === 'Parent' ? '' : (h.customer_account || ''),
+        child_id: h.account_id || '',
+        parent_name: h.type === 'Parent' ? (h.customer_account || '') : '',
+      })).filter(h => h.child_name || h.parent_name);
+    }
+
+    return { accounts, engagements, pipeline, quotes, hierarchy };
+  }, [externalAccounts, rawData]);
+
+  // Data: prefer CSV overrides (liveData) → folder data → empty
   const data = useMemo(() => {
-    if (dataMode === "demo") return demo;
-    // Merge live uploads with demo fallback for missing tables
+    const base = folderData || { accounts: [], engagements: [], pipeline: [], quotes: [] };
     return {
-      accounts: liveData.accounts || demo.accounts,
-      engagements: liveData.engagements || demo.engagements,
-      pipeline: liveData.pipeline || demo.pipeline,
-      quotes: liveData.quotes || demo.quotes,
+      accounts: liveData.accounts || base.accounts,
+      engagements: liveData.engagements || base.engagements,
+      pipeline: liveData.pipeline || base.pipeline,
+      quotes: liveData.quotes || base.quotes,
     };
-  }, [dataMode, liveData, demo]);
+  }, [liveData, folderData]);
 
   const reps = useMemo(() => [...new Set(data.accounts.map((a) => a.rep))], [data]);
   // Derived active selections — always have a valid value on first render
@@ -942,7 +912,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
 
     // For data tables (not accounts or hierarchy), resolve account references
     if (tableKey !== "accounts" && tableKey !== "hierarchy" && transformed.length > 0) {
-      const accountsList = liveData.accounts || demo.accounts;
+      const accountsList = liveData.accounts || folderData?.accounts || [];
       const hierarchyList = liveData.hierarchy || [];
       const { resolved, stats } = resolveAccountIds(transformed, accountsList, hierarchyList);
       transformed = resolved;
@@ -953,7 +923,6 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
     }
 
     setLiveData((prev) => ({ ...prev, [tableKey]: transformed }));
-    setDataMode("live");
     setMapperState(null);
   };
 
@@ -1295,20 +1264,6 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
             ))}
           </div>
           <CountModeToggle value={countMode} onChange={setCountMode} />
-          <div className="flex bg-revos-card border border-revos-border rounded-lg overflow-hidden">
-            {["demo", "live"].map((m) => (
-              <button
-                key={m}
-                onClick={() => setDataMode(m)}
-                className={cn(
-                  "border-none px-3.5 py-1.5 text-[11px] font-mono cursor-pointer uppercase tracking-wider",
-                  dataMode === m ? "bg-revos-cyan text-white" : "bg-transparent text-revos-text-dim"
-                )}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -1336,7 +1291,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
           );
         })}
         {(liveData.accounts || liveData.engagements || liveData.pipeline || liveData.quotes || liveData.hierarchy) && (
-          <button onClick={() => { setLiveData({ accounts: null, engagements: null, pipeline: null, quotes: null, hierarchy: null }); setDataMode("demo"); }} className="text-[10px] font-mono text-revos-red bg-transparent border border-revos-red/20 rounded-md px-2.5 py-1.5 cursor-pointer">Clear All</button>
+          <button onClick={() => { setLiveData({ accounts: null, engagements: null, pipeline: null, quotes: null, hierarchy: null }); }} className="text-[10px] font-mono text-revos-red bg-transparent border border-revos-red/20 rounded-md px-2.5 py-1.5 cursor-pointer">Clear Overrides</button>
         )}
         <button
           onClick={() => setShowDiag((p) => !p)}
@@ -1378,7 +1333,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
 
             {/* Active filters */}
             <div className="text-[11px] font-mono text-revos-text-dim leading-relaxed mb-4 px-3.5 py-2.5 bg-revos-bg rounded-lg border border-revos-border">
-              <span className="text-revos-text font-medium">Mode:</span> {dataMode} &nbsp;·&nbsp;
+              <span className="text-revos-text font-medium">Mode:</span> live &nbsp;·&nbsp;
               <span className="text-revos-text font-medium">Time:</span> {timeRange} ({months.length} months: {months.map(monthLabel).join(", ") || "none"}) &nbsp;·&nbsp;
               <span className="text-revos-text font-medium">Count:</span> {countMode} &nbsp;·&nbsp;
               <span className="text-revos-text font-medium">Rep:</span> {activeRep || "—"} &nbsp;·&nbsp;
@@ -1389,15 +1344,15 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
             {/* Per-table status */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 mb-4">
               {tables.map(({ key, label, src, fields }) => {
-                const isDemo = !src;
-                const rows = isDemo ? (key === "hierarchy" ? [] : demo[key] || []) : src;
+                const rows = src || [];
                 const count = rows?.length || 0;
+                const hasData = count > 0;
                 return (
                   <div key={key} className="bg-revos-bg border border-revos-border rounded-lg p-3.5">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-xs font-semibold text-revos-text">{label}</span>
-                      <span className="inline-block text-[10px] font-mono px-1.5 py-[1px] rounded mr-1" style={{ background: isDemo ? `${COLORS.textDim}20` : `${COLORS.success}15`, color: isDemo ? COLORS.textDim : COLORS.success }}>
-                        {isDemo ? "demo" : `live · ${count} rows`}
+                      <span className="inline-block text-[10px] font-mono px-1.5 py-[1px] rounded mr-1" style={{ background: hasData ? `${COLORS.success}15` : `${COLORS.textDim}20`, color: hasData ? COLORS.success : COLORS.textDim }}>
+                        {hasData ? `${count} rows` : "no data"}
                       </span>
                     </div>
                     {count > 0 ? (
@@ -1519,7 +1474,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [] })
 
       <div className="mt-8 pt-4 border-t border-revos-border flex justify-between text-[11px] text-revos-border-light font-mono">
         <span>RevOS Engagement Dashboard v1.3</span>
-        <span>{dataMode === "demo" ? "Demo Data" : "Live Data"} · {{ all: "All Time", ytd: `YTD ${latestYear}`, qtd: `Q${Math.ceil(parseInt(latestMonth.split("-")[1]) / 3)} ${latestYear}`, month: monthLabel(latestMonth) }[timeRange]} · {countMode === "unique" ? "Unique Accounts" : "Total"} · {months.length} months · {data.accounts.length} accounts</span>
+        <span>Live Data · {{ all: "All Time", ytd: `YTD ${latestYear}`, qtd: `Q${Math.ceil(parseInt(latestMonth.split("-")[1]) / 3)} ${latestYear}`, month: monthLabel(latestMonth) }[timeRange]} · {countMode === "unique" ? "Unique Accounts" : "Total"} · {months.length} months · {data.accounts.length} accounts</span>
       </div>
     </div>
   );
