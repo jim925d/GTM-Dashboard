@@ -384,10 +384,13 @@ export default function GTMPremier({ accounts = [] }) {
       const closedDeals = acct.funnel_closed || []
 
       for (const d of closedDeals) {
-        if ((d.stage || '').toLowerCase().includes('won') || (d.type || '').toLowerCase() === 'won') {
-          m.closedDeals++
-          m.closedMRR += d.mrr || 0
-        }
+        const stage = (d.stage || '').toLowerCase()
+        if (stage.includes('lost') || stage.includes('loss')) continue
+        if (!stage.includes('won') && (d.type || '').toLowerCase() !== 'won') continue
+        const dealMrr = d.mrr || 0
+        if (dealMrr <= 0) continue
+        m.closedDeals++
+        m.closedMRR += dealMrr
       }
 
       // Stage win probabilities — 2026 Funnel Model
@@ -557,7 +560,7 @@ export default function GTMPremier({ accounts = [] }) {
     }))
   }, [markets, chartExpanded])
 
-  // Bookings trend (mock 6/12mo from closed deals by month)
+  // Bookings trend — only Closed Won deals with positive MRR, matched by close date
   const bookingsTrend = useMemo(() => {
     const months = trendExpanded ? 12 : 6
     const now = new Date()
@@ -567,14 +570,22 @@ export default function GTMPremier({ accounts = [] }) {
       const label = d.toLocaleDateString('en-US', { month: 'short' })
       let mrr = 0
       for (const a of accts) {
-        for (const deal of (a.funnel_closed || [])) {
+        // Check funnel_closed (from funnel.csv) and historical_deals (from historical.json)
+        const allDeals = [...(a.funnel_closed || []), ...(a.historical_deals || [])]
+        for (const deal of allDeals) {
           if (!deal.close) continue
           const cd = new Date(deal.close)
-          if (cd.getMonth() === d.getMonth() && cd.getFullYear() === d.getFullYear()) {
-            if ((deal.stage || '').toLowerCase().includes('won') || (deal.type || '').toLowerCase() === 'won') {
-              mrr += deal.mrr || 0
-            }
+          if (isNaN(cd.getTime())) continue
+          if (cd.getMonth() !== d.getMonth() || cd.getFullYear() !== d.getFullYear()) continue
+          const stage = (deal.stage || '').toLowerCase()
+          // Only count Closed Won deals with positive MRR
+          if (!stage.includes('closed won') && !stage.includes('close - Loss')) {
+            if (!stage.includes('won')) continue
           }
+          // Must exclude Closed Lost
+          if (stage.includes('lost') || stage.includes('loss')) continue
+          const dealMrr = deal.mrr || 0
+          if (dealMrr > 0) mrr += dealMrr
         }
       }
       data.push({ month: label, mrr: Math.round(mrr) })
