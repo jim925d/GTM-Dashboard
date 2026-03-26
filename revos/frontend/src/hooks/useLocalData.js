@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState, buildBacktestData, buildLearningData, buildCalibration, normalizeStage } from '../lib/accountBuilder'
 
@@ -159,6 +160,102 @@ async function verifyPermission(handle) {
   return false
 }
 
+// ── Streaming locations CSV parser ───────────────────────────────────────────
+// Processes rows one at a time via PapaParse streaming to avoid OOM on 156K+ rows.
+// Outputs the same compact { account: [{ n, t, a, s, mk, la, lo, m, as, ft, c }] } format as locations.json.
+
+function normStatus(raw) {
+  if (!raw) return 'off-net'
+  const s = String(raw).toLowerCase().trim()
+  if (s.includes('not on') || s === 'not on zayo network') return 'off-net'
+  if (s.includes('on zayo') || s.includes('on-net') || s === 'on net') return 'on-net'
+  if (s.includes('near')) return 'near-net'
+  return 'off-net'
+}
+
+function parseMoney(raw) {
+  if (!raw) return 0
+  return parseFloat(String(raw).replace(/[$,\s]/g, '')) || 0
+}
+
+function parseLocationsCSVStreaming(csvText) {
+  return new Promise((resolve) => {
+    const byAccount = {}
+    const seenByAccount = {}
+    let headers = null
+    let col = null
+
+    Papa.parse(csvText, {
+      step(row) {
+        const f = row.data
+        if (!headers) {
+          headers = f.map(h => (h || '').trim().toLowerCase())
+          const find = (name) => headers.findIndex(h => h.includes(name))
+          col = {
+            account: find('customer account'),
+            address: find('street address'),
+            city: headers.indexOf('city') !== -1 ? headers.indexOf('city') : find('city'),
+            state: headers.indexOf('state') !== -1 ? headers.indexOf('state') : find('state'),
+            postal: find('postal code'),
+            bldgName: find('building name'),
+            bldgType: find('building type'),
+            market: find('market'),
+            netStatus: headers.findIndex(h => h === 'on zayo network status'),
+            proxStatus: headers.findIndex(h => h === 'network proximity status'),
+            bldgClass: find('building classification'),
+            feet: headers.findIndex(h => h.includes('building feet')),
+            mrr: headers.findIndex(h => h === 'loc attributed mrr'),
+            addrSpend: find('location addressable spend'),
+            lat: headers.indexOf('latitude'),
+            lng: headers.indexOf('longitude'),
+          }
+          return
+        }
+
+        const account = (f[col.account] || '').trim()
+        if (!account) return
+
+        // Deduplicate by address within each account
+        const addr = `${(f[col.address] || '').trim()}|${(f[col.city] || '').trim()}|${(f[col.postal] || '').trim()}`
+        if (!seenByAccount[account]) seenByAccount[account] = new Set()
+        if (seenByAccount[account].has(addr)) return
+        seenByAccount[account].add(addr)
+
+        const rawStatus = f[col.netStatus] || f[col.proxStatus] || ''
+        const status = normStatus(rawStatus)
+        const mrr = Math.round(parseMoney(f[col.mrr]) * 100) / 100
+        const lat = parseFloat(f[col.lat]) || null
+        const lng = parseFloat(f[col.lng]) || null
+
+        const loc = {
+          n: String((f[col.bldgName] || f[col.address] || 'Unknown')).trim(),
+          t: String((f[col.bldgType] || 'Office')).trim(),
+          a: `${(f[col.address] || '').trim()}, ${(f[col.city] || '').trim()}, ${(f[col.state] || '').trim()} ${(f[col.postal] || '').trim()}`.trim(),
+          s: status,
+          mk: String((f[col.market] || '')).trim(),
+        }
+        const addrSpend = Math.round(parseMoney(f[col.addrSpend]) * 100) / 100
+        if (addrSpend) loc.as = addrSpend
+        if (mrr) loc.m = mrr
+        if (lat && lng) { loc.la = Math.round(lat * 10000) / 10000; loc.lo = Math.round(lng * 10000) / 10000 }
+        const ft = Math.round(parseFloat(f[col.feet]) || 0)
+        if (ft) loc.ft = ft
+        const cls = (f[col.bldgClass] || '').trim()
+        if (cls) loc.c = cls
+
+        if (!byAccount[account]) byAccount[account] = []
+        byAccount[account].push(loc)
+      },
+      complete() {
+        resolve(byAccount)
+      },
+      error() {
+        resolve({})
+      },
+    })
+  })
+}
+
 // List data files from a directory handle
 async function listFilesFromHandle(dirHandle) {
   const files = []
@@ -177,8 +274,19 @@ async function listFilesFromHandle(dirHandle) {
     if (name.startsWith('~$')) continue
     // Skip JSON fallback files (loaded separately only if CSV not present)
     if (isJSON && jsonFallbacks.has(name.replace('.json', '').toLowerCase())) continue
-    // Skip oversized CSVs — use pre-built JSON for locations
-    if (isCSV && csvTooBig.has(name.replace('.csv', '').toLowerCase())) continue
+    // Track locations CSVs separately — parsed via streaming, not normal pipeline
+    if (isCSV && csvTooBig.has(name.replace('.csv', '').toLowerCase())) {
+      const file = await entry.getFile()
+      files.push({
+        name: name.replace('_geocoded', ''),
+        realName: name,
+        modified: file.lastModified,
+        size: file.size,
+        type: 'locations-csv',
+        _handle: entry,
+      })
+      continue
+    }
     const file = await entry.getFile()
     files.push({
       name: name.replace('_geocoded', ''),
@@ -256,12 +364,20 @@ export default function useLocalData() {
         raw[tabType] = [...raw[tabType], ...records]
       }
 
-      // 3) Load pre-built JSON files as fallback — only when CSV/XLSX didn't provide the data
-      // Locations always use JSON (CSV too large for browser)
+      // 3) Locations: stream-parse CSV if present, otherwise use pre-built JSON
+      const locCSVFile = files.find(f => f.type === 'locations-csv')
+      let locationsJSON = {}
+      if (locCSVFile) {
+        const csvText = await readFileFromHandle(locCSVFile._handle)
+        locationsJSON = await parseLocationsCSVStreaming(csvText)
+      } else {
+        locationsJSON = await readJSONFromDir(dirHandle, 'locations.json')
+      }
+
+      // 4) Other JSON fallbacks — only when CSV/XLSX didn't provide the data
       const hasCSVFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
       const hasCSVEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
       const hasCSVEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
-      const locationsJSON = await readJSONFromDir(dirHandle, 'locations.json')
       const historicalJSON = hasCSVFunnel ? {} : await readJSONFromDir(dirHandle, 'historical.json')
       const engagements2025 = hasCSVEngagements ? {} : await readJSONFromDir(dirHandle, 'engagements.json')
       const engagements2026 = hasCSVEngagements2026 ? {} : await readJSONFromDir(dirHandle, 'engagements_2026.json')
@@ -335,16 +451,31 @@ export default function useLocalData() {
         raw[tabType] = [...raw[tabType], ...records]
       }
 
-      // JSON fallbacks — only when CSV/XLSX didn't provide the data
-      // Locations always use JSON (CSV too large for browser)
+      // Locations: try streaming CSV first, fall back to pre-built JSON
+      let locationsJSON = {}
+      try {
+        // Check if locations CSV exists on server
+        const locCSVNames = ['locations_geocoded.csv', 'locations.csv']
+        let locCSVText = null
+        for (const name of locCSVNames) {
+          const r = await fetch(`/local-data/file?name=${encodeURIComponent(name)}`)
+          if (r.ok) { locCSVText = await r.text(); break }
+        }
+        if (locCSVText) {
+          locationsJSON = await parseLocationsCSVStreaming(locCSVText)
+        } else {
+          const r = await fetch('/local-data/locations.json')
+          if (r.ok) locationsJSON = await r.json()
+        }
+      } catch {}
+
+      // Other JSON fallbacks — only when CSV/XLSX didn't provide the data
       const hasFunnel = raw.funnel.length > 0 || xlsxTypes.has('funnel')
       const hasEngagements = raw.engagements.length > 0 || xlsxTypes.has('engagements')
       const hasEngagements2026 = raw.engagements_2026.length > 0 || xlsxTypes.has('engagements_2026')
-      let locationsJSON = {}
       let historicalJSON = {}
       let engagements2025 = {}
       let engagements2026 = {}
-      try { const r = await fetch('/local-data/locations.json'); if (r.ok) locationsJSON = await r.json() } catch {}
       if (!hasFunnel) { try { const r = await fetch('/local-data/historical.json'); if (r.ok) historicalJSON = await r.json() } catch {} }
       if (!hasEngagements) { try { const r = await fetch('/local-data/engagements.json'); if (r.ok) engagements2025 = await r.json() } catch {} }
       if (!hasEngagements2026) { try { const r = await fetch('/local-data/engagements_2026.json'); if (r.ok) engagements2026 = await r.json() } catch {} }
