@@ -343,7 +343,7 @@ export default function GTMPremier({ accounts = [] }) {
       if (locs.length > 0) {
         // Use the first location's market or derive from address
         const loc = locs[0]
-        city = loc.market || loc.city || loc.name || 'Unknown'
+        city = String(loc.market || loc.city || loc.name || 'Unknown')
         lat = loc.lat
         lng = loc.lng
         state = loc.state || ''
@@ -455,7 +455,7 @@ export default function GTMPremier({ accounts = [] }) {
 
       // Find market
       const locs = acct.locations || []
-      const marketCity = locs.length > 0 ? (locs[0].market || locs[0].city || locs[0].name || 'Unknown').split(',')[0].trim() : 'Unknown'
+      const marketCity = locs.length > 0 ? String(locs[0].market || locs[0].city || locs[0].name || 'Unknown').split(',')[0].trim() : 'Unknown'
 
       return {
         ...enrichedAcct,
