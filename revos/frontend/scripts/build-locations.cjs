@@ -117,6 +117,8 @@ function main() {
       mk: (f[iMarket] || '').trim(),
     }
     // Only include non-zero fields to save space
+    const addrSpend = Math.round(parseMoney(f[iAddrSpend]) * 100) / 100
+    if (addrSpend) loc.as = addrSpend
     if (mrr) loc.m = mrr
     if (lat && lng) { loc.la = Math.round(lat * 10000) / 10000; loc.lo = Math.round(lng * 10000) / 10000 }
     const ft = Math.round(parseFloat(f[iFeet]) || 0)

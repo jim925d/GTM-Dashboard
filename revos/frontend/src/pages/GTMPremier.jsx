@@ -8,11 +8,13 @@
  * All data from ModelingContext snapshot hooks — zero direct computation.
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from 'recharts'
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
 import { T, FONT_MONO, FONT_SANS } from '../lib/constants'
 import { chartTheme, $k } from '../components/shared/ChartTheme'
 import {
@@ -219,6 +221,86 @@ function KPICard({ label, value, accent, trend, trendColor }) {
   )
 }
 
+// ─── Hover Info Tooltip ──────────────────────────────────────────────────────
+function InfoTip({ children, tip, side = 'right' }) {
+  const [show, setShow] = useState(false)
+  const posStyle = side === 'left'
+    ? { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: 8 }
+    : { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: 8 }
+  return (
+    <span className="relative inline-block cursor-help" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      {show && (
+        <span className="absolute z-50 px-2.5 py-1.5 rounded-lg text-[10px] leading-tight whitespace-pre-line max-w-[260px] font-mono pointer-events-none"
+          style={{ ...posStyle, background: CS.bg, color: CS.text, border: `1px solid ${CS.border}`, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+          {tip}
+        </span>
+      )}
+    </span>
+  )
+}
+
+// ─── Fit map bounds to markers ───────────────────────────────────────────────
+function FitBounds({ locations }) {
+  const map = useMap()
+  useEffect(() => {
+    const valid = locations.filter(l => l.lat && l.lng)
+    if (valid.length === 0) return
+    const bounds = valid.map(l => [l.lat, l.lng])
+    map.fitBounds(bounds, { padding: [20, 20], maxZoom: 12 })
+  }, [locations, map])
+  return null
+}
+
+// ─── Customer Location Map ───────────────────────────────────────────────────
+const NET_COLORS = { 'on-net': CS.green, 'near-net': CS.amber, 'off-net': '#4B5563' }
+
+function CustomerLocationMap({ locations }) {
+  const valid = locations.filter(l => l.lat && l.lng)
+  if (valid.length === 0) return (
+    <div className="rounded-lg flex items-center justify-center h-[200px]" style={{ background: CS.surface }}>
+      <span className="font-mono text-[10px]" style={{ color: CS.textFaint }}>No geocoded locations</span>
+    </div>
+  )
+  const center = [valid[0].lat, valid[0].lng]
+  return (
+    <div className="rounded-lg overflow-hidden border" style={{ borderColor: CS.border }}>
+      <MapContainer center={center} zoom={4} style={{ height: 220, width: '100%', background: CS.bg }} zoomControl={false} attributionControl={false}>
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+        <FitBounds locations={valid} />
+        {valid.map((loc, i) => (
+          <CircleMarker key={i} center={[loc.lat, loc.lng]}
+            radius={loc.status === 'on-net' ? 6 : 4}
+            pathOptions={{ fillColor: NET_COLORS[loc.status] || '#4B5563', color: NET_COLORS[loc.status] || '#4B5563', fillOpacity: 0.85, weight: 1, opacity: 0.6 }}>
+            <Popup>
+              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11 }}>
+                <div style={{ fontWeight: 600 }}>{loc.name}</div>
+                {loc.market && <div style={{ color: '#9CA3AF' }}>{loc.market}</div>}
+                <div style={{ color: NET_COLORS[loc.status], fontWeight: 600, textTransform: 'uppercase', fontSize: 10, marginTop: 2 }}>{loc.status}</div>
+                {loc.mrr > 0 && <div style={{ color: '#22D3EE' }}>MRR: ${loc.mrr.toLocaleString()}</div>}
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+      </MapContainer>
+      {/* Legend */}
+      <div className="flex items-center gap-3 px-2.5 py-1.5" style={{ background: CS.surface }}>
+        {[['on-net', CS.green], ['near-net', CS.amber], ['off-net', '#4B5563']].map(([label, color]) => {
+          const count = valid.filter(l => l.status === label).length
+          if (count === 0) return null
+          return (
+            <span key={label} className="flex items-center gap-1 font-mono text-[9px]">
+              <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+              <span style={{ color: CS.textMuted }}>{label}</span>
+              <span style={{ color: CS.text, fontWeight: 600 }}>{count}</span>
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function GTMPremier({ accounts = [] }) {
   const enrichedAccounts = useAllEnrichedAccounts()
@@ -298,7 +380,7 @@ export default function GTMPremier({ accounts = [] }) {
       if (hasOnNet) m.onNetAccounts++
 
       // Aggregate deals
-      const deals = acct.deal_predictions || acct.active_deals || []
+      const deals = acct.active_deals || []
       const closedDeals = acct.funnel_closed || []
 
       for (const d of closedDeals) {
@@ -308,8 +390,11 @@ export default function GTMPremier({ accounts = [] }) {
         }
       }
 
+      // Stage win probabilities — 2026 Funnel Model
+      const STAGE_PROB = { 'discover': 0.3057, 'design solution': 0.5321, 'design': 0.5321, 'propose': 0.6623, 'negotiate': 0.8467, 'verbal agreement': 0.9249 }
       for (const d of deals) {
-        const prob = d.adjusted_probability || d.stage_probability || 0.3
+        const stageKey = (d.stage || '').toLowerCase().trim()
+        const prob = d.adjusted_probability || d.stage_probability || STAGE_PROB[stageKey] || 0.3
         const mrr = parseFloat(d.mrr || d.MRR || 0)
         m.pipelineWeighted += mrr * prob
         const prod = d.product || d.product_type || 'Other'
@@ -352,15 +437,19 @@ export default function GTMPremier({ accounts = [] }) {
 
     // Score all accounts for targets
     const scored = accts.map(acct => {
-      // Compute whitespace/gaps
+      // Compute whitespace: addressable spend minus current MRR per location
+      const acctLocs = acct.locations || []
+      const totalAddressable = acctLocs.reduce((s, l) => s + (l.addressable_spend || 0), 0)
+      const totalLocMrr = acctLocs.reduce((s, l) => s + (l.mrr || 0), 0)
+      const totalGapMrr = Math.max(0, totalAddressable - totalLocMrr)
+
+      // Product affinity gaps (for talk track / gap product recommendations)
       const currentProducts = new Set((acct.products || []).map(p => p.toLowerCase()))
       const affinity = acct.loc_product_affinity || {}
       const gaps = Object.entries(affinity)
         .filter(([prod]) => !currentProducts.has(prod.toLowerCase()))
         .sort(([, a], [, b]) => b - a)
         .map(([product, score]) => ({ product, score }))
-
-      const totalGapMrr = gaps.reduce((s, g) => s + (g.score || 0) * 100, 0)
       const enrichedAcct = { ...acct, _gaps: gaps, total_gap_mrr: totalGapMrr }
       const { score, breakdown, tags } = scoreAccount(enrichedAcct)
 
@@ -391,9 +480,11 @@ export default function GTMPremier({ accounts = [] }) {
       }, 0)
     }, 0)
     const totalPipeline = scored.reduce((s, a) => {
-      const deals = a.deal_predictions || a.active_deals || []
+      const deals = a.active_deals || []
+      const STAGE_PROB = { 'discover': 0.3057, 'design solution': 0.5321, 'design': 0.5321, 'propose': 0.6623, 'negotiate': 0.8467, 'verbal agreement': 0.9249 }
       return s + deals.reduce((ps, d) => {
-        const prob = d.adjusted_probability || d.stage_probability || 0.3
+        const stageKey = (d.stage || '').toLowerCase().trim()
+        const prob = d.adjusted_probability || d.stage_probability || STAGE_PROB[stageKey] || 0.3
         const mrr = parseFloat(d.mrr || d.MRR || 0)
         return ps + mrr * prob
       }, 0)
@@ -697,13 +788,6 @@ function TargetRow({ target: t, rank, expanded, onToggle, navigateToMarket, even
   const deals = (t.deal_predictions || t.active_deals || []).length
   const daysSilent = t.days_silent || t.days_since_last_activity || 0
 
-  // Score breakdown for tooltip
-  const breakdownLines = Object.entries(t._breakdown || {})
-    .filter(([, v]) => v > 0)
-    .map(([k, v]) => `${k}: +${v}`)
-    .join('\n')
-  const tooltipText = `${breakdownLines}\n──────\nTotal: ${t._score}`
-
   // Recent events for this account's market
   const recentEvents = useMemo(() => {
     return (eventFeed || [])
@@ -759,19 +843,22 @@ function TargetRow({ target: t, rank, expanded, onToggle, navigateToMarket, even
         </div>
 
         {/* Whitespace MRR */}
-        <div className="text-right shrink-0 min-w-[60px]">
-          <div className="font-mono text-sm font-bold" style={{ color: CS.purple }}>{fmt(whitespace)}</div>
-          <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>/mo</div>
-        </div>
+        <InfoTip tip="Whitespace — total addressable spend across all locations minus current billed MRR">
+          <div className="text-right shrink-0 min-w-[60px]">
+            <div className="font-mono text-sm font-bold" style={{ color: CS.purple }}>{fmt(whitespace)}</div>
+            <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>/mo</div>
+          </div>
+        </InfoTip>
 
         {/* Score */}
-        <div
-          className="w-9 h-9 flex items-center justify-center rounded-lg font-mono text-sm font-bold border shrink-0"
-          style={{ color: scoreColor, borderColor: scoreColor + '60', background: scoreColor + '10' }}
-          title={tooltipText}
-        >
-          {t._score}
-        </div>
+        <InfoTip tip={`Priority score — higher = more actionable\n${Object.entries(t._breakdown || {}).filter(([,v]) => v > 0).map(([k,v]) => `${k}: +${v}`).join(', ')}`}>
+          <div
+            className="w-9 h-9 flex items-center justify-center rounded-lg font-mono text-sm font-bold border shrink-0"
+            style={{ color: scoreColor, borderColor: scoreColor + '60', background: scoreColor + '10' }}
+          >
+            {t._score}
+          </div>
+        </InfoTip>
 
         {/* Event modifier */}
         <div className="shrink-0">
@@ -845,14 +932,30 @@ function ExpandedTargetDetail({ target: t, tmr, deals, nrr, health, daysSilent, 
     <div className="px-4 pb-4 pt-2 border-t space-y-3" style={{ background: CS.cardAlt, borderColor: CS.border }}>
       {/* Stats row */}
       <div className="flex gap-4 font-mono text-[10px]">
-        <div><span style={{ color: CS.textFaint }}>TMR</span> <span className="font-semibold" style={{ color: CS.cyan }}>{fmt(tmr)}</span></div>
-        <div><span style={{ color: CS.textFaint }}>Deals</span> <span className="font-semibold" style={{ color: CS.text }}>{deals}</span></div>
-        <div><span style={{ color: CS.textFaint }}>NRR</span> <span className="font-semibold" style={{ color: nrr >= 1 ? CS.green : CS.red }}>{(nrr * 100).toFixed(0)}%</span></div>
-        <div><span style={{ color: CS.textFaint }}>Health</span> <span className="font-semibold" style={{ color: health >= 70 ? CS.green : health >= 40 ? CS.amber : CS.red }}>{health}</span></div>
-        <div><span style={{ color: CS.textFaint }}>Silent</span> <span className="font-semibold" style={{ color: daysSilent > 14 ? CS.amber : CS.textMuted }}>{daysSilent}d</span></div>
-        <div><span style={{ color: CS.textFaint }}>Locations</span> <span className="font-semibold" style={{ color: CS.text }}>{locations.length}</span></div>
-        <div><span style={{ color: CS.textFaint }}>On-Net</span> <span className="font-semibold" style={{ color: CS.green }}>{onNetLocs.length}</span></div>
-        <div><span style={{ color: CS.textFaint }}>Services</span> <span className="font-semibold" style={{ color: CS.cyan }}>{services.length}</span></div>
+        <InfoTip tip="Total Monthly Recurring — sum of all active service MRR for this account">
+          <span style={{ color: CS.textFaint }}>TMR</span> <span className="font-semibold" style={{ color: CS.cyan }}>{fmt(tmr)}</span>
+        </InfoTip>
+        <InfoTip tip="Active pipeline deals in Discover through Verbal Agreement stages">
+          <span style={{ color: CS.textFaint }}>Deals</span> <span className="font-semibold" style={{ color: CS.text }}>{deals}</span>
+        </InfoTip>
+        <InfoTip tip="Net Revenue Retention — current MRR vs starting MRR (accounts for churn/downgrades)">
+          <span style={{ color: CS.textFaint }}>NRR</span> <span className="font-semibold" style={{ color: nrr >= 1 ? CS.green : CS.red }}>{(nrr * 100).toFixed(0)}%</span>
+        </InfoTip>
+        <InfoTip tip="Account health score (0-100) — composite of NRR, churn risk, product diversity, pipeline, tenure">
+          <span style={{ color: CS.textFaint }}>Health</span> <span className="font-semibold" style={{ color: health >= 70 ? CS.green : health >= 40 ? CS.amber : CS.red }}>{health}</span>
+        </InfoTip>
+        <InfoTip tip="Days since last deal or engagement activity on this account">
+          <span style={{ color: CS.textFaint }}>Silent</span> <span className="font-semibold" style={{ color: daysSilent > 14 ? CS.amber : CS.textMuted }}>{daysSilent}d</span>
+        </InfoTip>
+        <InfoTip tip="Total building locations for this account across all markets">
+          <span style={{ color: CS.textFaint }}>Locations</span> <span className="font-semibold" style={{ color: CS.text }}>{locations.length}</span>
+        </InfoTip>
+        <InfoTip tip="Locations on Zayo's network — ready for service with no construction needed">
+          <span style={{ color: CS.textFaint }}>On-Net</span> <span className="font-semibold" style={{ color: CS.green }}>{onNetLocs.length}</span>
+        </InfoTip>
+        <InfoTip tip="Active service circuits currently billing on this account">
+          <span style={{ color: CS.textFaint }}>Services</span> <span className="font-semibold" style={{ color: CS.cyan }}>{services.length}</span>
+        </InfoTip>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -865,118 +968,51 @@ function ExpandedTargetDetail({ target: t, tmr, deals, nrr, health, daysSilent, 
           {/* Location table */}
           <div className="rounded-lg overflow-hidden border" style={{ borderColor: CS.border }}>
             {/* Header */}
-            <div className="grid gap-2 px-3 py-1.5 font-mono text-[8px] uppercase tracking-wider" style={{ background: CS.surface, color: CS.textFaint, gridTemplateColumns: '2fr 80px 1fr 80px 1fr' }}>
-              <div>Location</div>
-              <div>Status</div>
-              <div>Billing Products</div>
-              <div className="text-right">MRR</div>
-              <div>Whitespace</div>
+            <div className="grid gap-2 px-3 py-1.5 font-mono text-[8px] uppercase tracking-wider" style={{ background: CS.surface, color: CS.textFaint, gridTemplateColumns: '2fr 70px 90px 90px 90px' }}>
+              <InfoTip tip="Building name and market for each customer location" side="right"><div>Location</div></InfoTip>
+              <InfoTip tip="Network proximity: On-Net (on Zayo fiber), Near-Net (close to network), Off-Net (requires construction)" side="right"><div>Status</div></InfoTip>
+              <InfoTip tip="Total estimated spend this building could support based on size, type, and market — from location intelligence data" side="right"><div className="text-right">Addressable</div></InfoTip>
+              <InfoTip tip="MRR currently being billed at this location from active services" side="right"><div className="text-right">Current MRR</div></InfoTip>
+              <InfoTip tip="Whitespace gap = Addressable Spend minus Current MRR — the untapped revenue opportunity at this location" side="left"><div className="text-right">Gap</div></InfoTip>
             </div>
 
-            {/* On-net locations first */}
-            {onNetLocs.length > 0 && onNetLocs.map((loc, i) => {
-              const key = (loc.name || '').toLowerCase()
-              const entry = locServiceMap[key] || { services: [], totalMrr: 0 }
+            {/* Location rows — on-net first, then near-net, then off-net */}
+            {[
+              ...onNetLocs.map((loc, i) => ({ loc, key: `on-${i}`, statusLabel: 'On-Net', statusColor: CS.green, dim: false })),
+              ...nearNetLocs.map((loc, i) => ({ loc, key: `near-${i}`, statusLabel: 'Near-Net', statusColor: CS.amber, dim: false })),
+              ...offNetLocs.slice(0, 5).map((loc, i) => ({ loc, key: `off-${i}`, statusLabel: 'Off-Net', statusColor: CS.textFaint, dim: true })),
+            ].map(({ loc, key, statusLabel, statusColor, dim }) => {
+              const svcKey = (loc.name || '').toLowerCase()
+              const entry = locServiceMap[svcKey] || { services: [], totalMrr: 0 }
+              const currentMrr = entry.totalMrr || loc.mrr || 0
+              const addressable = loc.addressable_spend || 0
+              const gap = Math.max(0, addressable - currentMrr)
               return (
-                <div key={`on-${i}`} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 80px 1fr 80px 1fr' }}>
+                <div key={key} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 70px 90px 90px 90px', opacity: dim ? 0.5 : 1 }}>
                   <div>
                     <div className="text-[11px] font-semibold truncate" style={{ color: CS.text }}>{loc.name}</div>
                     {loc.market && <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{loc.market}</div>}
                   </div>
                   <div>
-                    <span className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ color: CS.green, background: CS.green + '15' }}>
-                      On-Net
+                    <span className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ color: statusColor, background: statusColor + '15' }}>
+                      {statusLabel}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-0.5">
-                    {entry.services.length > 0 ? entry.services.map((svc, j) => (
-                      <span key={j} className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: CS.surface, color: CS.cyan }}>
-                        {svc.product}{svc.bandwidth ? ` · ${svc.bandwidth}` : ''}
-                      </span>
-                    )) : (loc.mrr > 0 ? (
-                      <span className="font-mono text-[9px]" style={{ color: CS.cyan }}>Active billing</span>
-                    ) : (
-                      <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>—</span>
-                    ))}
+                  <div className="text-right font-mono text-[10px]" style={{ color: addressable > 0 ? CS.textMuted : CS.textFaint }}>
+                    {addressable > 0 ? fmt(addressable) : '—'}
                   </div>
-                  <div className="text-right font-mono text-[10px] font-semibold" style={{ color: CS.cyan }}>
-                    {(entry.totalMrr || loc.mrr) > 0 ? fmt(entry.totalMrr || loc.mrr) : '—'}
+                  <div className="text-right font-mono text-[10px] font-semibold" style={{ color: currentMrr > 0 ? CS.cyan : CS.textFaint }}>
+                    {currentMrr > 0 ? fmt(currentMrr) : '—'}
                   </div>
-                  <div className="flex flex-wrap gap-0.5">
-                    {whitespaceProducts.slice(0, 2).map(g => (
-                      <span key={g.product} className="font-mono text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ color: CS.purple, background: CS.purple + '12' }}>
-                        + {g.product}
-                      </span>
-                    ))}
+                  <div className="text-right font-mono text-[10px] font-semibold" style={{ color: gap > 0 ? CS.purple : CS.textFaint }}>
+                    {gap > 0 ? fmt(gap) : '—'}
                   </div>
                 </div>
               )
             })}
-
-            {/* Near-net locations */}
-            {nearNetLocs.length > 0 && nearNetLocs.map((loc, i) => {
-              const key = (loc.name || '').toLowerCase()
-              const entry = locServiceMap[key] || { services: [], totalMrr: 0 }
-              return (
-                <div key={`near-${i}`} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 80px 1fr 80px 1fr' }}>
-                  <div>
-                    <div className="text-[11px] font-semibold truncate" style={{ color: CS.text }}>{loc.name}</div>
-                    {loc.market && <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{loc.market}</div>}
-                  </div>
-                  <div>
-                    <span className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ color: CS.amber, background: CS.amber + '15' }}>
-                      Near-Net
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-0.5">
-                    {entry.services.length > 0 ? entry.services.map((svc, j) => (
-                      <span key={j} className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: CS.surface, color: CS.cyan }}>
-                        {svc.product}
-                      </span>
-                    )) : (
-                      <span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>—</span>
-                    )}
-                  </div>
-                  <div className="text-right font-mono text-[10px] font-semibold" style={{ color: entry.totalMrr > 0 ? CS.cyan : CS.textFaint }}>
-                    {(entry.totalMrr || loc.mrr) > 0 ? fmt(entry.totalMrr || loc.mrr) : '—'}
-                  </div>
-                  <div className="flex flex-wrap gap-0.5">
-                    {whitespaceProducts.slice(0, 2).map(g => (
-                      <span key={g.product} className="font-mono text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ color: CS.purple, background: CS.purple + '12' }}>
-                        + {g.product}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Off-net locations (collapsed if many) */}
-            {offNetLocs.length > 0 && offNetLocs.slice(0, 3).map((loc, i) => (
-              <div key={`off-${i}`} className="grid gap-2 px-3 py-2 border-t items-center" style={{ borderColor: CS.border, gridTemplateColumns: '2fr 80px 1fr 80px 1fr', opacity: 0.6 }}>
-                <div>
-                  <div className="text-[11px] truncate" style={{ color: CS.textMuted }}>{loc.name}</div>
-                  {loc.market && <div className="font-mono text-[9px]" style={{ color: CS.textFaint }}>{loc.market}</div>}
-                </div>
-                <div>
-                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ color: CS.textFaint, background: CS.surface }}>
-                    Off-Net
-                  </span>
-                </div>
-                <div><span className="font-mono text-[9px]" style={{ color: CS.textFaint }}>—</span></div>
-                <div className="text-right font-mono text-[10px]" style={{ color: CS.textFaint }}>—</div>
-                <div className="flex flex-wrap gap-0.5">
-                  {whitespaceProducts.slice(0, 1).map(g => (
-                    <span key={g.product} className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ color: CS.purple + '80', background: CS.purple + '08' }}>
-                      + {g.product}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {offNetLocs.length > 3 && (
+            {offNetLocs.length > 5 && (
               <div className="px-3 py-1.5 border-t font-mono text-[9px]" style={{ borderColor: CS.border, color: CS.textFaint }}>
-                +{offNetLocs.length - 3} more off-net locations
+                +{offNetLocs.length - 5} more off-net locations
               </div>
             )}
 
@@ -1065,6 +1101,14 @@ function ExpandedTargetDetail({ target: t, tmr, deals, nrr, health, daysSilent, 
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Customer Location Map */}
+          {locations.length > 0 && (
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-wider mb-1" style={{ color: CS.textFaint }}>Location Footprint</div>
+              <CustomerLocationMap locations={locations} />
             </div>
           )}
 
@@ -1177,7 +1221,8 @@ function MarketView({
                   />
                   <YAxis tick={{ fill: CS.textFaint, fontSize: 10, fontFamily: FONT_MONO }} tickFormatter={v => fmtK(v)} />
                   <Tooltip
-                    contentStyle={{ background: CS.card, border: `1px solid ${CS.border}`, borderRadius: 8, fontSize: 11, fontFamily: FONT_MONO, color: CS.text }}
+                    cursor={{ fill: 'rgba(255,255,255,0.06)' }}
+                    contentStyle={{ background: CS.bg, border: `1px solid ${CS.border}`, borderRadius: 8, fontSize: 11, fontFamily: FONT_MONO, color: CS.text }}
                     formatter={(v) => [`$${v.toLocaleString()}`, '']}
                   />
                   <Bar dataKey="closed" fill={CS.cyan} radius={[4, 4, 0, 0]} barSize={chartExpanded ? 16 : 28}

@@ -62,6 +62,8 @@ const XLSX_SHEET_MAP = {
   'engagement_2026': 'engagements_2026',
   'hiearchy': 'hierarchy',
   'hierarchy': 'hierarchy',
+  'in': 'locations',              // locations tab (On Zayo Network Status, Market, etc.)
+  'locations': 'locations',
 }
 
 function xlsxSheetToTabType(sheetName) {
@@ -76,19 +78,31 @@ function xlsxSheetToTabType(sheetName) {
   if (key.includes('engagement') && key.includes('2026')) return 'engagements_2026'
   if (key.includes('engagement')) return 'engagements'
   if (key.includes('hierarch')) return 'hierarchy'
+  if (key.includes('location') || key === 'in') return 'locations'
   return null
 }
+
+// Sheets to skip during XLSX parsing — too large for browser, use pre-built JSON instead
+const XLSX_SKIP_SHEETS = new Set(['locations'])
 
 async function parseXlsxFile(url) {
   const res = await fetch(url)
   if (!res.ok) return {}
   const buf = await res.arrayBuffer()
-  const wb = XLSX.read(buf, { type: 'array' })
+  // First pass: read only sheet names to determine which to parse
+  const wbMeta = XLSX.read(buf, { type: 'array', bookSheets: true })
+  const sheetsToLoad = wbMeta.SheetNames.filter(name => {
+    const tabType = xlsxSheetToTabType(name)
+    return tabType && !XLSX_SKIP_SHEETS.has(tabType)
+  })
+  // Second pass: parse only the sheets we need
+  const wb = XLSX.read(buf, { type: 'array', sheets: sheetsToLoad })
   const result = {}
-  for (const sheetName of wb.SheetNames) {
+  for (const sheetName of sheetsToLoad) {
     const tabType = xlsxSheetToTabType(sheetName)
     if (!tabType) continue
     const ws = wb.Sheets[sheetName]
+    if (!ws) continue
     // Convert sheet to CSV text, then use existing parseCSV for field normalization
     const csvText = XLSX.utils.sheet_to_csv(ws)
     const records = parseCSV(csvText)
@@ -462,6 +476,7 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
             lng: l.lo || null,
             status: l.s || 'off-net',
             mrr: l.m || 0,
+            addressable_spend: l.as || 0,
             classification: l.c || '',
             feet_from_network: l.ft || 0,
             market: l.mk || '',

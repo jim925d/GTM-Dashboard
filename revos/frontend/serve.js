@@ -83,15 +83,16 @@ const server = http.createServer(async (req, res) => {
   if (p === '/local-data/manifest') {
     try {
       if (!fs.existsSync(dataDir)) return jsonRes(res, { files: [], dataDir })
-      let csvFiles = fs.readdirSync(dataDir).filter((f) => f.endsWith('.csv'))
+      let dataFiles = fs.readdirSync(dataDir).filter((f) => f.endsWith('.csv') || f.endsWith('.xlsx') || f.endsWith('.xls'))
       const jsonExcludes = ['locations', 'locations_geocoded', 'historical', 'engagements', 'engagement_2026']
-      csvFiles = csvFiles.filter((f) => !jsonExcludes.includes(f.replace('.csv', '').toLowerCase()))
-      const geocoded = csvFiles.filter((f) => f.includes('_geocoded'))
+      dataFiles = dataFiles.filter((f) => !jsonExcludes.includes(f.replace(/\.(csv|xlsx|xls)$/, '').toLowerCase()))
+      const geocoded = dataFiles.filter((f) => f.includes('_geocoded'))
       const originals = geocoded.map((f) => f.replace('_geocoded', ''))
-      csvFiles = csvFiles.filter((f) => !originals.includes(f) || !geocoded.includes(f.replace('.csv', '_geocoded.csv')))
-      const files = csvFiles.map((f) => {
+      dataFiles = dataFiles.filter((f) => !originals.includes(f) || !geocoded.includes(f.replace('.csv', '_geocoded.csv')))
+      const files = dataFiles.map((f) => {
         const stat = fs.statSync(path.join(dataDir, f))
-        return { name: f.replace('_geocoded', ''), modified: stat.mtimeMs, size: stat.size, realName: f }
+        const type = f.endsWith('.xlsx') || f.endsWith('.xls') ? 'xlsx' : 'csv'
+        return { name: f.replace('_geocoded', ''), modified: stat.mtimeMs, size: stat.size, realName: f, type }
       })
       return jsonRes(res, { files, dataDir })
     } catch (err) { return jsonRes(res, { files: [], error: err.message }) }
@@ -106,15 +107,18 @@ const server = http.createServer(async (req, res) => {
   // --- /local-data/file?name=xxx.csv or xxx.json ---
   if (p === '/local-data/file') {
     const fileName = url.searchParams.get('name')
-    if (!fileName || fileName.includes('..') || !(fileName.endsWith('.csv') || fileName.endsWith('.json'))) {
+    const validExt = fileName && !fileName.includes('..') && (fileName.endsWith('.csv') || fileName.endsWith('.json') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls'))
+    if (!validExt) {
       res.writeHead(400); res.end('Invalid file name'); return
     }
     const geocodedPath = fileName.endsWith('.csv') ? path.join(dataDir, fileName.replace('.csv', '_geocoded.csv')) : null
     const filePath = (geocodedPath && fs.existsSync(geocodedPath)) ? geocodedPath : path.join(dataDir, fileName)
     if (!fs.existsSync(filePath)) { res.writeHead(404); res.end('File not found'); return }
-    const ct = fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
+    const isXlsx = fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+    const ct = isXlsx ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : fileName.endsWith('.json') ? 'application/json' : 'text/csv; charset=utf-8'
     res.writeHead(200, { 'Content-Type': ct, 'Access-Control-Allow-Origin': '*' })
-    res.end(fs.readFileSync(filePath, 'utf-8'))
+    res.end(isXlsx ? fs.readFileSync(filePath) : fs.readFileSync(filePath, 'utf-8'))
     return
   }
 
