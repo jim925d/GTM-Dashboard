@@ -13,8 +13,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from 'recharts'
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import { T, FONT_MONO, FONT_SANS } from '../lib/constants'
 import { chartTheme, $k } from '../components/shared/ChartTheme'
 import {
@@ -343,15 +347,17 @@ export default function GTMPremier({ accounts = [] }) {
       let lng = null
 
       if (locs.length > 0) {
-        // Use the first location's market or derive from address
+        // Use the first location's market or city — never fall back to street address
         const loc = locs[0]
-        city = String(loc.market || loc.city || loc.name || 'Unknown')
+        city = String(loc.market || loc.city || loc.state || 'Unknown')
         lat = loc.lat
         lng = loc.lng
         state = loc.state || ''
+        // If city looks like a street address (starts with a number), use state instead
+        if (/^\d/.test(city) && state) city = state
       }
 
-      // Extract key from market/city
+      // Extract key from market/city — strip state suffix if present (e.g. "Denver, CO" → "Denver")
       const key = city.split(',')[0].trim()
 
       if (!marketMap[key]) {
@@ -1197,7 +1203,7 @@ function MarketView({
 
       {mapMode === 'map' ? (
         <MapView
-          markets={markets}
+          markets={markets.slice(0, 5)}
           onMarketClick={(city) => {
             setMapMode('list')
             setChartFilter(city)
@@ -1475,70 +1481,119 @@ function MarketView({
   )
 }
 
-// ─── SVG Map View ────────────────────────────────────────────────────────────
+// ─── Leaflet Clustered Map View ──────────────────────────────────────────────
+
+function makeMarketIcon(m, maxDeals) {
+  const size = Math.max(28, Math.min(52, 20 + (m.closedDeals / maxDeals) * 32))
+  const color = m.hasOutage ? CS.red : m.avgModifier > 1.05 ? CS.green : CS.cyan
+  const mrrLabel = m.closedMRR >= 1000 ? `$${Math.round(m.closedMRR / 1000)}K` : `$${Math.round(m.closedMRR)}`
+
+  return L.divIcon({
+    html: `<div style="
+      width:${size}px;height:${size}px;
+      background:radial-gradient(circle, ${color}35 0%, ${color}10 60%, transparent 100%);
+      border:2px solid ${color}80;border-radius:50%;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      color:${CS.text};font-family:${FONT_MONO};cursor:pointer;
+    ">
+      <span style="font-size:${size > 36 ? 13 : 10}px;font-weight:700;line-height:1">${m.closedDeals}</span>
+      <span style="font-size:7px;color:${CS.textFaint};line-height:1;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${size + 10}px;text-align:center">${m.city}</span>
+    </div>`,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
 
 function MapView({ markets, onMarketClick }) {
   const maxDeals = Math.max(...markets.map(m => m.closedDeals || 1), 1)
+  const validMarkets = markets.filter(m => m.lat && m.lng)
+
+  // Lookup for cluster aggregation — keyed by "lat,lng"
+  const marketLookup = useMemo(() => {
+    const lookup = {}
+    for (const m of validMarkets) {
+      lookup[`${m.lat},${m.lng}`] = m
+    }
+    return lookup
+  }, [validMarkets])
+
+  const clusterIcon = useCallback((cluster) => {
+    const childLatLngs = cluster.getAllChildMarkers().map(mk => mk.getLatLng())
+    let totalDeals = 0, totalMRR = 0, hasOutage = false
+    for (const ll of childLatLngs) {
+      const m = marketLookup[`${ll.lat},${ll.lng}`]
+      if (m) {
+        totalDeals += m.closedDeals || 0
+        totalMRR += m.closedMRR || 0
+        if (m.hasOutage) hasOutage = true
+      }
+    }
+    const count = childLatLngs.length
+    const size = Math.min(70, Math.max(40, 30 + count * 2))
+    const color = hasOutage ? CS.red : CS.cyan
+    const mrrLabel = totalMRR >= 1000 ? `$${Math.round(totalMRR / 1000)}K` : `$${Math.round(totalMRR)}`
+
+    return L.divIcon({
+      html: `<div style="
+        width:${size}px;height:${size}px;
+        background:radial-gradient(circle, ${color}30 0%, ${color}08 70%, transparent 100%);
+        border:2px solid ${color}50;border-radius:50%;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        color:${CS.text};font-family:${FONT_MONO};cursor:pointer;
+      ">
+        <span style="font-size:14px;font-weight:700;line-height:1">${totalDeals}</span>
+        <span style="font-size:8px;color:${CS.textFaint};line-height:1;margin-top:2px">${count} mkts</span>
+        <span style="font-size:8px;color:${color};line-height:1;margin-top:1px">${mrrLabel}</span>
+      </div>`,
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    })
+  }, [marketLookup])
 
   return (
     <div className="rounded-xl border overflow-hidden" style={{ background: CS.card, borderColor: CS.border }}>
-      <svg viewBox="0 0 800 520" className="w-full" style={{ background: CS.card }}>
-        {/* US outline (simplified) */}
-        <rect x="40" y="20" width="720" height="440" rx="4" fill="none" stroke={CS.border} strokeWidth="0.5" opacity="0.3" />
-
-        {/* Market bubbles */}
-        {markets.filter(m => m.lat && m.lng).map(m => {
-          const [x, y] = proj(m.lat, m.lng)
-          const r = Math.max(12, Math.min(32, (m.closedDeals / maxDeals) * 32))
-          const glowColor = m.hasOutage ? CS.red : m.avgModifier > 1.05 ? CS.green : CS.cyan
-          const circumference = 2 * Math.PI * (r + 4)
-          const arcs = donutArcs(m.products, r + 4)
-
-          return (
-            <g key={m.city} onClick={() => onMarketClick(m.city)} className="cursor-pointer" style={{ transition: 'opacity 0.15s' }}>
-              {/* Glow */}
-              <circle cx={x} cy={y} r={r + 8} fill={glowColor} opacity={0.08} />
-
-              {/* Donut ring */}
-              {arcs.map((arc, i) => (
-                <circle
-                  key={i}
-                  cx={x}
-                  cy={y}
-                  r={r + 4}
-                  fill="none"
-                  stroke={arc.color}
-                  strokeWidth={4}
-                  strokeDasharray={`${arc.dashLength} ${circumference - arc.dashLength}`}
-                  strokeDashoffset={arc.dashOffset}
-                  transform={`rotate(-90 ${x} ${y})`}
-                />
-              ))}
-
-              {/* Center bg */}
-              <circle cx={x} cy={y} r={r - 2} fill={CS.card} />
-
-              {/* Deal count */}
-              <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" fill={CS.text} fontSize={r > 18 ? 11 : 9} fontFamily={FONT_MONO} fontWeight="600">
-                {m.closedDeals}
-              </text>
-
-              {/* Outage indicator */}
-              {m.hasOutage && (
-                <text x={x + r} y={y - r} textAnchor="middle" fontSize="10" fill={CS.red}>⚠</text>
-              )}
-
-              {/* Label */}
-              <text x={x} y={y + r + 14} textAnchor="middle" fill={CS.textFaint} fontSize="8" fontFamily={FONT_MONO}>
-                {m.city}
-              </text>
-              <text x={x} y={y + r + 24} textAnchor="middle" fill={CS.textFaint} fontSize="7" fontFamily={FONT_MONO} opacity="0.6">
-                {fmt(m.closedMRR)}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
+      <MapContainer
+        center={[39.5, -98.35]}
+        zoom={4}
+        style={{ height: 520, width: '100%', background: CS.bg }}
+        zoomControl={true}
+        attributionControl={false}
+        maxZoom={18}
+        minZoom={3}
+      >
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+        <MarkerClusterGroup
+          chunkedLoading
+          maxClusterRadius={80}
+          spiderfyOnMaxZoom={true}
+          showCoverageOnHover={false}
+          iconCreateFunction={clusterIcon}
+          animate={true}
+        >
+          {validMarkets.map(m => (
+            <Marker
+              key={m.city}
+              position={[m.lat, m.lng]}
+              icon={makeMarketIcon(m, maxDeals)}
+              eventHandlers={{
+                click: () => onMarketClick(m.city),
+              }}
+            >
+              <Popup>
+                <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#111', minWidth: 140 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{m.city}</div>
+                  <div>{m.closedDeals} deals · {fmt(m.closedMRR)}</div>
+                  <div style={{ color: '#666', fontSize: 10, marginTop: 2 }}>{m.totalAccounts} accounts · {m.onNetAccounts || 0} on-net</div>
+                  {m.hasOutage && <div style={{ color: '#ef4444', marginTop: 2 }}>⚠ Active outage</div>}
+                  <div style={{ color: '#666', fontSize: 9, marginTop: 4 }}>Click to drill in</div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
+      </MapContainer>
 
       {/* Legend */}
       <div className="flex items-center gap-4 px-4 py-2.5 border-t" style={{ borderColor: CS.border }}>
@@ -1549,7 +1604,7 @@ function MapView({ markets, onMarketClick }) {
           </div>
         ))}
         <span className="font-mono text-[9px] ml-auto" style={{ color: CS.textFaint }}>
-          Bubble size = deals · Ring segments = product mix · Click to drill in
+          Zoom in to see individual markets · Click a market to drill in
         </span>
       </div>
     </div>
