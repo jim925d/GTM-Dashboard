@@ -117,7 +117,7 @@ async function fetchIODA() {
   // 1) Country-level events (US, 30d)
   try {
     const res = await fetch(
-      `${IODA_BASE}/outages/events/country/US?from=${thirtyDaysAgo}&until=${now}&format=codf`
+      `${IODA_BASE}/outages/events?from=${thirtyDaysAgo}&until=${now}&entityType=country&entityCode=US&format=codf`
     )
     if (res.ok) {
       const data = await res.json()
@@ -145,7 +145,7 @@ async function fetchIODA() {
   // 2) ASN-level alerts for major US ISPs (24h)
   try {
     const res = await fetch(
-      `${IODA_BASE}/outages/alerts/asn?from=${oneDayAgo}&until=${now}&relatedTo=country/US`
+      `${IODA_BASE}/outages/alerts?from=${oneDayAgo}&until=${now}&entityType=asn&relatedTo=country/US`
     )
     if (res.ok) {
       const data = await res.json()
@@ -174,7 +174,7 @@ async function fetchIODA() {
   // 3) Region-level events (state granularity, 30d)
   try {
     const res = await fetch(
-      `${IODA_BASE}/outages/events/region?from=${thirtyDaysAgo}&until=${now}&relatedTo=country/US&format=codf`
+      `${IODA_BASE}/outages/events?from=${thirtyDaysAgo}&until=${now}&entityType=region&relatedTo=country/US&format=codf`
     )
     if (res.ok) {
       const data = await res.json()

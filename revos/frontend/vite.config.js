@@ -134,6 +134,18 @@ function localDataPlugin() {
         res.end(fs.readFileSync(jsonPath, 'utf-8'))
       })
 
+      // GET /local-data/outages.json — pre-scraped outage data
+      server.middlewares.use('/local-data/outages.json', (req, res) => {
+        res.setHeader('Content-Type', 'application/json')
+        res.setHeader('Access-Control-Allow-Origin', '*')
+        const jsonPath = path.join(dataDir, 'outages.json')
+        if (!fs.existsSync(jsonPath)) {
+          res.end('{}')
+          return
+        }
+        res.end(fs.readFileSync(jsonPath, 'utf-8'))
+      })
+
       // GET/POST /local-data/file?name=xxx — read or write files in data dir
       server.middlewares.use('/local-data/file', (req, res) => {
         const url = new URL(req.url, 'http://localhost')

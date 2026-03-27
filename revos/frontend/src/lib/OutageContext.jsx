@@ -44,18 +44,36 @@ export function OutageProvider({ children }) {
     cloudflareCount: 0, iodaCount: 0, totalCount: 0, errors: [],
   })
 
-  // ── Hydrate from localStorage on mount ──
+  // ── Hydrate: try pre-scraped outages.json first, then localStorage, then demo ──
   useEffect(() => {
-    const cached = loadFromStorage()
-    if (cached?.outages?.length) {
-      setOutages(cached.outages)
-      setLastFetched(cached.lastFetched)
-      setMeta(cached.meta || { cloudflareCount: 0, iodaCount: 0, totalCount: 0, errors: [] })
-    } else {
-      // Demo data so the page always has something
-      setOutages(DEMO_OUTAGES)
-      setLastFetched(null)
+    async function hydrate() {
+      // Try pre-scraped file from daily cron
+      try {
+        const res = await window.fetch('/local-data/outages.json')
+        if (res.ok) {
+          const snapshot = await res.json()
+          if (snapshot?.outages?.length) {
+            setOutages(snapshot.outages)
+            setLastFetched(snapshot.lastFetched)
+            setMeta(snapshot.meta || { cloudflareCount: 0, iodaCount: 0, totalCount: 0, errors: [] })
+            saveToStorage(snapshot)
+            return
+          }
+        }
+      } catch { /* file not available, fall through */ }
+
+      // Fall back to localStorage cache
+      const cached = loadFromStorage()
+      if (cached?.outages?.length) {
+        setOutages(cached.outages)
+        setLastFetched(cached.lastFetched)
+        setMeta(cached.meta || { cloudflareCount: 0, iodaCount: 0, totalCount: 0, errors: [] })
+      } else {
+        setOutages(DEMO_OUTAGES)
+        setLastFetched(null)
+      }
     }
+    hydrate()
   }, [])
 
   // ── Refresh: fetch from APIs, normalize, persist ──

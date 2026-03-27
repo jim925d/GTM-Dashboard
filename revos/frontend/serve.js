@@ -105,6 +105,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/local-data/historical.json') return serveJSON(res, 'historical.json')
   if (p === '/local-data/engagements.json') return serveJSON(res, 'engagements.json')
   if (p === '/local-data/engagements_2026.json') return serveJSON(res, 'engagements_2026.json')
+  if (p === '/local-data/outages.json') return serveJSON(res, 'outages.json')
 
   // --- /local-data/file?name=xxx.csv or xxx.json ---
   if (p === '/local-data/file') {

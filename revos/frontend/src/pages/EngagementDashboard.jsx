@@ -570,7 +570,7 @@ function CoverageHeatmap({ accounts, engagements, pipeline, months, onAccountCli
 
   const pipeAcctMonths = useMemo(() => {
     const set = new Set();
-    pipeline.forEach((p) => { if (p.created_date) set.add(`${p.customer_account}|${p.created_date.slice(0, 7)}`); });
+    pipeline.forEach((p) => { if (p.close_date) set.add(`${p.customer_account}|${p.close_date.slice(0, 7)}`); });
     return set;
   }, [pipeline]);
 
@@ -795,12 +795,14 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
   // ─── Day list (for charts) ─────────────────────────────────
   const allDays = useMemo(() => {
     const engDays = data.engagements.map((e) => e.date).filter((d) => d && d.length === 10);
-    const pipeDays = data.pipeline.map((p) => p.created_date).filter((d) => d && d.length === 10);
-    return [...new Set([...engDays, ...pipeDays])].sort();
+    const pipeDays = data.pipeline.flatMap((p) => [p.created_date, p.close_date]).filter((d) => d && d.length === 10);
+    const quoteDays = data.quotes.map((q) => q.quote_date).filter((d) => d && d.length === 10);
+    return [...new Set([...engDays, ...pipeDays, ...quoteDays])].sort();
   }, [data]);
 
-  // Derive "latest" from data for time range anchoring
-  const latestDay = allDays.length ? allDays[allDays.length - 1] : "2026-03-31";
+  // Anchor time ranges to today so "This Month" always means the current calendar month
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const latestDay = allDays.length ? (allDays[allDays.length - 1] > todayStr ? allDays[allDays.length - 1] : todayStr) : todayStr;
   const latestMonth = latestDay.slice(0, 7);
   const [latestYear] = latestMonth.split("-");
   const latestQuarterStart = (() => {
@@ -846,8 +848,10 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
     return dateStr >= "2025-01-01";
   }, [timeRange, latestMonth, latestDay, latestYear, latestQuarterStart]);
 
-  // ─── Positive pipeline helper (amount > 0, 2026 only) ──────
-  const isPosP = (p) => (p.amount || 0) > 0 && (p.created_date || "").startsWith("2026");
+  // ─── Pipeline helpers ──────────────────────────────────────
+  // Pipeline MRR = closed won + active pipeline, filtered by close_date in range
+  const isPipelineDeal = (p) => (p.amount || 0) > 0;
+  const pipeInRange = useCallback((p) => inRange(p.close_date), [inRange]);
 
   // ─── Weekly chart data builder ─────────────────────────────
   const buildWeeklyData = useCallback((filterFn) => {
@@ -861,8 +865,8 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
       (engByWeek[w] = engByWeek[w] || []).push(e);
     });
     data.pipeline.forEach((p) => {
-      if (!p.created_date || p.created_date.length < 10 || !isPosP(p) || !filterFn(p)) return;
-      const w = getWeekStart(p.created_date);
+      if (!p.close_date || p.close_date.length < 10 || !isPipelineDeal(p) || !filterFn(p)) return;
+      const w = getWeekStart(p.close_date);
       (pipeByWeek[w] = pipeByWeek[w] || []).push(p);
     });
     data.quotes.forEach((q) => {
@@ -933,17 +937,18 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
   function RepView() {
     const repData = buildWeeklyData((e) => e.rep === activeRep);
     const repAccounts = data.accounts.filter((a) => a.rep === activeRep);
-    const repPipeline = data.pipeline.filter((p) => p.rep === activeRep && inRange(p.created_date) && isPosP(p));
+    const repPipeline = data.pipeline.filter((p) => p.rep === activeRep && pipeInRange(p) && isPipelineDeal(p));
     const repQuotes = data.quotes.filter((q) => q.rep === activeRep && inRange(q.quote_date));
     const repEngs = data.engagements.filter((e) => e.rep === activeRep && inRange(e.date));
     const totalEng = repEngs.length;
     const totalPipe = repPipeline.reduce((s, p) => s + (p.amount || 0), 0);
     const uniqueAcctsEngaged = new Set(repEngs.map((e) => e.customer_account)).size;
-    const pipePerEng = totalEng ? Math.round(totalPipe / totalEng) : 0;
+    const closedMRR = data.pipeline.filter((p) => p.rep === activeRep && inRange(p.close_date) && (p.stage || '').toLowerCase().includes('closed won') && (p.amount || 0) > 0).reduce((s, p) => s + (p.amount || 0), 0);
+    const mrrPerEngaged = uniqueAcctsEngaged ? Math.round(closedMRR / uniqueAcctsEngaged) : 0;
 
     const acctBreakdown = repAccounts.map((a) => {
       const engs = data.engagements.filter((e) => e.customer_account === a.customer_account && inRange(e.date));
-      const pipe = data.pipeline.filter((p) => p.customer_account === a.customer_account && inRange(p.created_date) && isPosP(p));
+      const pipe = data.pipeline.filter((p) => p.customer_account === a.customer_account && pipeInRange(p) && isPipelineDeal(p));
       const monthsEngaged = new Set(engs.map((e) => e.date.slice(0, 7))).size;
       return {
         name: a.customer_account, mega_vertical: a.mega_vertical,
@@ -964,7 +969,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
           <Stat label="Pipeline MRR (2026)" value={fmt(totalPipe)} sub={`${repPipeline.length} opportunities`} color={COLORS.pipeline} icon="◈" />
           <Stat label="Quotes Created" value={repQuotes.length} color={COLORS.quote} icon="☰" />
           <Stat label="Unique Accounts Engaged" value={uniqueAcctsEngaged} sub={`of ${repAccounts.length} assigned`} color={COLORS.meeting} icon="◉" />
-          <Stat label="MRR / Engagement" value={fmt(pipePerEng)} color={COLORS.success} icon="△" />
+          <Stat label="MRR / Engagement" value={fmt(mrrPerEngaged)} color={COLORS.success} icon="△" />
         </div>
 
         <SalesFunnel engagements={repEngs} pipeline={repPipeline} quotes={repQuotes} accounts={repAccounts} />
@@ -1028,20 +1033,23 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
   function TeamView() {
     const repStats = reps.map((rep) => {
       const engs = data.engagements.filter((e) => e.rep === rep && inRange(e.date));
-      const pipe = data.pipeline.filter((p) => p.rep === rep && inRange(p.created_date) && isPosP(p));
+      const pipe = data.pipeline.filter((p) => p.rep === rep && pipeInRange(p) && isPipelineDeal(p));
       const accts = data.accounts.filter((a) => a.rep === rep);
       const rQuotes = data.quotes.filter((q) => q.rep === rep && inRange(q.quote_date));
       const uniqueEngaged = new Set(engs.map((e) => e.customer_account)).size;
-      return { name: rep.split(" ")[0], fullName: rep, emails: engs.filter((e) => e.type === "Email").length, calls: engs.filter((e) => e.type === "Call").length, meetings: engs.filter((e) => e.type === "Meeting").length, total: engs.length, pipeline: pipe.reduce((s, p) => s + (p.amount || 0), 0), opps: pipe.length, quotes: rQuotes.length, accounts: accts.length, uniqueEngaged, coverage: accts.length ? Math.round((uniqueEngaged / accts.length) * 100) : 0, pipePerEng: engs.length ? Math.round(pipe.reduce((s, p) => s + (p.amount || 0), 0) / engs.length) : 0 };
+      const closedMRR = data.pipeline.filter((p) => p.rep === rep && inRange(p.close_date) && (p.stage || '').toLowerCase().includes('closed won') && (p.amount || 0) > 0).reduce((s, p) => s + (p.amount || 0), 0);
+      return { name: rep.split(" ")[0], fullName: rep, emails: engs.filter((e) => e.type === "Email").length, calls: engs.filter((e) => e.type === "Call").length, meetings: engs.filter((e) => e.type === "Meeting").length, total: engs.length, pipeline: pipe.reduce((s, p) => s + (p.amount || 0), 0), opps: pipe.length, quotes: rQuotes.length, accounts: accts.length, uniqueEngaged, coverage: accts.length ? Math.round((uniqueEngaged / accts.length) * 100) : 0, closedMRR, mrrPerEngaged: uniqueEngaged ? Math.round(closedMRR / uniqueEngaged) : 0 };
     });
     const teamWeekly = buildWeeklyData(() => true);
     const rangedEngs = data.engagements.filter((e) => inRange(e.date));
-    const rangedPipe = data.pipeline.filter((p) => inRange(p.created_date) && isPosP(p));
+    const rangedPipe = data.pipeline.filter((p) => pipeInRange(p) && isPipelineDeal(p));
     const rangedQuotes = data.quotes.filter((q) => inRange(q.quote_date));
     const totalEng = rangedEngs.length;
     const totalPipe = rangedPipe.reduce((s, p) => s + (p.amount || 0), 0);
     const totalQuotes = rangedQuotes.length;
     const totalUniqueEngaged = new Set(rangedEngs.map((e) => e.customer_account)).size;
+    const teamClosedMRR = data.pipeline.filter((p) => inRange(p.close_date) && (p.stage || '').toLowerCase().includes('closed won') && (p.amount || 0) > 0).reduce((s, p) => s + (p.amount || 0), 0);
+    const teamMRRperEngaged = totalUniqueEngaged ? Math.round(teamClosedMRR / totalUniqueEngaged) : 0;
 
     return (
       <div className="flex flex-col gap-5">
@@ -1050,7 +1058,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
           <Stat label="Pipeline MRR (2026)" value={fmt(totalPipe)} sub={`${rangedPipe.length} opportunities`} color={COLORS.pipeline} icon="◈" />
           <Stat label="Quotes Created" value={totalQuotes} color={COLORS.quote} icon="☰" />
           <Stat label="Unique Accounts Engaged" value={totalUniqueEngaged} sub={`of ${data.accounts.length} total`} color={COLORS.meeting} icon="◉" />
-          <Stat label="Avg MRR/Eng" value={fmt(totalEng ? Math.round(totalPipe / totalEng) : 0)} color={COLORS.success} icon="△" />
+          <Stat label="Closed MRR/Engaged" value={fmt(teamMRRperEngaged)} color={COLORS.success} icon="△" />
         </div>
 
         <SalesFunnel engagements={rangedEngs} pipeline={rangedPipe} quotes={rangedQuotes} accounts={data.accounts} />
@@ -1109,7 +1117,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
                 ))}
               </div>
               <div className="mt-2.5 text-[11px] text-revos-text-dim">
-                <span className="font-mono text-revos-green">{fmt(r.pipePerEng)}</span> pipeline/eng · <span className="font-mono text-revos-purple">{r.quotes}</span> quotes · {r.uniqueEngaged}/{r.accounts} accounts · {r.opps} opps
+                <span className="font-mono text-revos-green">{fmt(r.mrrPerEngaged)}</span> MRR/engaged · <span className="font-mono text-revos-purple">{r.quotes}</span> quotes · {r.uniqueEngaged}/{r.accounts} accounts · {r.opps} opps
               </div>
             </div>
           ))}
@@ -1123,7 +1131,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
     const acct = data.accounts.find((a) => a.customer_account === activeAccount);
     if (!acct) return <div className="text-revos-text-dim">Select an account</div>;
     const acctEngs = data.engagements.filter((e) => e.customer_account === activeAccount && inRange(e.date));
-    const acctPipe = data.pipeline.filter((p) => p.customer_account === activeAccount && inRange(p.created_date) && isPosP(p));
+    const acctPipe = data.pipeline.filter((p) => p.customer_account === activeAccount && pipeInRange(p) && isPipelineDeal(p));
     const acctQuotes = data.quotes.filter((q) => q.customer_account === activeAccount && inRange(q.quote_date));
     const acctWeekly = buildWeeklyData((e) => e.customer_account === activeAccount);
     const timeline = [...acctEngs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
@@ -1453,7 +1461,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
                 </div>
                 <div className="text-[11px] font-mono text-revos-text-dim leading-relaxed mt-1">
                   <span className="text-revos-text font-medium">Pipeline in range:</span>{" "}
-                  <span className="text-revos-text font-medium">{data.pipeline.filter((p) => inRange(p.created_date)).length}</span> of {data.pipeline.length} total
+                  <span className="text-revos-text font-medium">{data.pipeline.filter((p) => pipeInRange(p)).length}</span> of {data.pipeline.length} total
                 </div>
               </div>
             </div>

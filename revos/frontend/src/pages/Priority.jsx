@@ -20,7 +20,7 @@ function scoreAccount(acc, backtestResults) {
   let score = 0
   const reasons = []
 
-  // Active deals boost
+  // Active deals + pipeline MRR (up to 50)
   const dealCount = acc.active_deals?.length || 0
   const pipelineMrr = acc.pipeline_mrr || 0
   if (dealCount > 0) {
@@ -28,18 +28,16 @@ function scoreAccount(acc, backtestResults) {
     reasons.push(`${dealCount} deal${dealCount > 1 ? 's' : ''} \u00B7 ${$k(pipelineMrr)}/mo pipeline`)
   }
 
-  // Engagement urgency
+  // Engagement urgency — gone dark
   const eng = acc.engagement
   if (eng) {
     if (eng.lastDate) {
       const daysSince = Math.floor((Date.now() - new Date(eng.lastDate).getTime()) / 86400000)
-      if (daysSince > 180) { score += 35; reasons.push(`${daysSince}d dark \u2014 critical`) }
+      if (daysSince > 180) { score += 25; reasons.push(`${daysSince}d dark \u2014 critical`) }
       else if (daysSince > 90) { score += 25; reasons.push(`${daysSince}d since engagement`) }
-      else if (daysSince > 60) { score += 15; reasons.push(`${daysSince}d since engagement`) }
     } else {
       score += 20; reasons.push('No engagement date recorded')
     }
-    if (eng.contacts <= 1) { score += 8; reasons.push('Single-threaded') }
   } else {
     score += 15; reasons.push('No engagement data')
   }
@@ -53,20 +51,17 @@ function scoreAccount(acc, backtestResults) {
   // Win probability from predictions
   const bestProb = getBestWinProb(acc, backtestResults)
   if (bestProb > 0.6) { score += 15; reasons.push(`${pc(bestProb)} win probability`) }
-  else if (bestProb > 0.4) { score += 8; reasons.push(`${pc(bestProb)} win probability`) }
 
-  // On-net locations (opportunity)
+  // On-net locations
   const onNet = acc.locations?.filter(l => l.status === 'on-net').length || 0
   const total = acc.locations?.length || 0
-  if (onNet > 0) { score += 5; reasons.push(`${onNet}/${total} on-net`) }
+  if (onNet > 0) { score += 20; reasons.push(`${onNet}/${total} on-net`) }
 
-  // TMR weight — bigger accounts matter more
-  if (acc.tmr > 100000) score += 10
-  else if (acc.tmr > 50000) score += 5
+  // TMR weight
+  if (acc.tmr > 100000) { score += 5; reasons.push(`TMR ${$k(acc.tmr)}/mo`) }
 
   // Risk amplifier
-  if (acc.risk_score >= 50) score += 15
-  else if (acc.risk_score >= 30) score += 8
+  if (acc.risk_score >= 50) { score += 15; reasons.push('High risk score') }
 
   return { score: Math.min(score, 100), reasons }
 }
