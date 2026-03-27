@@ -232,9 +232,9 @@ const fmt$ = n => n >= 1e6 ? `$${(n/1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n/1e3).
 function classifyAccount(acct) {
   const mrr = acct.mrr || 0
   const tmr = acct.tmr || mrr
-  const pipelineMrr = acct.pipeline_mrr || 0
-  const pipelineCount = acct.pipeline_count || 0
-  const deals = acct.active_deals || []
+  const pipelineMrr = acct.pipeline_mrr || acct.active_pipeline_mrr || 0
+  const pipelineCount = acct.pipeline_count || acct.active_pipeline_count || 0
+  const deals = acct.active_deals || acct.funnel_deals || []
   const winRate = acct.win_rate ?? 0
   const daysSilent = acct.days_silent ?? 0
   const riskScore = acct.risk_score ?? 0
@@ -338,12 +338,13 @@ function classifyAccount(acct) {
     }
   }
 
-  // GROWTH — purchased in last 12 months AND has 2026 pipeline deals
+  // GROWTH — has TMR/MRR and active 2026 pipeline deals
   const pipeline2026 = deals.filter(d => {
-    const close = d.close || ''
-    if (!close) return false
-    const yr = new Date(close).getFullYear()
-    return yr === 2026
+    const close = d.close || d.close_date || ''
+    const created = d.created || d.created_date || ''
+    const closeYr = close ? new Date(close).getFullYear() : 0
+    const createdYr = created ? new Date(created).getFullYear() : 0
+    return closeYr === 2026 || createdYr === 2026
   })
   const has2026Pipeline = pipeline2026.length > 0
   const pipeline2026Mrr = pipeline2026.reduce((s, d) => s + (parseFloat(d.mrr) || 0), 0)

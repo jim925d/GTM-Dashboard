@@ -118,248 +118,158 @@ export default function App() {
 
   // ---------- Landing page (mode === null) ----------
   if (!hasNoData && mode === null) {
+    const cardBase = "px-5 py-4 bg-revos-card rounded-lg shadow-card cursor-pointer transition-all duration-200 border border-revos-border"
     return (
-      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col items-center justify-center p-10">
-        <div className="font-mono text-[11px] tracking-[0.15em] text-revos-cyan mb-2">
-          REVOS
+      <div className="h-screen bg-revos-bg text-revos-text font-sans flex flex-col" style={{ padding: '1in' }}>
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="font-mono text-[11px] tracking-[0.15em] text-revos-cyan mb-1">REVOS</div>
+          <h1 className="text-[24px] font-bold mb-0.5">Account Intelligence Platform</h1>
+          <p className="text-revos-text-mid text-[12px]">Select a dashboard to get started.</p>
         </div>
-        <h1 className="text-[28px] font-bold mb-1.5 text-center">
-          Account Intelligence Platform
-        </h1>
-        <p className="text-revos-text-mid text-[13px] mb-10 text-center max-w-[440px]">
-          Select a dashboard to get started.
-        </p>
 
-        {/* ── Sales Dashboards ── */}
-        <div className="max-w-[1200px] w-full mb-8">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-3 uppercase">
-            Sales Dashboards
+        {/* ── Daily Brief ── */}
+        <div className="mb-5">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-2 uppercase">
+            Daily Brief
           </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-            {/* GTM Premier */}
-            <div
-              onClick={() => setMode('premier')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-purple hover:shadow-[0_0_20px_rgba(167,139,250,0.12)]"
-            >
-              <div className="text-[32px] mb-3.5">◎</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                GTM Premier
+          <div className="grid grid-cols-3 gap-3">
+            <div onClick={() => setMode('premier')} className={`${cardBase} hover:border-revos-purple hover:shadow-[0_0_20px_rgba(167,139,250,0.12)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#9678;</span>
+                <span className="font-sans text-[14px] font-bold">GTM Premier</span>
               </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Target account intelligence, market analysis, priority scoring, and whitespace detection powered by the modeling layer.
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Market intelligence, priority scoring, and whitespace detection.
               </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-purple tracking-[0.04em]">
-                MARKET INTELLIGENCE
-              </div>
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-purple tracking-[0.04em]">MARKET INTELLIGENCE</div>
             </div>
 
-            {/* GTM Dashboard */}
-            <div
-              onClick={() => setMode('gtm')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-cyan hover:shadow-[0_0_20px_rgba(110,200,228,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">◉</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                GTM Dashboard
+            <div onClick={() => setMode('seller-actions')} className={`${cardBase} hover:border-revos-pink hover:shadow-[0_0_20px_rgba(232,136,176,0.08)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#127919;</span>
+                <span className="font-sans text-[14px] font-bold">Seller Actions</span>
               </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Account-level intelligence, pipeline analytics, risk signals, engagement tracking, and predictive modeling.
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Priority accounts, expansion signals & AI win probability.
               </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-cyan tracking-[0.04em]">
-                {accounts.length} ACCOUNTS LOADED
-              </div>
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-pink tracking-[0.04em]">DAILY ACTIONS</div>
             </div>
 
-            {/* Seller Dashboard */}
-            <div
-              onClick={() => setMode('seller')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-purple hover:shadow-[0_0_20px_rgba(176,144,224,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">👤</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Seller Dashboard
+            <div onClick={() => setMode('engagement')} className={`${cardBase} hover:border-revos-blue hover:shadow-[0_0_20px_rgba(112,168,224,0.08)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#128200;</span>
+                <span className="font-sans text-[14px] font-bold">Engagement Dashboard</span>
               </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Rep-level view with quota attainment, pipeline management, KPI scorecard, and bookings tracking.
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Rep engagement analytics, coverage heatmaps & pipeline correlation.
               </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-purple tracking-[0.04em]">
-                SELECT A SELLER TO VIEW
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-blue tracking-[0.04em]">ENGAGEMENT ANALYTICS</div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Account Management ── */}
+        <div className="mb-5">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-2 uppercase flex items-center gap-2">
+            Account Management
+            <span title="Under Construction" className="text-[14px] leading-none">&#128679;</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div onClick={() => setMode('gtm')} className={`${cardBase} hover:border-revos-cyan hover:shadow-[0_0_20px_rgba(110,200,228,0.08)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#9673;</span>
+                <span className="font-sans text-[14px] font-bold">GTM Dashboard</span>
               </div>
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Account intelligence, pipeline analytics, risk signals & predictions.
+              </div>
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-cyan tracking-[0.04em]">{accounts.length} ACCOUNTS LOADED</div>
             </div>
 
-            {/* Seller Actions */}
-            <div
-              onClick={() => setMode('seller-actions')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-pink hover:shadow-[0_0_20px_rgba(232,136,176,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">🎯</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Seller Actions
+            <div onClick={() => setMode('seller')} className={`${cardBase} hover:border-revos-purple hover:shadow-[0_0_20px_rgba(176,144,224,0.08)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#128100;</span>
+                <span className="font-sans text-[14px] font-bold">Seller Dashboard</span>
               </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Priority accounts, expansion signals & churn alerts with AI-powered win probability scoring.
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Quota attainment, pipeline management & bookings tracking.
               </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-pink tracking-[0.04em]">
-                3 ACTIONS TODAY
-              </div>
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-purple tracking-[0.04em]">SELECT A SELLER TO VIEW</div>
             </div>
 
-            {/* Forecast Dashboard */}
-            <div
-              onClick={() => setMode('forecast')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-green hover:shadow-[0_0_20px_rgba(110,216,160,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">📊</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Forecast Dashboard
+            <div onClick={() => setMode('forecast')} className={`${cardBase} hover:border-revos-green hover:shadow-[0_0_20px_rgba(110,216,160,0.08)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#128202;</span>
+                <span className="font-sans text-[14px] font-bold">Forecast Dashboard</span>
               </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Revenue forecasting, bookings composition, churn modeling, win rate trends, and rep productivity analytics.
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Revenue forecasting, churn modeling & win rate trends.
               </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-green tracking-[0.04em]">
-                STAGE-WEIGHTED MODELING
-              </div>
-            </div>
-
-            {/* Engagement Dashboard */}
-            <div
-              onClick={() => setMode('engagement')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-blue hover:shadow-[0_0_20px_rgba(112,168,224,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">📈</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Engagement Dashboard
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Rep-level engagement analytics, coverage heatmaps, pipeline correlation, and account deep dives with CSV import.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-blue tracking-[0.04em]">
-                ENGAGEMENT ANALYTICS
-              </div>
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-green tracking-[0.04em]">STAGE-WEIGHTED MODELING</div>
             </div>
           </div>
         </div>
 
         {/* ── Data Engines ── */}
-        <div className="max-w-[1200px] w-full">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-3 uppercase">
+        <div className="flex-1">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-2 uppercase">
             Data Engines
           </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
-            {/* Backtest Engine */}
-            <div
-              onClick={() => setMode('backtest')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-orange hover:shadow-[0_0_20px_rgba(232,160,80,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">🔬</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Backtest Engine
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Upload historical deal data, train a logistic model, and validate prediction accuracy with cross-validation.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-orange tracking-[0.04em]">
-                MODEL VALIDATION
-              </div>
+          <div className="grid grid-cols-6 gap-2.5">
+            <div onClick={() => setMode('backtest')} className={`${cardBase} hover:border-revos-orange hover:shadow-[0_0_20px_rgba(232,160,80,0.08)]`}>
+              <div className="text-[20px] mb-1.5">&#128300;</div>
+              <div className="font-sans text-[12px] font-bold mb-1">Backtest</div>
+              <div className="font-mono text-[9px] text-revos-text-dim leading-[1.4]">Model validation & cross-validation.</div>
+              <div className="mt-2 font-mono text-[8px] font-semibold text-revos-orange tracking-[0.04em]">VALIDATION</div>
             </div>
 
-            {/* Location Intelligence */}
-            <div
-              onClick={() => setMode('locations')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-purple hover:shadow-[0_0_20px_rgba(176,144,224,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">◈</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Location Intelligence
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Account location enrichment, multi-source discovery, Bayesian expansion signals, and geographic footprint mapping.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-purple tracking-[0.04em]">
-                ENRICHMENT ENGINE
-              </div>
+            <div onClick={() => setMode('locations')} className={`${cardBase} hover:border-revos-purple hover:shadow-[0_0_20px_rgba(176,144,224,0.08)]`}>
+              <div className="text-[20px] mb-1.5">&#9672;</div>
+              <div className="font-sans text-[12px] font-bold mb-1">Location Intel</div>
+              <div className="font-mono text-[9px] text-revos-text-dim leading-[1.4]">Location enrichment & footprint mapping.</div>
+              <div className="mt-2 font-mono text-[8px] font-semibold text-revos-purple tracking-[0.04em]">ENRICHMENT</div>
             </div>
 
-            {/* Prediction Engine */}
-            <div
-              onClick={() => setMode('engine')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-teal hover:shadow-[0_0_20px_rgba(80,208,184,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">⚡</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Prediction Engine
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                AI-powered deal scoring, strategy recommendations, pricing optimization, and model calibration.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-teal tracking-[0.04em]">
-                ML-POWERED SCORING
-              </div>
+            <div onClick={() => setMode('engine')} className={`${cardBase} hover:border-revos-teal hover:shadow-[0_0_20px_rgba(80,208,184,0.08)]`}>
+              <div className="text-[20px] mb-1.5">&#9889;</div>
+              <div className="font-sans text-[12px] font-bold mb-1">Prediction</div>
+              <div className="font-mono text-[9px] text-revos-text-dim leading-[1.4]">Deal scoring & model calibration.</div>
+              <div className="mt-2 font-mono text-[8px] font-semibold text-revos-teal tracking-[0.04em]">ML SCORING</div>
             </div>
 
-            {/* Playbook Engine */}
-            <div
-              onClick={() => setMode('playbook')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-pink hover:shadow-[0_0_20px_rgba(244,114,182,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">📋</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Playbook Engine
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                AI-extracted sales rules, qualification frameworks, competitive intelligence, and deal pattern matching.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-pink tracking-[0.04em]">
-                SALES INTELLIGENCE
-              </div>
+            <div onClick={() => setMode('playbook')} className={`${cardBase} hover:border-revos-pink hover:shadow-[0_0_20px_rgba(244,114,182,0.08)]`}>
+              <div className="text-[20px] mb-1.5">&#128203;</div>
+              <div className="font-sans text-[12px] font-bold mb-1">Playbook</div>
+              <div className="font-mono text-[9px] text-revos-text-dim leading-[1.4]">Sales rules & competitive intel.</div>
+              <div className="mt-2 font-mono text-[8px] font-semibold text-revos-pink tracking-[0.04em]">INTELLIGENCE</div>
             </div>
 
-            {/* Pricing Engine */}
-            <div
-              onClick={() => setMode('pricing')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-lime hover:shadow-[0_0_20px_rgba(163,230,53,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">💲</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Pricing Engine
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Product pricing tables, vertical adjustments, discount rules, and rate card upload management.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-lime tracking-[0.04em]">
-                RATE MANAGEMENT
-              </div>
+            <div onClick={() => setMode('pricing')} className={`${cardBase} hover:border-revos-lime hover:shadow-[0_0_20px_rgba(163,230,53,0.08)]`}>
+              <div className="text-[20px] mb-1.5">&#128178;</div>
+              <div className="font-sans text-[12px] font-bold mb-1">Pricing</div>
+              <div className="font-mono text-[9px] text-revos-text-dim leading-[1.4]">Rate cards & discount rules.</div>
+              <div className="mt-2 font-mono text-[8px] font-semibold text-revos-lime tracking-[0.04em]">RATES</div>
             </div>
 
-            {/* Outage Monitor */}
-            <div
-              onClick={() => setMode('outages')}
-              className="px-7 py-8 bg-revos-card rounded-xl shadow-card cursor-pointer transition-all duration-200 border border-revos-border hover:border-revos-red hover:shadow-[0_0_20px_rgba(248,113,113,0.08)]"
-            >
-              <div className="text-[32px] mb-3.5">⚡</div>
-              <div className="font-sans text-base font-bold mb-1.5">
-                Outage Monitor
-              </div>
-              <div className="font-mono text-[11px] text-revos-text-dim leading-[1.6]">
-                Live US ISP outage tracking from Cloudflare Radar and IODA with SVG map and incident feed.
-              </div>
-              <div className="mt-[18px] font-mono text-[10px] font-semibold text-revos-red tracking-[0.04em]">
-                OUTAGE INTELLIGENCE
-              </div>
+            <div onClick={() => setMode('outages')} className={`${cardBase} hover:border-revos-red hover:shadow-[0_0_20px_rgba(248,113,113,0.08)]`}>
+              <div className="text-[20px] mb-1.5">&#9889;</div>
+              <div className="font-sans text-[12px] font-bold mb-1">Outage Monitor</div>
+              <div className="font-mono text-[9px] text-revos-text-dim leading-[1.4]">Live ISP outage tracking & alerts.</div>
+              <div className="mt-2 font-mono text-[8px] font-semibold text-revos-red tracking-[0.04em]">OUTAGES</div>
             </div>
           </div>
         </div>
 
-        {dataSource === 'local' && (
-          <div className="mt-6 font-mono text-[9px] text-revos-green">
-            LIVE DATA FROM data/
-          </div>
-        )}
-        {dataSource === 'uploaded' && (
-          <div className="mt-6 font-mono text-[9px] text-revos-text-dim">
-            YOUR DATA · LOCAL ONLY
-          </div>
-        )}
+        {/* Footer */}
+        <div className="text-center mt-3">
+          {dataSource === 'local' && (
+            <div className="font-mono text-[9px] text-revos-green">LIVE DATA FROM data/</div>
+          )}
+          {dataSource === 'uploaded' && (
+            <div className="font-mono text-[9px] text-revos-text-dim">YOUR DATA · LOCAL ONLY</div>
+          )}
+        </div>
       </div>
     )
   }

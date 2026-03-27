@@ -982,12 +982,13 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="week" tickFormatter={weekLabel} tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} interval={Math.max(0, Math.floor(weeks.length / 12) - 1)} />
               <YAxis yAxisId="eng" tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} label={{ value: yLabel, angle: -90, position: "insideLeft", fill: COLORS.textDim, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />
+              <YAxis yAxisId="quote" hide domain={[0, (d) => Math.max(d * 3, 5)]} />
               <YAxis yAxisId="pipe" orientation="right" tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} tickFormatter={fmt} />
               <Tooltip content={<ChartTooltip />} />
               <Area yAxisId="eng" type="monotone" dataKey="emails" stackId="1" fill={COLORS.email} fillOpacity={0.3} stroke={COLORS.email} strokeWidth={1.5} name="Emails" />
               <Area yAxisId="eng" type="monotone" dataKey="calls" stackId="1" fill={COLORS.call} fillOpacity={0.3} stroke={COLORS.call} strokeWidth={1.5} name="Calls" />
               <Area yAxisId="eng" type="monotone" dataKey="meetings" stackId="1" fill={COLORS.meeting} fillOpacity={0.3} stroke={COLORS.meeting} strokeWidth={1.5} name="Meetings" />
-              <Bar yAxisId="eng" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.7} name="Quotes" radius={[2, 2, 0, 0]} barSize={8} />
+              <Bar yAxisId="quote" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.85} name="Quotes" radius={[2, 2, 0, 0]} barSize={12} />
               <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 4, strokeWidth: 0 }} name="Pipeline MRR" />
             </ComposedChart>
           </ResponsiveContainer>
@@ -1071,12 +1072,13 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="week" tickFormatter={weekLabel} tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} interval={Math.max(0, Math.floor(weeks.length / 12) - 1)} />
               <YAxis yAxisId="eng" tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} label={{ value: yLabel, angle: -90, position: "insideLeft", fill: COLORS.textDim, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />
+              <YAxis yAxisId="quote" hide domain={[0, (d) => Math.max(d * 3, 5)]} />
               <YAxis yAxisId="pipe" orientation="right" tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} tickFormatter={fmt} />
               <Tooltip content={<ChartTooltip />} />
               <Area yAxisId="eng" type="monotone" dataKey="emails" stackId="1" fill={COLORS.email} fillOpacity={0.25} stroke={COLORS.email} strokeWidth={1.5} name="Emails" />
               <Area yAxisId="eng" type="monotone" dataKey="calls" stackId="1" fill={COLORS.call} fillOpacity={0.25} stroke={COLORS.call} strokeWidth={1.5} name="Calls" />
               <Area yAxisId="eng" type="monotone" dataKey="meetings" stackId="1" fill={COLORS.meeting} fillOpacity={0.25} stroke={COLORS.meeting} strokeWidth={1.5} name="Meetings" />
-              <Bar yAxisId="eng" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.7} name="Quotes" radius={[2, 2, 0, 0]} barSize={8} />
+              <Bar yAxisId="quote" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.85} name="Quotes" radius={[2, 2, 0, 0]} barSize={12} />
               <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 4, strokeWidth: 0 }} name="Pipeline MRR" />
             </ComposedChart>
           </ResponsiveContainer>
@@ -1172,12 +1174,13 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="week" tickFormatter={weekLabel} tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} interval={Math.max(0, Math.floor(weeks.length / 12) - 1)} />
               <YAxis yAxisId="eng" tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} label={{ value: yLabel, angle: -90, position: "insideLeft", fill: COLORS.textDim, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />
+              <YAxis yAxisId="quote" hide domain={[0, (d) => Math.max(d * 3, 5)]} />
               <YAxis yAxisId="pipe" orientation="right" tick={{ fill: COLORS.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} stroke={COLORS.border} tickFormatter={fmt} />
               <Tooltip content={<ChartTooltip />} />
               <Bar yAxisId="eng" dataKey="emails" stackId="1" fill={COLORS.email} fillOpacity={0.7} name="Emails" />
               <Bar yAxisId="eng" dataKey="calls" stackId="1" fill={COLORS.call} fillOpacity={0.7} name="Calls" />
               <Bar yAxisId="eng" dataKey="meetings" stackId="1" fill={COLORS.meeting} fillOpacity={0.7} name="Meetings" radius={[3, 3, 0, 0]} />
-              <Bar yAxisId="eng" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.7} name="Quotes" radius={[2, 2, 0, 0]} barSize={8} />
+              <Bar yAxisId="quote" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.85} name="Quotes" radius={[2, 2, 0, 0]} barSize={12} />
               <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 5, strokeWidth: 2, stroke: COLORS.card }} name="Pipeline MRR" />
             </ComposedChart>
           </ResponsiveContainer>
