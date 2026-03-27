@@ -127,15 +127,30 @@ const server = http.createServer(async (req, res) => {
 
   // --- /local-data/rebuild-bundle ---
   if (p === '/local-data/rebuild-bundle' && req.method === 'POST') {
-    const script = path.join(__dirname, 'scripts', 'build-data-bundle.cjs')
-    if (!fs.existsSync(script)) return jsonRes(res, { error: 'Build script not found' }, 404)
+    const scriptsDir = path.join(__dirname, 'scripts')
+    const bundleScript = path.join(scriptsDir, 'build-data-bundle.cjs')
+    if (!fs.existsSync(bundleScript)) return jsonRes(res, { error: 'Build script not found' }, 404)
     const start = Date.now()
-    execFile('node', [script], { cwd: __dirname, timeout: 60000 }, (err, stdout, stderr) => {
-      if (err) return jsonRes(res, { error: err.message, stderr }, 500)
-      const elapsed = ((Date.now() - start) / 1000).toFixed(1)
-      console.log(`[RevOS] Bundle rebuilt in ${elapsed}s`)
-      jsonRes(res, { ok: true, elapsed: `${elapsed}s`, output: stdout.trim() })
+
+    // Run all build scripts: engagement JSONs first, then the data bundle
+    const runScript = (s) => new Promise((resolve, reject) => {
+      if (!fs.existsSync(s)) return resolve('')
+      execFile('node', [s], { cwd: __dirname, timeout: 60000 }, (err, stdout, stderr) => {
+        if (err) return reject(err)
+        resolve(stdout.trim())
+      })
     })
+
+    Promise.resolve()
+      .then(() => runScript(path.join(scriptsDir, 'build-engagements.cjs')))
+      .then(() => runScript(path.join(scriptsDir, 'build-engagements-2026.cjs')))
+      .then(() => runScript(bundleScript))
+      .then((output) => {
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+        console.log(`[RevOS] Full rebuild in ${elapsed}s`)
+        jsonRes(res, { ok: true, elapsed: `${elapsed}s`, output })
+      })
+      .catch((err) => jsonRes(res, { error: err.message }, 500))
     return
   }
 
