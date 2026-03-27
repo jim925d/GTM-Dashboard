@@ -313,7 +313,16 @@ export default function GTMPremier({ accounts = [] }) {
 
   // Bridge outage data onto accounts
   const baseAccts = enrichedAccounts.length > 0 ? enrichedAccounts : accounts
-  const accts = useOutageEnrichedAccounts(baseAccts)
+  const allAccts = useOutageEnrichedAccounts(baseAccts)
+
+  const PREMIER_MANAGERS = ['DCosta', 'Kahn', 'Ochoa', 'Malcolm']
+  const [mgrFilter, setMgrFilter] = useState('Premier')
+
+  // Filter accounts by manager
+  const accts = useMemo(() => {
+    if (mgrFilter === 'Premier') return allAccts
+    return allAccts.filter(a => (a.manager || '').toLowerCase().includes(mgrFilter.toLowerCase()))
+  }, [allAccts, mgrFilter])
 
   const [view, setView] = useState('targets') // 'targets' | 'market'
   const [targetCount, setTargetCount] = useState(10)
@@ -651,34 +660,51 @@ export default function GTMPremier({ accounts = [] }) {
           <span className="text-sm font-semibold" style={{ color: CS.text }}>Market Intelligence</span>
         </div>
 
-        {/* View toggle pills */}
-        <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: CS.border }}>
-          <button
-            onClick={() => setView('targets')}
-            className="px-4 py-1.5 font-mono text-[11px] font-semibold transition-all duration-150 flex items-center gap-1.5"
-            style={{
-              background: view === 'targets' ? CS.purple + '25' : 'transparent',
-              color: view === 'targets' ? CS.purple : CS.textMuted,
-              borderRight: `1px solid ${CS.border}`,
-            }}
-          >
-            <span>◎</span>
-            Today's Targets
-            {hasOutage && (
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: CS.red }} />
-            )}
-          </button>
-          <button
-            onClick={() => setView('market')}
-            className="px-4 py-1.5 font-mono text-[11px] font-semibold transition-all duration-150 flex items-center gap-1.5"
-            style={{
-              background: view === 'market' ? CS.cyan + '25' : 'transparent',
-              color: view === 'market' ? CS.cyan : CS.textMuted,
-            }}
-          >
-            <span>◫</span>
-            Market Review
-          </button>
+        {/* Manager filter + View toggle pills */}
+        <div className="flex items-center gap-4">
+          <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: CS.border }}>
+            {['Premier', ...PREMIER_MANAGERS].map((m, i) => (
+              <button
+                key={m}
+                onClick={() => setMgrFilter(m)}
+                className="px-3.5 py-1.5 font-mono text-[11px] font-semibold transition-all duration-150"
+                style={{
+                  background: mgrFilter === m ? CS.purple + '25' : 'transparent',
+                  color: mgrFilter === m ? CS.purple : CS.textMuted,
+                  borderRight: i < PREMIER_MANAGERS.length ? `1px solid ${CS.border}` : 'none',
+                }}
+              >{m}</button>
+            ))}
+          </div>
+
+          <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: CS.border }}>
+            <button
+              onClick={() => setView('targets')}
+              className="px-4 py-1.5 font-mono text-[11px] font-semibold transition-all duration-150 flex items-center gap-1.5"
+              style={{
+                background: view === 'targets' ? CS.purple + '25' : 'transparent',
+                color: view === 'targets' ? CS.purple : CS.textMuted,
+                borderRight: `1px solid ${CS.border}`,
+              }}
+            >
+              <span>{'\u25CE'}</span>
+              Today's Targets
+              {hasOutage && (
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: CS.red }} />
+              )}
+            </button>
+            <button
+              onClick={() => setView('market')}
+              className="px-4 py-1.5 font-mono text-[11px] font-semibold transition-all duration-150 flex items-center gap-1.5"
+              style={{
+                background: view === 'market' ? CS.cyan + '25' : 'transparent',
+                color: view === 'market' ? CS.cyan : CS.textMuted,
+              }}
+            >
+              <span>{'\u25EB'}</span>
+              Market Review
+            </button>
+          </div>
         </div>
       </div>
 

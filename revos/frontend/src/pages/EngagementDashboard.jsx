@@ -800,25 +800,27 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
     return [...new Set([...engDays, ...pipeDays, ...quoteDays])].sort();
   }, [data]);
 
-  // Anchor time ranges to today so "This Month" always means the current calendar month
+  // Anchor time ranges to today — never let future close dates shift "This Month" or "QTD"
   const todayStr = new Date().toISOString().slice(0, 10);
-  const latestDay = allDays.length ? (allDays[allDays.length - 1] > todayStr ? allDays[allDays.length - 1] : todayStr) : todayStr;
-  const latestMonth = latestDay.slice(0, 7);
-  const [latestYear] = latestMonth.split("-");
-  const latestQuarterStart = (() => {
-    const mo = parseInt(latestMonth.split("-")[1]);
+  const latestDataDay = allDays.length ? allDays[allDays.length - 1] : todayStr;
+  const latestDay = latestDataDay > todayStr ? latestDataDay : todayStr;
+  // For time-range anchoring (QTD, This Month), always use today — not future pipeline dates
+  const anchorMonth = todayStr.slice(0, 7);
+  const [anchorYear] = anchorMonth.split("-");
+  const anchorQuarterStart = (() => {
+    const mo = parseInt(anchorMonth.split("-")[1]);
     const qStart = Math.floor((mo - 1) / 3) * 3 + 1;
-    return `${latestYear}-${String(qStart).padStart(2, "0")}`;
+    return `${anchorYear}-${String(qStart).padStart(2, "0")}`;
   })();
 
   // Filtered months (for heatmap)
   const months = useMemo(() => {
-    if (timeRange === "month") return allMonths.filter((m) => m === latestMonth);
-    if (timeRange === "qtd") return allMonths.filter((m) => m >= latestQuarterStart && m <= latestMonth);
-    if (timeRange === "ytd") return allMonths.filter((m) => m.startsWith(latestYear) && m <= latestMonth);
+    if (timeRange === "month") return allMonths.filter((m) => m === anchorMonth);
+    if (timeRange === "qtd") return allMonths.filter((m) => m >= anchorQuarterStart && m <= anchorMonth);
+    if (timeRange === "ytd") return allMonths.filter((m) => m.startsWith(anchorYear) && m <= anchorMonth);
     // "all" — extend back to Jan 2025
     return allMonths.filter((m) => m >= "2025-01");
-  }, [allMonths, timeRange, latestMonth, latestYear, latestQuarterStart]);
+  }, [allMonths, timeRange, anchorMonth, anchorYear, anchorQuarterStart]);
 
   // ─── Week helper: get Monday of the week for any YYYY-MM-DD ──
   const getWeekStart = (dateStr) => {
@@ -832,21 +834,21 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
   // Filtered weeks (for charts) — derived from allDays
   const weeks = useMemo(() => {
     let filtered;
-    if (timeRange === "month") filtered = allDays.filter((d) => d.startsWith(latestMonth));
-    else if (timeRange === "qtd") filtered = allDays.filter((d) => d.slice(0, 7) >= latestQuarterStart && d.slice(0, 7) <= latestMonth);
-    else if (timeRange === "ytd") filtered = allDays.filter((d) => d.startsWith(latestYear) && d <= latestDay);
+    if (timeRange === "month") filtered = allDays.filter((d) => d.startsWith(anchorMonth));
+    else if (timeRange === "qtd") filtered = allDays.filter((d) => d.slice(0, 7) >= anchorQuarterStart && d.slice(0, 7) <= anchorMonth);
+    else if (timeRange === "ytd") filtered = allDays.filter((d) => d.startsWith(anchorYear) && d <= todayStr);
     else filtered = allDays.filter((d) => d >= "2025-01-01");
     return [...new Set(filtered.map(getWeekStart))].sort();
-  }, [allDays, timeRange, latestMonth, latestDay, latestYear, latestQuarterStart]);
+  }, [allDays, timeRange, anchorMonth, todayStr, anchorYear, anchorQuarterStart]);
 
   // Date-aware filter for raw data arrays
   const inRange = useCallback((dateStr) => {
     if (!dateStr) return false;
-    if (timeRange === "month") return dateStr.startsWith(latestMonth);
-    if (timeRange === "qtd") { const m = dateStr.slice(0, 7); return m >= latestQuarterStart && m <= latestMonth; }
-    if (timeRange === "ytd") return dateStr.startsWith(latestYear) && dateStr <= latestDay;
+    if (timeRange === "month") return dateStr.startsWith(anchorMonth);
+    if (timeRange === "qtd") { const m = dateStr.slice(0, 7); return m >= anchorQuarterStart && m <= anchorMonth; }
+    if (timeRange === "ytd") return dateStr.startsWith(anchorYear) && dateStr <= todayStr;
     return dateStr >= "2025-01-01";
-  }, [timeRange, latestMonth, latestDay, latestYear, latestQuarterStart]);
+  }, [timeRange, anchorMonth, todayStr, anchorYear, anchorQuarterStart]);
 
   // ─── Pipeline helpers ──────────────────────────────────────
   // Pipeline MRR = closed won + active pipeline, filtered by close_date in range
@@ -1349,7 +1351,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <span className="text-revos-text font-medium">Count:</span> {countMode} &nbsp;·&nbsp;
               <span className="text-revos-text font-medium">Rep:</span> {activeRep || "—"} &nbsp;·&nbsp;
               <span className="text-revos-text font-medium">Account:</span> {activeAccount || "—"} &nbsp;·&nbsp;
-              <span className="text-revos-text font-medium">Latest month:</span> {latestMonth}
+              <span className="text-revos-text font-medium">Anchor month:</span> {anchorMonth}
             </div>
 
             {/* Per-table status */}
@@ -1485,7 +1487,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
 
       <div className="mt-8 pt-4 border-t border-revos-border flex justify-between text-[11px] text-revos-border-light font-mono">
         <span>RevOS Engagement Dashboard v1.3</span>
-        <span>Live Data · {{ all: "All Time", ytd: `YTD ${latestYear}`, qtd: `Q${Math.ceil(parseInt(latestMonth.split("-")[1]) / 3)} ${latestYear}`, month: monthLabel(latestMonth) }[timeRange]} · {countMode === "unique" ? "Unique Accounts" : "Total"} · {months.length} months · {data.accounts.length} accounts</span>
+        <span>Live Data · {{ all: "All Time", ytd: `YTD ${anchorYear}`, qtd: `Q${Math.ceil(parseInt(anchorMonth.split("-")[1]) / 3)} ${anchorYear}`, month: monthLabel(anchorMonth) }[timeRange]} · {countMode === "unique" ? "Unique Accounts" : "Total"} · {months.length} months · {data.accounts.length} accounts</span>
       </div>
     </div>
   );

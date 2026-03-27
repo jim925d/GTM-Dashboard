@@ -32,6 +32,7 @@ import PlaybookEngine from './pages/PlaybookEngine'
 import PricingEngine from './pages/PricingEngine'
 import OutageMonitor from './pages/OutageMonitor'
 import GTMPremier from './pages/GTMPremier'
+import IntelReadout from './pages/IntelReadout'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
@@ -133,7 +134,7 @@ export default function App() {
           <div className="font-mono text-[10px] tracking-[0.12em] text-revos-text-dim mb-2 uppercase">
             Daily Brief
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div onClick={() => setMode('premier')} className={`${cardBase} hover:border-revos-purple hover:shadow-[0_0_20px_rgba(167,139,250,0.12)]`}>
               <div className="flex items-center gap-2.5 mb-2">
                 <span className="text-[22px]">&#9678;</span>
@@ -143,6 +144,17 @@ export default function App() {
                 Market intelligence, priority scoring, and whitespace detection.
               </div>
               <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-purple tracking-[0.04em]">MARKET INTELLIGENCE</div>
+            </div>
+
+            <div onClick={() => setMode('intel-readout')} className={`${cardBase} hover:border-revos-purple hover:shadow-[0_0_20px_rgba(167,139,250,0.12)]`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="text-[22px]">&#9889;</span>
+                <span className="font-sans text-[14px] font-bold">Intel Readout</span>
+              </div>
+              <div className="font-mono text-[10px] text-revos-text-dim leading-[1.5]">
+                Drop Excel data, run all 4 engines, get a targeting battle plan.
+              </div>
+              <div className="mt-2.5 font-mono text-[9px] font-semibold text-revos-purple tracking-[0.04em]">BATTLE PLAN</div>
             </div>
 
             <div onClick={() => setMode('seller-actions')} className={`${cardBase} hover:border-revos-pink hover:shadow-[0_0_20px_rgba(232,136,176,0.08)]`}>
@@ -272,6 +284,11 @@ export default function App() {
         </div>
       </div>
     )
+  }
+
+  // ---------- Intel Readout mode ----------
+  if (mode === 'intel-readout') {
+    return <IntelReadout onBack={() => setMode(null)} />
   }
 
   // ---------- GTM Premier mode ----------
