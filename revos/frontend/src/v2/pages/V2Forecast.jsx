@@ -305,9 +305,10 @@ function GovernanceBar({ forecast }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function V2Forecast({ accounts = [], rawData = {} }) {
-  const isDemo = !accounts.length
+  const { deals: realDeals } = useDeals(accounts)
+  const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
-  const allDeals = isDemo ? DEMO_DEALS : useDeals(accts).deals
+  const allDeals = isDemo ? DEMO_DEALS : realDeals
   const { forecast, commit, bestCase } = useForecast(accts, { quota: DEMO_QUOTA })
   const [view, setView] = useState('monthly')
 

@@ -36,10 +36,10 @@ function EngineDot({ engines }) {
 }
 
 export default function V2Pipeline({ accounts = [], rawData = {}, onSelectDeal }) {
-  const isDemo = !accounts.length
+  const { deals: realDeals } = useDeals(accounts)
+  const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
-  const { deals: hookDeals, byStage: hookByStage } = useDeals(accts)
-  const allDeals = isDemo ? DEMO_DEALS : hookDeals
+  const allDeals = isDemo ? DEMO_DEALS : realDeals
   const [filter, setFilter] = useState('all')
 
   // Build byStage from allDeals

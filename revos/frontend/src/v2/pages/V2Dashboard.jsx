@@ -343,10 +343,11 @@ function SidebarEngagement({ accounts }) {
 
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, onSelectDeal }) {
-  const isDemo = !accounts.length
+  // Use demo data when no real pipeline deals exist
+  const { deals: realDeals } = useDeals(accounts)
+  const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
-  const { deals, totalMRR } = useDeals(accts)
-  const allDeals = isDemo ? DEMO_DEALS : deals
+  const allDeals = isDemo ? DEMO_DEALS : realDeals
   const { predictions, avgChurnRisk } = usePredictions(accts)
   const { insights } = useEngineInsights(accts)
 

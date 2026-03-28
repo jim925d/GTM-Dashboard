@@ -184,10 +184,43 @@ function TargetCard({ acct, rank, expanded, onToggle }) {
         {/* Opportunity */}
         <div>
           <div style={{ fontFamily: V2_FONTS.mono, fontSize: 9, color: V2.textDim, letterSpacing: '0.04em', marginBottom: 8, textTransform: 'uppercase' }}>Opportunity</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <MetricRow label="Whitespace" value={fmt(ws)} color={V2.teal} />
-            <MetricRow label="On-Net" value={fmtPct(onNet)} />
             <MetricRow label="Pipeline" value={`${pipeline.length} deals`} />
+            {/* On-net locations */}
+            {locs.filter(l => l.onNet).length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, color: V2.teal, marginBottom: 3 }}>On-Net</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {locs.filter(l => l.onNet).map((loc, i) => (
+                    <span key={i} style={{
+                      fontFamily: V2_FONTS.mono, fontSize: 9, color: V2.teal,
+                      background: V2.tealDim, padding: '2px 7px', borderRadius: V2.radiusFull,
+                      border: '1px solid rgba(93,202,165,0.2)',
+                    }}>
+                      {loc.city}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Off-net / no service locations */}
+            {locs.filter(l => !l.onNet).length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, color: V2.textDim, marginBottom: 3 }}>No Service</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {locs.filter(l => !l.onNet).map((loc, i) => (
+                    <span key={i} style={{
+                      fontFamily: V2_FONTS.mono, fontSize: 9, color: V2.textDim,
+                      background: V2.surfaceHover, padding: '2px 7px', borderRadius: V2.radiusFull,
+                      border: `1px solid ${loc.isNew ? V2.accent : V2.border}`,
+                    }}>
+                      {loc.city}{loc.isNew ? ' ✦' : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -280,7 +313,7 @@ function TargetCard({ acct, rank, expanded, onToggle }) {
 
 function MetricRow({ label, value, color }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
       <span style={{ fontSize: 11, color: V2.textDim }}>{label}</span>
       <span style={{ fontFamily: V2_FONTS.mono, fontSize: 11, color: color || V2.textMid }}>{value}</span>
     </div>
@@ -289,7 +322,8 @@ function MetricRow({ label, value, color }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function V2TargetList({ accounts = [], rawData = {} }) {
-  const isDemo = !accounts.length
+  const { deals: realDeals } = useDeals(accounts)
+  const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
   const [activeFilters, setActiveFilters] = useState([])
   const [sortBy, setSortBy] = useState('score')

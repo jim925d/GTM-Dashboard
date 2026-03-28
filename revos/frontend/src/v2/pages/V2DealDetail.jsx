@@ -98,7 +98,8 @@ function EnginePill({ engine }) {
 
 export default function V2DealDetail({ deal, accounts = [], onBack }) {
   if (!deal) return null
-  const isDemo = !accounts.length
+  const hasRealPipeline = accounts.some(a => (a.pipeline || []).length > 0)
+  const isDemo = !hasRealPipeline
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
 
   // Find parent account
