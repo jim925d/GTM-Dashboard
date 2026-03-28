@@ -581,7 +581,6 @@ function mergeEngagement(eng25, eng26) {
 
   const parseD = (s) => { if (!s) return 0; const p = s.split('/'); return p.length >= 3 ? new Date(p[2], p[0] - 1, p[1]).getTime() : 0 }
   events.sort((a, b) => parseD(b.d) - parseD(a.d))
-  events = events.slice(0, 50)
 
   const timeline = Object.entries(byMonth)
     .sort(([a], [b]) => a.localeCompare(b))

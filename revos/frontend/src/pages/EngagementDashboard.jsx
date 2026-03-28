@@ -867,8 +867,8 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
       (engByWeek[w] = engByWeek[w] || []).push(e);
     });
     data.pipeline.forEach((p) => {
-      if (!p.close_date || p.close_date.length < 10 || !isPipelineDeal(p) || !filterFn(p)) return;
-      const w = getWeekStart(p.close_date);
+      if (!p.created_date || p.created_date.length < 10 || !isPipelineDeal(p) || !filterFn(p)) return;
+      const w = getWeekStart(p.created_date);
       (pipeByWeek[w] = pipeByWeek[w] || []).push(p);
     });
     data.quotes.forEach((q) => {
@@ -933,7 +933,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
   };
 
   const yLabel = countMode === "unique" ? "Unique Accounts" : "Engagements";
-  const chartSubtitle = countMode === "unique" ? "Distinct accounts engaged per type each week · pipeline MRR overlay" : "Weekly engagement count by type · pipeline MRR overlay";
+  const chartSubtitle = countMode === "unique" ? "Distinct accounts engaged per type each week · pipeline created overlay" : "Weekly engagement count by type · pipeline created overlay";
 
   // ─── Rep View ─────────────────────────────────────────────────
   function RepView() {
@@ -991,7 +991,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <Area yAxisId="eng" type="monotone" dataKey="calls" stackId="1" fill={COLORS.call} fillOpacity={0.3} stroke={COLORS.call} strokeWidth={1.5} name="Calls" />
               <Area yAxisId="eng" type="monotone" dataKey="meetings" stackId="1" fill={COLORS.meeting} fillOpacity={0.3} stroke={COLORS.meeting} strokeWidth={1.5} name="Meetings" />
               <Bar yAxisId="quote" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.85} name="Quotes" radius={[2, 2, 0, 0]} barSize={12} />
-              <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 4, strokeWidth: 0 }} name="Pipeline MRR" />
+              <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 4, strokeWidth: 0 }} name="Pipeline Created" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -1081,7 +1081,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <Area yAxisId="eng" type="monotone" dataKey="calls" stackId="1" fill={COLORS.call} fillOpacity={0.25} stroke={COLORS.call} strokeWidth={1.5} name="Calls" />
               <Area yAxisId="eng" type="monotone" dataKey="meetings" stackId="1" fill={COLORS.meeting} fillOpacity={0.25} stroke={COLORS.meeting} strokeWidth={1.5} name="Meetings" />
               <Bar yAxisId="quote" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.85} name="Quotes" radius={[2, 2, 0, 0]} barSize={12} />
-              <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 4, strokeWidth: 0 }} name="Pipeline MRR" />
+              <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 4, strokeWidth: 0 }} name="Pipeline Created" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -1183,7 +1183,7 @@ export default function EngagementDashboard({ accounts: externalAccounts = [], r
               <Bar yAxisId="eng" dataKey="calls" stackId="1" fill={COLORS.call} fillOpacity={0.7} name="Calls" />
               <Bar yAxisId="eng" dataKey="meetings" stackId="1" fill={COLORS.meeting} fillOpacity={0.7} name="Meetings" radius={[3, 3, 0, 0]} />
               <Bar yAxisId="quote" dataKey="quotes" fill={COLORS.quote} fillOpacity={0.85} name="Quotes" radius={[2, 2, 0, 0]} barSize={12} />
-              <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 5, strokeWidth: 2, stroke: COLORS.card }} name="Pipeline MRR" />
+              <Line yAxisId="pipe" type="monotone" dataKey="pipeline" stroke={COLORS.pipeline} strokeWidth={2.5} dot={{ fill: COLORS.pipeline, r: 5, strokeWidth: 2, stroke: COLORS.card }} name="Pipeline Created" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

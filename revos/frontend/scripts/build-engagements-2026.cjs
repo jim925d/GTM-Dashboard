@@ -145,7 +145,7 @@ function main() {
     const sortedEvents = data.events.sort((a, b) => {
       const da = parseMMDDYYYY(a.d), db = parseMMDDYYYY(b.d)
       return db - da
-    }).slice(0, 50)
+    })
 
     output[name] = {
       t: data.total,

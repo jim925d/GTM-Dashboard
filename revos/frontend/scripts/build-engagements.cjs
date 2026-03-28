@@ -178,11 +178,11 @@ function main() {
   // Convert Sets to counts for JSON serialization
   const output = {}
   for (const [name, data] of Object.entries(byAccount)) {
-    // Sort events by date descending, keep most recent 50
+    // Sort events by date descending
     const sortedEvents = data.events.sort((a, b) => {
       const da = parseMMDDYYYY(a.d), db = parseMMDDYYYY(b.d)
       return db - da
-    }).slice(0, 50)
+    })
 
     output[name] = {
       t: data.total,                              // total engagements
