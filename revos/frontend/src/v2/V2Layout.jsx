@@ -1,8 +1,5 @@
 import { useState } from 'react'
-import { V2, V2_FONTS, V2_NAV } from './tokens'
-
-// Grid pattern SVG for background
-const gridBg = `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40V0h40' fill='none' stroke='%23ffffff' stroke-opacity='0.03' stroke-width='1'/%3E%3C/svg%3E")`
+import { V2, V2_FONTS, V2_NAV, gridBgStyle } from './tokens'
 
 // Icon components (inline SVG to avoid extra deps)
 const icons = {
@@ -33,8 +30,8 @@ export default function V2Layout({ activePage, onNavigate, onBack, children }) {
     <div
       style={{
         minHeight: '100vh',
-        background: `${V2.bg}`,
-        backgroundImage: gridBg,
+        background: V2.bg,
+        ...gridBgStyle,
         color: V2.text,
         fontFamily: V2_FONTS.sans,
         display: 'flex',
