@@ -33,6 +33,7 @@ import PricingEngine from './pages/PricingEngine'
 import OutageMonitor from './pages/OutageMonitor'
 import GTMPremier from './pages/GTMPremier'
 import IntelReadout from './pages/IntelReadout'
+import V2App from './v2/V2App'
 
 export default function App() {
   const { accounts: uploadedAccounts, rawData, ingestLocalCSV, ingestAllFiles, clearData } = useAccounts()
@@ -274,16 +275,27 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-3">
+        <div className="text-center mt-3 flex items-center justify-center gap-4">
           {dataSource === 'local' && (
             <div className="font-mono text-[9px] text-revos-green">LIVE DATA FROM data/</div>
           )}
           {dataSource === 'uploaded' && (
             <div className="font-mono text-[9px] text-revos-text-dim">YOUR DATA · LOCAL ONLY</div>
           )}
+          <button
+            onClick={() => setMode('v2')}
+            className="font-mono text-[10px] text-revos-accent hover:text-white transition-colors duration-200 border border-revos-accent/20 hover:border-revos-accent/50 rounded-full px-4 py-1.5 hover:shadow-[0_0_16px_rgba(124,90,255,0.15)]"
+          >
+            Try new experience &rarr;
+          </button>
         </div>
       </div>
     )
+  }
+
+  // ---------- V2 Preview mode ----------
+  if (mode === 'v2') {
+    return <V2App accounts={accounts} rawData={hasLocalData ? localRawData : rawData} onBack={() => setMode(null)} />
   }
 
   // ---------- Intel Readout mode ----------
