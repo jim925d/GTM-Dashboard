@@ -257,21 +257,51 @@ export default function BacktestEngine({ onResults, savedResults }) {
     return { headers, rows };
   };
 
-  // Parse CSV text into {headers, rows}
+  // Parse CSV text into {headers, rows} — handles quoted fields with commas and newlines
   const parseCsvText = (text) => {
-    const lines = text.trim().split('\n').filter(l => l.trim());
-    if (lines.length < 2) return { headers: [], rows: [] };
-    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
-    const rows = lines.slice(1).map(line => {
-      const vals = []; let cur = '', inQ = false;
-      for (const ch of line) {
-        if (ch === '"') inQ = !inQ;
-        else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
-        else cur += ch;
+    // Split into fields respecting quoted regions (handles commas + newlines inside quotes)
+    const parseRow = (str, start) => {
+      const fields = [];
+      let cur = '', inQ = false, i = start;
+      while (i < str.length) {
+        const ch = str[i];
+        if (inQ) {
+          if (ch === '"') {
+            if (i + 1 < str.length && str[i + 1] === '"') { cur += '"'; i += 2; continue; }
+            inQ = false;
+          } else { cur += ch; }
+        } else {
+          if (ch === '"') { inQ = true; }
+          else if (ch === ',') { fields.push(cur.trim()); cur = ''; }
+          else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && i + 1 < str.length && str[i + 1] === '\n') i++;
+            fields.push(cur.trim());
+            return { fields, next: i + 1 };
+          } else { cur += ch; }
+        }
+        i++;
       }
-      vals.push(cur.trim());
-      return Object.fromEntries(headers.map((h, i) => [h, (vals[i] || '').replace(/^"|"$/g, '')]));
-    });
+      fields.push(cur.trim());
+      return { fields, next: i };
+    };
+
+    const content = text.replace(/^\uFEFF/, ''); // strip BOM
+    if (!content.trim()) return { headers: [], rows: [] };
+
+    // Parse header row
+    const { fields: headers, next } = parseRow(content, 0);
+    if (!headers.length) return { headers: [], rows: [] };
+
+    // Parse data rows
+    const rows = [];
+    let pos = next;
+    while (pos < content.length) {
+      if (content[pos] === '\n' || content[pos] === '\r') { pos++; continue; }
+      const { fields, next: nxt } = parseRow(content, pos);
+      pos = nxt;
+      if (fields.length === 1 && !fields[0]) continue; // skip blank lines
+      rows.push(Object.fromEntries(headers.map((h, i) => [h, fields[i] || ''])));
+    }
     return { headers, rows };
   };
 
@@ -400,20 +430,8 @@ export default function BacktestEngine({ onResults, savedResults }) {
           setStep('sheets');
         }
       } else {
-        // CSV
-        const text = e.target.result;
-        const lines = text.trim().split('\n').filter(l => l.trim());
-        const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
-        const csvRows = lines.slice(1).map(line => {
-          const vals = []; let cur = '', inQ = false;
-          for (const ch of line) {
-            if (ch === '"') inQ = !inQ;
-            else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
-            else cur += ch;
-          }
-          vals.push(cur.trim());
-          return Object.fromEntries(headers.map((h, i) => [h, (vals[i] || '').replace(/^"|"$/g, '')]));
-        });
+        // CSV — use the quote-aware parser
+        const { headers, rows: csvRows } = parseCsvText(e.target.result);
         setHeaders(headers); setRows(csvRows);
         setMapping(autoDetect(headers));
         setStep('map');
