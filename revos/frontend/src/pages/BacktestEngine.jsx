@@ -329,21 +329,34 @@ export default function BacktestEngine({ onResults, savedResults }) {
       console.log(`Backtest: built ${Object.keys(vertToMega).length} Vertical → Mega Vertical mappings`);
     }
 
-    // Enrich close_lost rows: fill in Mega Vertical Grouping from Vertical lookup
-    const lostRows = lostFile ? lostFile.rows.map(r => {
-      if (megaCol && !r[megaCol]) {
-        // Find the Vertical column in close_lost (may have same or different header)
-        const lostVertCol = lostFile.headers.find(h => h.toLowerCase().trim() === 'vertical');
-        const vert = lostVertCol ? (r[lostVertCol] || '').trim() : '';
-        if (vert && vertToMega[vert]) {
-          return { ...r, [megaCol]: vertToMega[vert] };
-        }
+    // Enrich ANY row missing Mega Vertical Grouping using the Vertical → Mega lookup
+    const enrichRow = (r, fileHeaders) => {
+      if (!megaCol || !vertCol) return r;
+      const existing = (r[megaCol] || '').trim();
+      if (existing && existing.toLowerCase() !== 'unknown') return r;
+      // Try Vertical column from this row's file headers
+      const vCol = fileHeaders
+        ? fileHeaders.find(h => h.toLowerCase().trim() === 'vertical')
+        : vertCol;
+      const vert = vCol ? (r[vCol] || '').trim() : '';
+      if (vert && vertToMega[vert]) {
+        return { ...r, [megaCol]: vertToMega[vert] };
       }
       return r;
-    }) : [];
+    };
+
+    // Enrich both won and lost rows
+    const enrichedWon = wonRows.map(r => enrichRow(r, wonFile.headers));
+    const lostRows = lostFile
+      ? lostFile.rows.map(r => enrichRow(r, lostFile.headers))
+      : [];
+
+    const filledWon = enrichedWon.filter(r => (r[megaCol] || '').trim()).length;
+    const filledLost = lostRows.filter(r => (r[megaCol] || '').trim()).length;
+    console.log(`Backtest: Mega Vertical filled — won: ${filledWon}/${enrichedWon.length}, lost: ${filledLost}/${lostRows.length}`);
 
     const combined = [
-      ...wonRows.map(r => ({ ...r, _outcome: 'Won' })),
+      ...enrichedWon.map(r => ({ ...r, _outcome: 'Won' })),
       ...lostRows.map(r => ({ ...r, _outcome: 'Closed Lost' })),
     ];
 
