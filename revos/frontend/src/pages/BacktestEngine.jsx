@@ -59,18 +59,50 @@ function auc(preds, actuals) {
 
 function autoDetect(headers) {
   const map = { outcome: '', product: '', segment: '', deal_value: '', created_date: '', close_date: '' };
-  const hints = {
-    outcome: ['won', 'outcome', 'win', 'closed', 'result', 'status'],
-    product: ['product', 'service', 'type'],
-    segment: ['segment', 'industry', 'market', 'vertical'],
-    deal_value: ['amount', 'mrr', 'value', 'arr', 'revenue', 'tcv'],
-    created_date: ['created', 'open_date', 'start'],
-    close_date: ['close', 'closed'],
+
+  // Preferred exact matches (case-insensitive) — checked first
+  const exact = {
+    outcome: ['stage', 'stage group', 'deal stage', 'opportunity stage'],
+    product: ['product group', 'product family', 'product name', 'product'],
+    segment: ['mega vertical grouping', 'mega vertical', 'mega_vertical', 'vertical', 'industry'],
+    deal_value: ['total mrr & mar (converted)', 'mrr', 'total mrr', 'amount', 'total contract value'],
+    created_date: ['created date', 'created_date', 'create date'],
+    close_date: ['close date', 'close_date'],
   };
+
+  // Fallback substring hints — only used if no exact match
+  const hints = {
+    outcome: ['stagegroup', 'stage', 'outcome', 'result', 'status'],
+    product: ['productgroup', 'product'],
+    segment: ['megavertical', 'vertical', 'industry'],
+    deal_value: ['mrr', 'revenue', 'amount', 'tcv', 'value'],
+    created_date: ['createddate', 'createdate'],
+    close_date: ['closedate'],
+  };
+
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+
+  // Pass 1: exact match (full header equals an alias)
+  for (const [field, aliases] of Object.entries(exact)) {
+    if (map[field]) continue;
+    for (const alias of aliases) {
+      const idx = lowerHeaders.indexOf(alias);
+      if (idx !== -1) { map[field] = headers[idx]; break; }
+    }
+  }
+
+  // Pass 2: substring match on short/clean headers (skip compound Salesforce headers with ":")
   for (const [field, hintList] of Object.entries(hints)) {
-    const match = headers.find(h => hintList.some(hint => h.toLowerCase().replace(/[_ ]/g, '').includes(hint.replace(/[_ ]/g, ''))));
+    if (map[field]) continue;
+    const match = headers.find(h => {
+      const clean = h.toLowerCase().replace(/[_ ]/g, '');
+      // Skip long compound headers (e.g. "Account : Account Owner : Sales Channel (Vertical)")
+      if (h.includes(':') && clean.length > 30) return false;
+      return hintList.some(hint => clean.includes(hint));
+    });
     if (match) map[field] = match;
   }
+
   return map;
 }
 

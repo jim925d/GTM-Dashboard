@@ -20,7 +20,7 @@ FIELD_MAP = {
     "created_date": ["created date", "create date", "created_date", "date created"],
     "total_contract_value": ["total contract value", "amount", "tcv", "total_contract_value", "deal amount"],
     "rep": ["created by", "rep", "owner", "deal owner", "sales rep", "representative"],
-    "mega_vertical": ["mega vertical", "vertical", "industry", "mega_vertical"],
+    "mega_vertical": ["mega vertical grouping", "mega vertical", "vertical", "industry", "mega_vertical"],
     "sub_vertical": ["sub vertical", "sub_vertical", "sub-vertical", "sub industry"],
     "primary_rep": ["primary rep", "primary_rep", "assigned rep", "account owner"],
     "loss_reason": ["loss reason", "loss_reason", "close lost reason", "reason lost"],
