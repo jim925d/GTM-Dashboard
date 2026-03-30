@@ -313,11 +313,41 @@ export default function BacktestEngine({ onResults, savedResults }) {
       console.log(`Backtest: ${wonRows.length} Won deals (Forecast Category = Closed), ${excluded} excluded from historical.csv`);
     }
 
+    // ── Build Vertical → Mega Vertical lookup from historical.csv ──
+    // historical.csv has both "Vertical" and "Mega Vertical Grouping" columns.
+    // close_lost.csv only has "Vertical". Build a mapping so we can fill in
+    // Mega Vertical Grouping for close_lost rows.
+    const megaCol = wonFile.headers.find(h => h.toLowerCase().trim() === 'mega vertical grouping');
+    const vertCol = wonFile.headers.find(h => h.toLowerCase().trim() === 'vertical');
+    const vertToMega = {};
+    if (megaCol && vertCol) {
+      for (const r of wonFile.rows) {
+        const vert = (r[vertCol] || '').trim();
+        const mega = (r[megaCol] || '').trim();
+        if (vert && mega && !vertToMega[vert]) vertToMega[vert] = mega;
+      }
+      console.log(`Backtest: built ${Object.keys(vertToMega).length} Vertical → Mega Vertical mappings`);
+    }
+
+    // Enrich close_lost rows: fill in Mega Vertical Grouping from Vertical lookup
+    const lostRows = lostFile ? lostFile.rows.map(r => {
+      if (megaCol && !r[megaCol]) {
+        // Find the Vertical column in close_lost (may have same or different header)
+        const lostVertCol = lostFile.headers.find(h => h.toLowerCase().trim() === 'vertical');
+        const vert = lostVertCol ? (r[lostVertCol] || '').trim() : '';
+        if (vert && vertToMega[vert]) {
+          return { ...r, [megaCol]: vertToMega[vert] };
+        }
+      }
+      return r;
+    }) : [];
+
     const combined = [
       ...wonRows.map(r => ({ ...r, _outcome: 'Won' })),
-      ...(lostFile ? lostFile.rows.map(r => ({ ...r, _outcome: 'Closed Lost' })) : []),
+      ...lostRows.map(r => ({ ...r, _outcome: 'Closed Lost' })),
     ];
 
+    // Use historical.csv headers as canonical (includes Mega Vertical Grouping)
     const allHeaders = [...wonFile.headers, '_outcome'];
     setHeaders(allHeaders);
     setRows(combined);
