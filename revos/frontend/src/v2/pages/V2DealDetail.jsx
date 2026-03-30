@@ -507,7 +507,6 @@ export default function V2DealDetail({ deal, accounts = [], onBack }) {
             <div style={{ fontFamily: V2_FONTS.mono, fontSize: 10, color: V2.textDim, letterSpacing: '0.06em', marginBottom: 12, textTransform: 'uppercase' }}>Deal Details</div>
             {[
               { label: 'MRR', value: fmt(deal.mrr), color: V2.text },
-              { label: 'Weighted MRR', value: fmt((deal.mrr || 0) * (STAGE_WEIGHTS[deal.stage] || 0.1)), color: V2.purple },
               { label: 'Term', value: deal.term || '--' },
               { label: 'Product', value: deal.product_group || '--' },
               { label: 'Close Date', value: deal.close_date || '--' },
