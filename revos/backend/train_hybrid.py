@@ -235,6 +235,122 @@ def load_engagements():
 
 
 # ═══════════════════════════════════════
+# ACCOUNT DATA LOADING (locations, services)
+# ═══════════════════════════════════════
+
+def load_location_summary():
+    """Load per-account on-net/near-net/off-net counts from location-summary.json."""
+    fpath = DATA_DIR / "location-summary.json"
+    if not fpath.exists():
+        print(f"  location-summary.json not found")
+        return {}
+
+    with open(fpath) as f:
+        data = json.load(f)
+
+    accounts = data.get("accounts", data) if isinstance(data, dict) else data
+    if isinstance(accounts, dict):
+        # Might be keyed by account name directly
+        accounts = [{"name": k, **v} if isinstance(v, dict) else {"name": k} for k, v in accounts.items()]
+
+    by_account = {}
+    for acct in accounts:
+        name = acct.get("name", "").strip()
+        if not name:
+            continue
+        by_account[name.lower()] = {
+            "on": acct.get("on", 0),
+            "near": acct.get("near", 0),
+            "off": acct.get("off", 0),
+            "total": acct.get("total", 0),
+        }
+
+    print(f"  Location summary: {len(by_account)} accounts")
+    return by_account
+
+
+def load_services_by_account():
+    """Load per-account product list from services.csv."""
+    fpath = DATA_DIR / "services.csv"
+    if not fpath.exists():
+        print(f"  services.csv not found")
+        return {}
+
+    headers, rows = parse_csv_file(fpath)
+
+    # Find columns
+    acct_col = next((h for h in headers if "customer account" in h.lower()), None)
+    prod_col = next((h for h in headers if h.lower().strip() == "product group"), None)
+    status_col = next((h for h in headers if "status" in h.lower() and "service" in h.lower()), None)
+    # Try alternate column names
+    if not acct_col:
+        acct_col = next((h for h in headers if "account" in h.lower()), None)
+    if not prod_col:
+        prod_col = next((h for h in headers if "product" in h.lower()), None)
+
+    if not acct_col or not prod_col:
+        print(f"  services.csv: could not find account/product columns")
+        return {}
+
+    by_account = defaultdict(set)
+    for r in rows:
+        acct = (r.get(acct_col, "")).strip()
+        prod = (r.get(prod_col, "")).strip()
+        # Skip disconnected services if status column exists
+        if status_col:
+            status = (r.get(status_col, "")).lower().strip()
+            if "disconnect" in status:
+                continue
+        if acct and prod:
+            by_account[acct.lower()].add(prod)
+
+    result = {k: list(v) for k, v in by_account.items()}
+    print(f"  Services: {len(result)} accounts with active products")
+    return result
+
+
+def enrich_deals_with_account_data(deals, location_data, services_data):
+    """Enrich each deal with on-net and product data from account-level sources."""
+    stats = {"enriched": 0, "has_products": 0, "has_onnet": 0}
+
+    for deal in deals:
+        acct = (deal.get("customer_account") or "").lower().strip()
+        if not acct:
+            continue
+
+        # Services / existing products
+        products = services_data.get(acct, [])
+        if products:
+            deal["current_products"] = products
+            deal["existing_services"] = products
+            stats["has_products"] += 1
+
+        # Location on-net data
+        loc = location_data.get(acct)
+        if loc and loc.get("total", 0) > 0:
+            total = loc["total"]
+            on = loc.get("on", 0)
+            deal["onnet_pct"] = round(on / total, 3)
+            deal["sites_total"] = total
+            deal["sites_onnet"] = on
+
+            if on > 0:
+                deal["primary_site_onnet"] = "on-net"
+                deal["onnet_status"] = "on-net"
+            elif loc.get("near", 0) > 0:
+                deal["primary_site_onnet"] = "near-net"
+                deal["onnet_status"] = "near-net"
+            else:
+                deal["primary_site_onnet"] = "off-net"
+                deal["onnet_status"] = "off-net"
+            stats["has_onnet"] += 1
+
+        stats["enriched"] += 1
+
+    return stats
+
+
+# ═══════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════
 
@@ -246,6 +362,15 @@ def main():
     # Step 1: Load data
     deals = load_deals()
     engagements = load_engagements()
+
+    # Step 1b: Load account-level data and enrich deals
+    print("\nLoading account data for enrichment...")
+    location_data = load_location_summary()
+    services_data = load_services_by_account()
+    enrich_stats = enrich_deals_with_account_data(deals, location_data, services_data)
+    print(f"  Enriched: {enrich_stats['enriched']} deals")
+    print(f"  With product data: {enrich_stats['has_products']} ({enrich_stats['has_products']/max(len(deals),1)*100:.1f}%)")
+    print(f"  With on-net data: {enrich_stats['has_onnet']} ({enrich_stats['has_onnet']/max(len(deals),1)*100:.1f}%)")
 
     if not deals:
         print("ERROR: No deals found. Check CSV files in frontend/data/")
