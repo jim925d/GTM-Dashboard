@@ -288,15 +288,33 @@ export default function BacktestEngine({ onResults, savedResults }) {
   }, []);
 
   // Combine two CSV files and proceed to mapping
-  // historicals.csv = all won deals (churn is NOT a loss, excluded from loss classification)
-  // close_lost.csv = the only source of lost deals
+  // historicals.csv — only Forecast Category = "Closed" are won deals; everything else is excluded
+  // close_lost.csv — every deal is a loss
   const handleCombineFiles = useCallback(() => {
     if (!wonFile) return;
 
-    // historicals.csv = all Won deals (churn rows are excluded, not treated as losses)
-    // close_lost.csv = the only source of Lost deals
+    // Find the Forecast Category column in historical.csv
+    const fcCol = wonFile.headers.find(h =>
+      h.toLowerCase().replace(/[_ ]/g, '').includes('forecastcategory')
+    ) || wonFile.headers.find(h =>
+      h.toLowerCase().trim() === 'forecast category'
+    );
+
+    // Filter historical.csv: only "Closed" forecast category = Won deal
+    const wonRows = fcCol
+      ? wonFile.rows.filter(r => {
+          const fc = (r[fcCol] || '').toLowerCase().trim();
+          return fc === 'closed' || fc === 'close';
+        })
+      : wonFile.rows;
+
+    const excluded = wonFile.rows.length - wonRows.length;
+    if (excluded > 0) {
+      console.log(`Backtest: ${wonRows.length} Won deals (Forecast Category = Closed), ${excluded} excluded from historical.csv`);
+    }
+
     const combined = [
-      ...wonFile.rows.map(r => ({ ...r, _outcome: 'Won' })),
+      ...wonRows.map(r => ({ ...r, _outcome: 'Won' })),
       ...(lostFile ? lostFile.rows.map(r => ({ ...r, _outcome: 'Closed Lost' })) : []),
     ];
 
