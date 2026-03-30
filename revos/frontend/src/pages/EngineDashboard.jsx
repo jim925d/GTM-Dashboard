@@ -658,7 +658,7 @@ export default function EngineDashboard({ accounts, backtestResults }) {
                         tick={{ fontFamily: chartTheme.font, fontSize: 10, fill: chartTheme.text }}
                         label={{ value: 'Actual Win Rate', angle: -90, position: 'insideLeft', offset: 0, fontFamily: chartTheme.font, fontSize: 10, fill: T.textDim }}
                       />
-                      <Tooltip contentStyle={chartTheme.tooltip} />
+                      <Tooltip contentStyle={chartTheme.tooltip} labelStyle={{ color: T.text }} itemStyle={{ color: T.textMid }} />
                       <ReferenceLine
                         segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]}
                         stroke={T.textDim} strokeDasharray="4 4" strokeWidth={1}
