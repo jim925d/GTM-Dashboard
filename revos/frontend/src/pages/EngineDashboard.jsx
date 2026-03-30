@@ -205,8 +205,8 @@ function scoreDealsFromAccounts(accounts, backtestResults) {
   const hasBacktest = backtestResults && backtestResults.overallWinRate != null
 
   for (const acc of accounts) {
-    // Get active funnel deals
-    const funnel = acc.funnel || []
+    // Get active funnel deals (account objects use active_deals, not funnel)
+    const funnel = acc.active_deals || acc.funnel || []
     for (const deal of funnel) {
       const mrr = parseFloat(deal.mrr || deal.MRR || deal.amount || 0)
       if (mrr <= 0) continue // skip churn/negative
@@ -345,7 +345,7 @@ function buildSegmentData(accounts, backtestResults) {
   for (const acc of accounts) {
     const rep = acc.rep || acc.sales_owner || 'Unknown'
     if (!repMap[rep]) repMap[rep] = { deals: 0, won: 0 }
-    repMap[rep].deals += (acc.funnel?.length || 0)
+    repMap[rep].deals += (acc.active_deals?.length || acc.funnel?.length || 0)
     // Approximate won deals from NRR
     if (acc.nrr >= 1.0) repMap[rep].won++
   }
