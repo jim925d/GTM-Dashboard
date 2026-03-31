@@ -4,6 +4,7 @@ import V2Dashboard from './pages/V2Dashboard'
 import V2Pipeline from './pages/V2Pipeline'
 import V2DealDetail from './pages/V2DealDetail'
 import V2TargetList from './pages/V2TargetList'
+import V2TargetDetail from './pages/V2TargetDetail'
 import V2Forecast from './pages/V2Forecast'
 import { DEMO_ACCOUNTS, DEMO_DEALS, DEMO_TEAM, DEMO_REPS, DEMO_QUOTA } from './demoData'
 import useDeals from './hooks/useDeals'
@@ -16,6 +17,8 @@ export default function V2App({ accounts = [], rawData = {}, onBack }) {
   const [activePage, setActivePage] = useState('v2-dashboard')
   const [selectedDeal, setSelectedDeal] = useState(null)
   const [dealBackLabel, setDealBackLabel] = useState('Pipeline')
+  const [selectedTarget, setSelectedTarget] = useState(null)
+  const [targetBackLabel, setTargetBackLabel] = useState('Targets')
 
   // ── Team filter state ──────────────────────────────────────────
   // scope: 'team' (all) | '1lm' | 'rep'
@@ -77,8 +80,20 @@ export default function V2App({ accounts = [], rawData = {}, onBack }) {
     setActivePage(dealBackLabel === 'Dashboard' ? 'v2-dashboard' : 'v2-pipeline')
   }, [dealBackLabel])
 
+  const handleSelectTarget = useCallback((target, fromLabel) => {
+    setSelectedTarget(target)
+    setTargetBackLabel(fromLabel || 'Targets')
+    setActivePage('v2-target-detail')
+  }, [])
+
+  const handleBackFromTarget = useCallback(() => {
+    setSelectedTarget(null)
+    setActivePage(targetBackLabel === 'Dashboard' ? 'v2-dashboard' : 'v2-targets')
+  }, [targetBackLabel])
+
   const handleNavigate = useCallback((page) => {
     setSelectedDeal(null)
+    setSelectedTarget(null)
     setActivePage(page)
   }, [])
 
@@ -91,16 +106,19 @@ export default function V2App({ accounts = [], rawData = {}, onBack }) {
     if (activePage === 'v2-deal-detail' && selectedDeal) {
       return <V2DealDetail deal={selectedDeal} accounts={filteredAccounts} onBack={handleBackFromDeal} backLabel={dealBackLabel} />
     }
+    if (activePage === 'v2-target-detail' && selectedTarget) {
+      return <V2TargetDetail target={selectedTarget} accounts={filteredAccounts} onBack={handleBackFromTarget} backLabel={targetBackLabel} />
+    }
     switch (activePage) {
       case 'v2-pipeline':
         return <V2Pipeline accounts={filteredAccounts} rawData={rawData} onSelectDeal={handleSelectDeal} />
       case 'v2-targets':
-        return <V2TargetList accounts={filteredAccounts} rawData={rawData} />
+        return <V2TargetList accounts={filteredAccounts} rawData={rawData} onSelectTarget={handleSelectTarget} />
       case 'v2-forecast':
         return <V2Forecast accounts={filteredAccounts} rawData={rawData} quota={quota} onQuotaChange={setQuota} />
       case 'v2-dashboard':
       default:
-        return <V2Dashboard accounts={filteredAccounts} rawData={rawData} onNavigate={handleNavigate} onSelectDeal={handleSelectDeal} />
+        return <V2Dashboard accounts={filteredAccounts} rawData={rawData} onNavigate={handleNavigate} onSelectDeal={handleSelectDeal} onSelectTarget={(t) => handleSelectTarget(t, 'Dashboard')} />
     }
   }
 

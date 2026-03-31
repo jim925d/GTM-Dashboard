@@ -43,7 +43,7 @@ const scoreColor = s => s >= 70 ? V2.sage : s >= 50 ? V2.amber : V2.red
 
 // ═══ Main ═════════════════════════════════════════════════════════════════════
 
-export default function V2TargetList({ accounts = [], rawData = {} }) {
+export default function V2TargetList({ accounts = [], rawData = {}, onSelectTarget }) {
   const { deals: realDeals } = useDeals(accounts)
   const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
@@ -170,6 +170,7 @@ export default function V2TargetList({ accounts = [], rawData = {} }) {
           return (
             <div
               key={t.id}
+              onClick={() => onSelectTarget && onSelectTarget(t, 'Targets')}
               style={{
                 background: V2.card, border: `1px solid ${V2.border}`, borderRadius: 12,
                 padding: '20px 24px', cursor: 'pointer', transition: 'border-color 0.15s',
