@@ -115,7 +115,7 @@ export default function V2App({ accounts = [], rawData = {}, onBack }) {
       case 'v2-targets':
         return <V2TargetList accounts={filteredAccounts} rawData={rawData} onSelectTarget={handleSelectTarget} />
       case 'v2-forecast':
-        return <V2Forecast accounts={filteredAccounts} rawData={rawData} quota={quota} onQuotaChange={setQuota} />
+        return <V2Forecast accounts={filteredAccounts} rawData={rawData} quota={quota} onQuotaChange={setQuota} onSelectDeal={handleSelectDeal} />
       case 'v2-dashboard':
       default:
         return <V2Dashboard accounts={filteredAccounts} rawData={rawData} onNavigate={handleNavigate} onSelectDeal={handleSelectDeal} onSelectTarget={(t) => handleSelectTarget(t, 'Dashboard')} />

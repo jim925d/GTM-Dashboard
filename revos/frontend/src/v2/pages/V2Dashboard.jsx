@@ -52,7 +52,7 @@ function dealProb(d) {
 
 // ═══ Main ═════════════════════════════════════════════════════════════════════
 
-export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, onSelectDeal }) {
+export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, onSelectDeal, onSelectTarget }) {
   const { deals: realDeals } = useDeals(accounts)
   const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
@@ -159,7 +159,7 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
             {targets.slice(0, 2).map(t => (
               <div
                 key={t.id}
-                onClick={() => onNavigate && onNavigate('v2-targets')}
+                onClick={() => onSelectTarget ? onSelectTarget(t) : onNavigate && onNavigate('v2-targets')}
                 style={{
                   padding: '14px 18px', borderRadius: 10, marginBottom: 8, cursor: 'pointer',
                   background: V2.card, border: `1px solid ${V2.border}`,

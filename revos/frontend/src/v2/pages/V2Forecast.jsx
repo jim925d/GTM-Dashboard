@@ -388,7 +388,7 @@ function GovernanceCard({ forecast, view, target }) {
 
 // ═══ Main ═════════════════════════════════════════════════════════════════════
 
-export default function V2Forecast({ accounts = [], rawData = {}, quota, onQuotaChange }) {
+export default function V2Forecast({ accounts = [], rawData = {}, quota, onQuotaChange, onSelectDeal }) {
   const { deals: realDeals } = useDeals(accounts)
   const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
@@ -472,7 +472,7 @@ export default function V2Forecast({ accounts = [], rawData = {}, quota, onQuota
 
       {/* ── Two-column ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
-        <StageBreakdown stageGroups={fcData.stageGroups} view={view} onSelectDeal={(d, label) => {/* handled by parent */}} />
+        <StageBreakdown stageGroups={fcData.stageGroups} view={view} onSelectDeal={onSelectDeal} />
         <div>
           <GapCard gap={fcData.gap} target={monthlyTarget} forecast={fcData.forecast} dealCount={fcData.dealCount} view={view} />
           <ModelHealthCard backtest={fcData.backtest} />
