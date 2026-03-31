@@ -300,5 +300,15 @@ export const DEMO_BACKTEST = {
   ],
 }
 
+// Team hierarchy for filter bar
+export const DEMO_TEAM = [
+  { name: 'Sarah Chen', role: '1lm', reps: ['DCosta', 'Ochoa'] },
+  { name: 'Marcus Webb', role: '1lm', reps: ['Kahn', 'Malcolm'] },
+]
+
+export const DEMO_REPS = ['DCosta', 'Kahn', 'Ochoa', 'Malcolm']
+
+export const DEMO_QUOTA = 180000
+
 export { DEMO_DEALS, DEMO_ACCOUNTS }
 export default DEMO_ACCOUNTS
