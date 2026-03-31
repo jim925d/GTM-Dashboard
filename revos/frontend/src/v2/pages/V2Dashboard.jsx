@@ -1,13 +1,16 @@
 import { useMemo } from 'react'
-import { V2, V2_FONTS, pc, fmt, fmtPct } from '../tokens'
-import { DEMO_ACCOUNTS, DEMO_DEALS, DEMO_ACTIONS, DEMO_PLAYBOOKS } from '../demoData'
+import { V2, V2_FONTS, pc, fmt } from '../tokens'
+import { DEMO_ACCOUNTS, DEMO_DEALS, DEMO_ACTIONS } from '../demoData'
 import useDeals from '../hooks/useDeals'
+import useV2Targets from '../hooks/useV2Targets'
 import ProbTooltip from '../components/ProbTooltip'
 
 // ═══ Helpers ═══════════════════════════════════════════════════════════════════
 
 function urgencyScore(deal) {
-  return (deal.gap || 0) + Math.max(60 - (deal.prob || deal.winProb || 50), 0)
+  const prob = (deal.prob || deal.winProb || 0.5)
+  const p = prob <= 1 ? prob * 100 : prob
+  return (deal.gap || 0) + Math.max(60 - p, 0)
 }
 
 function getMonthLabel() {
@@ -17,60 +20,34 @@ function getMonthLabel() {
 }
 
 function getDealFactors(deal) {
-  const prob = Math.round((deal.winProb || deal.prob || 0) * (deal.winProb <= 1 ? 100 : 1))
-  const factors = deal.factors || []
-  if (factors.length) return factors
-  // Synthesize factors from deal data
+  if (deal.factors?.length) return deal.factors
   const stageBase = { 'Discover': 31, 'Design': 42, 'Design Solution': 53, 'Propose': 66, 'Negotiate': 75, 'Verbal Agreement': 92 }
   const base = stageBase[deal.stage] || 50
   const result = [['Stage base', `${base}%`, V2.textMid, `${deal.stage} closes at ${base}%`]]
   const gap = deal.gap || 0
-  if (gap > 7) result.push(['Gap', `−${Math.round(gap * 0.5)}%`, V2.red, `${gap} days since last touch`])
+  if (gap > 7) result.push(['Gap', `\u2212${Math.round(gap * 0.5)}%`, V2.red, `${gap} days since last touch`])
   else result.push(['Gap', '0%', V2.textMuted, `Last touch ${gap}d ago`])
   const prod = deal.product_group || deal.product || ''
   if (['Dark Fiber', 'Wavelengths'].includes(prod)) result.push(['Product', '+3%', V2.sage, `${prod} above avg`])
   else result.push(['Product', '+2%', V2.sage, `${prod} slight boost`])
-  if ((deal.mrr || 0) > 25000) result.push(['Size', '−2%', V2.amber, 'Above median'])
+  if ((deal.mrr || 0) > 25000) result.push(['Size', '\u22122%', V2.amber, 'Above median'])
   return result
 }
 
 function getActionDesc(deal) {
   const action = DEMO_ACTIONS[deal.id]
-  if (action) return { desc: action.desc, impact: action.cta ? `+${Math.round((deal.gap || 10) * 0.8)}%` : '+5%' }
+  if (action) return { desc: action.desc, impact: `+${Math.round((deal.gap || 10) * 0.8)}%` }
   const gap = deal.gap || 0
-  if (gap > 14) return { desc: `${gap}-day activity gap. Re-engage within 48h — send value-add intel or schedule a call.`, impact: `+${Math.min(19, Math.round(gap * 0.6))}%` }
-  if ((deal.winProb || 0) < 0.35) return { desc: `Low probability at ${deal.stage}. Review exit criteria — is the deal genuinely progressing?`, impact: '+5%' }
+  if (gap > 14) return { desc: `${gap}-day activity gap. Re-engage within 48h \u2014 send value-add intel or schedule a call.`, impact: `+${Math.min(19, Math.round(gap * 0.6))}%` }
+  const prob = (deal.winProb || deal.prob || 0.5)
+  if (prob < 0.35) return { desc: `Low probability at ${deal.stage}. Review exit criteria \u2014 is the deal genuinely progressing?`, impact: '+5%' }
   if (deal.daysInStage > 20) return { desc: `${deal.daysInStage} days in ${deal.stage}. Propose a concrete next step with a specific date.`, impact: '+4%' }
-  return { desc: `Advance to next stage. Review exit criteria below.`, impact: '+3%' }
+  return { desc: 'Advance to next stage. Review exit criteria below.', impact: '+3%' }
 }
 
-// ═══ Target scoring ═══════════════════════════════════════════════════════════
-
-function buildTargets(accounts) {
-  return accounts
-    .filter(a => (a.locations || []).length > 0 || (a.premierScore || 0) > 180)
-    .map(a => {
-      const locs = a.locations || []
-      const onNet = locs.filter(l => l.onNet).length
-      const total = locs.length || 1
-      const ws = Math.max(0, (a.totalTMR || 0) - (a.servicesMRR || 0) * 12)
-      const score = Math.round((a.premierScore || 150) * 0.35 + (1 - (a.churnProbability || 0)) * 60 + (onNet / total) * 30 + (ws > 50000 ? 15 : 0))
-
-      const signals = []
-      if (onNet > 0) signals.push(`${onNet}/${total} on-net`)
-      if (ws > 10000) signals.push(`$${Math.round(ws / 1000)}K whitespace`)
-      if (locs.some(l => l.isNew)) signals.push('New sites')
-
-      const plays = DEMO_PLAYBOOKS[a.name]
-      const topPlay = plays ? plays.find(p => p.recommended) || plays[0] : null
-      const headline = topPlay
-        ? `${topPlay.title}. ${topPlay.desc.split('.')[0]}.`
-        : `Expand footprint — ${signals[0] || 'existing customer'}.`
-
-      return { id: a.name, name: a.name, industry: `${a.mega_vertical || a.vertical || ''} · ${total} sites`, score, signals, headline }
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
+function dealProb(d) {
+  const p = d.prob || d.winProb || 0.5
+  return Math.round(p <= 1 ? p * 100 : p)
 }
 
 // ═══ Main ═════════════════════════════════════════════════════════════════════
@@ -80,33 +57,35 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
   const isDemo = !realDeals.length
   const accts = isDemo ? DEMO_ACCOUNTS : accounts
   const allDeals = isDemo ? DEMO_DEALS : realDeals
+  const { targets } = useV2Targets(accts)
 
-  // Urgency-sorted deals for priority actions
+  // Urgency-sorted for priority actions
   const actionDeals = useMemo(() =>
     [...allDeals].sort((a, b) => urgencyScore(b) - urgencyScore(a)).slice(0, 3),
     [allDeals]
   )
 
-  // Targets
-  const targets = useMemo(() => buildTargets(accts), [accts])
-
   // Metrics
   const pipeline = allDeals.reduce((s, d) => s + (d.mrr || 0), 0)
-  const atRisk = allDeals.filter(d => (d.gap || 0) > 7 || (d.winProb || d.prob || 0.5) < 0.4).length
+  const atRisk = allDeals.filter(d => (d.gap || 0) > 7 || dealProb(d) < 40).length
   const closeStages = ['Negotiate', 'Verbal Agreement']
   const closeThisMonth = allDeals.filter(d => closeStages.includes(d.stage))
   const closeMRR = closeThisMonth.reduce((s, d) => s + (d.mrr || 0), 0)
-
   const avgProb = allDeals.length
-    ? Math.round(allDeals.reduce((s, d) => s + ((d.winProb || d.prob || 0.5) * (d.winProb <= 1 ? 100 : 1)), 0) / allDeals.length)
+    ? Math.round(allDeals.reduce((s, d) => s + dealProb(d), 0) / allDeals.length)
     : 0
 
   const metrics = [
     { l: 'Pipeline', v: fmt(pipeline), c: V2.text, s: `${allDeals.length} deals` },
     { l: 'Forecast confidence', v: `${avgProb}%`, c: V2.sage, s: 'Calibrated' },
-    { l: 'Deals at risk', v: String(atRisk), c: V2.red, s: `gap >7d or prob <40%` },
+    { l: 'Deals at risk', v: String(atRisk), c: V2.red, s: 'gap >7d or prob <40%' },
     { l: 'Close this month', v: String(closeThisMonth.length), c: V2.text, s: fmt(closeMRR) },
   ]
+
+  // Navigation helper — pass source so deal detail knows where to go back
+  const selectDeal = (deal) => {
+    if (onSelectDeal) onSelectDeal(deal, 'Dashboard')
+  }
 
   return (
     <div>
@@ -135,14 +114,14 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
           <div style={{ fontSize: 11, color: V2.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, fontWeight: 500, fontFamily: V2_FONTS.sans }}>Priority actions</div>
 
           {actionDeals.map((deal, i) => {
-            const prob = Math.round((deal.winProb || deal.prob || 0.5) * (deal.winProb <= 1 ? 100 : 1))
+            const prob = dealProb(deal)
             const { desc, impact } = getActionDesc(deal)
             const factors = getDealFactors(deal)
 
             return (
               <div
                 key={deal.id}
-                onClick={() => onSelectDeal && onSelectDeal(deal)}
+                onClick={() => selectDeal(deal)}
                 style={{
                   padding: '18px 20px', borderRadius: 10, marginBottom: 8, cursor: 'pointer',
                   background: i === 0 ? V2.sageBg : V2.card,
@@ -163,10 +142,7 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <ProbTooltip prob={prob} factors={factors} />
-                    <span style={{
-                      fontFamily: V2_FONTS.mono, fontSize: 11, color: V2.sage,
-                      padding: '2px 7px', background: V2.sageBg, borderRadius: 4,
-                    }}>
+                    <span style={{ fontFamily: V2_FONTS.mono, fontSize: 11, color: V2.sage, padding: '2px 7px', background: V2.sageBg, borderRadius: 4 }}>
                       {impact}
                     </span>
                   </div>
@@ -180,7 +156,7 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, color: V2.purple, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, fontWeight: 500, fontFamily: V2_FONTS.sans }}>Top targets</div>
 
-            {targets.slice(0, 2).map((t, i) => (
+            {targets.slice(0, 2).map(t => (
               <div
                 key={t.id}
                 onClick={() => onNavigate && onNavigate('v2-targets')}
@@ -206,7 +182,9 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
                     </span>
                   ))}
                 </div>
-                <div style={{ fontSize: 11, color: V2.textDim, fontFamily: V2_FONTS.sans }}>{t.headline}</div>
+                <div style={{ fontSize: 11, color: V2.textDim, fontFamily: V2_FONTS.sans }}>
+                  {t.winCase?.headline || t.headline}
+                </div>
               </div>
             ))}
           </div>
@@ -228,14 +206,14 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
 
             {/* Rows */}
             {allDeals.map((d, i) => {
-              const prob = Math.round((d.winProb || d.prob || 0.5) * (d.winProb <= 1 ? 100 : 1))
+              const prob = dealProb(d)
               const factors = getDealFactors(d)
               const gap = d.gap || 0
 
               return (
                 <div
                   key={d.id || i}
-                  onClick={() => onSelectDeal && onSelectDeal(d)}
+                  onClick={() => selectDeal(d)}
                   style={{
                     display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.7fr 0.6fr 0.4fr',
                     alignItems: 'center', padding: '10px 16px',
@@ -245,13 +223,10 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  {/* Account */}
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 500, color: V2.text, fontFamily: V2_FONTS.sans }}>{d.accountName || d.account}</div>
                     <div style={{ fontSize: 10, color: V2.textDim, marginTop: 1, fontFamily: V2_FONTS.sans }}>{d.product_group || d.product}</div>
                   </div>
-
-                  {/* Stage pill */}
                   <span style={{
                     fontSize: 10, color: V2.textMid, padding: '3px 8px', borderRadius: 5,
                     background: V2.elevated, border: `1px solid ${V2.ghost}`,
@@ -259,19 +234,13 @@ export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, o
                   }}>
                     {d.stage}
                   </span>
-
-                  {/* Prob bar + tooltip */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ width: 30, height: 3, background: V2.ghost, borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ width: `${prob}%`, height: '100%', borderRadius: 2, background: pc(prob) }} />
                     </div>
                     <ProbTooltip prob={prob} factors={factors} />
                   </div>
-
-                  {/* MRR */}
                   <span style={{ fontFamily: V2_FONTS.mono, fontSize: 11, color: V2.textMid }}>{fmt(d.mrr)}</span>
-
-                  {/* Gap */}
                   <span style={{
                     fontSize: 10, fontFamily: V2_FONTS.sans,
                     color: gap > 7 ? V2.red : V2.dim,

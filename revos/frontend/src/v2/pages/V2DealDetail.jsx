@@ -391,7 +391,7 @@ function EnginePill({ engine }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function V2DealDetail({ deal, accounts = [], onBack }) {
+export default function V2DealDetail({ deal, accounts = [], onBack, backLabel = 'Pipeline' }) {
   if (!deal) return null
   const hasRealPipeline = accounts.some(a => (a.pipeline || []).length > 0)
   const isDemo = !hasRealPipeline
@@ -417,9 +417,9 @@ export default function V2DealDetail({ deal, accounts = [], onBack }) {
   return (
     <div>
       {/* Back nav */}
-      <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, background: 'none', border: 'none', cursor: 'pointer', fontFamily: V2_FONTS.sans, fontSize: 13, color: V2.accent }}>
+      <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, background: 'none', border: 'none', cursor: 'pointer', fontFamily: V2_FONTS.sans, fontSize: 12, color: V2.textDim }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
-        Pipeline
+        {backLabel}
       </button>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
