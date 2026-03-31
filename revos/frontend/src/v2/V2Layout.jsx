@@ -1,31 +1,25 @@
 import { useState } from 'react'
-import { V2, V2_FONTS, V2_NAV, gridBgStyle } from './tokens'
+import { V2, V2_FONTS, V2_NAV, gridBgStyle, fmt } from './tokens'
 
-// Icon components (inline SVG to avoid extra deps)
-const icons = {
-  grid: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-    </svg>
-  ),
-  'trending-up': (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
-    </svg>
-  ),
-  target: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
-    </svg>
-  ),
-  'bar-chart-2': (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  ),
-}
+export default function V2Layout({ activePage, onNavigate, onBack, children, filterScope, filterValue, onFilterChange, team, reps }) {
+  const [repDrop, setRepDrop] = useState(false)
 
-export default function V2Layout({ activePage, onNavigate, onBack, children }) {
+  // Build rep display info
+  const currentRep = filterScope === 'rep' && filterValue
+    ? { name: filterValue, initials: filterValue.slice(0, 2).toUpperCase() }
+    : filterScope === '1lm' && filterValue
+    ? { name: filterValue, initials: filterValue.split(' ').map(n => n[0]).join('').toUpperCase() }
+    : { name: 'Entire Team', initials: 'ALL' }
+
+  // Build dropdown options
+  const dropdownOptions = [
+    { id: 'team', name: 'Entire Team', initials: 'ALL', scope: 'team', value: null },
+    ...(team || []).map(t => ({ id: `1lm-${t.name}`, name: t.name, initials: t.name.split(' ').map(n => n[0]).join(''), scope: '1lm', value: t.name, sub: `${t.reps.length} reps` })),
+    ...(reps || []).map(r => ({ id: `rep-${r}`, name: r, initials: r.slice(0, 2).toUpperCase(), scope: 'rep', value: r })),
+  ]
+
+  const activeKey = filterScope === 'team' ? 'team' : `${filterScope}-${filterValue}`
+
   return (
     <div
       style={{
@@ -38,116 +32,177 @@ export default function V2Layout({ activePage, onNavigate, onBack, children }) {
         flexDirection: 'column',
       }}
     >
-      {/* ── Top Nav ── */}
-      <nav
+      {/* ── Top Bar ── */}
+      <div
         style={{
-          height: 56,
-          borderBottom: `1px solid ${V2.border}`,
-          background: V2.bgSubtle,
           display: 'flex',
           alignItems: 'center',
-          padding: '0 24px',
-          gap: 32,
+          justifyContent: 'space-between',
+          padding: '12px 28px',
+          borderBottom: `1px solid ${V2.border}`,
+          background: V2.card,
           flexShrink: 0,
         }}
       >
-        {/* Logo */}
+        {/* Left: Logo + badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
-            style={{
-              fontFamily: V2_FONTS.mono,
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              color: V2.accent,
-            }}
+          <div
+            onClick={onBack}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}
           >
-            REVOS
-          </span>
-          <span
-            style={{
-              fontFamily: V2_FONTS.mono,
-              fontSize: 9,
-              fontWeight: 600,
-              color: V2.textDim,
-              background: V2.accentDim,
-              border: `1px solid ${V2.accentBorder}`,
-              padding: '2px 8px',
-              borderRadius: V2.radiusFull,
-              letterSpacing: '0.08em',
-            }}
-          >
-            V2 PREVIEW
+            <div style={{
+              width: 26, height: 26, borderRadius: 7,
+              background: V2.accentBg, border: `1px solid ${V2.accentBorder}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: V2_FONTS.mono, fontSize: 10, fontWeight: 600, color: V2.accent,
+            }}>
+              R
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 600, color: V2.text }}>RevOS</span>
+          </div>
+          <span style={{
+            fontSize: 9, color: V2.accent, padding: '3px 9px', borderRadius: 4,
+            background: V2.accentBg, border: `1px solid ${V2.accentBorder}`,
+            fontWeight: 600, letterSpacing: '0.04em', fontFamily: V2_FONTS.mono,
+          }}>
+            GTM PREMIER
           </span>
         </div>
 
-        {/* Nav items */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          {V2_NAV.map((item) => {
-            const active = activePage === item.id
+        {/* Center: Nav pills */}
+        <div style={{ display: 'flex', gap: 1, background: V2.elevated, borderRadius: 8, padding: 2, border: `1px solid ${V2.ghost}` }}>
+          {V2_NAV.map(item => {
+            const active = activePage === item.id || (activePage === 'v2-deal-detail' && item.id === 'v2-pipeline') || (activePage === 'v2-target-detail' && item.id === 'v2-targets')
             return (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 14px',
-                  borderRadius: V2.radiusSm,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
-                  fontFamily: V2_FONTS.sans,
-                  color: active ? V2.text : V2.textDim,
-                  background: active ? V2.accentDim : 'transparent',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) e.target.style.background = V2.surfaceHover
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) e.target.style.background = 'transparent'
+                  padding: '6px 16px', borderRadius: 6, fontSize: 11,
+                  fontWeight: active ? 500 : 400,
+                  color: active ? V2.accent : V2.textDim,
+                  background: active ? V2.accentBg : 'transparent',
+                  border: active ? `1px solid ${V2.accentBorder}` : '1px solid transparent',
+                  cursor: 'pointer', fontFamily: V2_FONTS.sans,
+                  transition: 'all 0.15s',
                 }}
               >
-                {icons[item.icon]}
                 {item.label}
               </button>
             )
           })}
         </div>
 
-        {/* Spacer + Back link */}
-        <div style={{ flex: 1 }} />
-        <button
-          onClick={onBack}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 14px',
-            borderRadius: V2.radiusSm,
-            border: `1px solid ${V2.border}`,
-            cursor: 'pointer',
-            fontSize: 12,
-            fontFamily: V2_FONTS.sans,
-            color: V2.textDim,
-            background: 'transparent',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseEnter={(e) => { e.target.style.borderColor = V2.accent; e.target.style.color = V2.text }}
-          onMouseLeave={(e) => { e.target.style.borderColor = V2.border; e.target.style.color = V2.textDim }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+        {/* Right: Avatar */}
+        <div style={{
+          width: 28, height: 28, borderRadius: 7,
+          background: V2.elevated, border: `1px solid ${V2.ghost}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, color: V2.textDim, fontWeight: 500,
+        }}>
+          JM
+        </div>
+      </div>
+
+      {/* ── Rep Selector Bar ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 28px',
+          borderBottom: `1px solid ${V2.border}`,
+          background: V2.card,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontSize: 10, color: V2.dim, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Viewing</span>
+
+          {/* Rep dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setRepDrop(!repDrop)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 9,
+                padding: '6px 14px', borderRadius: 8,
+                background: V2.elevated, border: `1px solid ${V2.ghost}`,
+                cursor: 'pointer', fontFamily: V2_FONTS.sans, minWidth: 190,
+              }}
+            >
+              <div style={{
+                width: 24, height: 24, borderRadius: 6,
+                background: V2.accentBg, border: `1px solid ${V2.accentBorder}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, color: V2.accent, fontWeight: 600,
+              }}>
+                {currentRep.initials}
+              </div>
+              <div style={{ textAlign: 'left', flex: 1 }}>
+                <div style={{ fontSize: 12, color: V2.text, fontWeight: 500 }}>{currentRep.name}</div>
+              </div>
+              <svg width="9" height="9" viewBox="0 0 10 10" style={{ color: V2.dim, transform: repDrop ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                <path d="M2 4L5 7L8 4" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              </svg>
+            </button>
+
+            {repDrop && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 10,
+                background: V2.elevated, border: `1px solid ${V2.borderLight}`,
+                borderRadius: 10, padding: 3, minWidth: 240,
+                boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+              }}>
+                {dropdownOptions.map(opt => {
+                  const isActive = opt.id === activeKey
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => { onFilterChange(opt.scope, opt.value); setRepDrop(false) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 9,
+                        width: '100%', padding: '8px 12px', borderRadius: 6,
+                        background: isActive ? V2.accentBg : 'transparent',
+                        border: 'none', cursor: 'pointer', fontFamily: V2_FONTS.sans, textAlign: 'left',
+                      }}
+                    >
+                      <div style={{
+                        width: 22, height: 22, borderRadius: 5,
+                        background: isActive ? V2.accentBg : V2.card,
+                        border: `1px solid ${isActive ? V2.accentBorder : V2.ghost}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 8, color: isActive ? V2.accent : V2.dim, fontWeight: 600,
+                      }}>
+                        {opt.initials}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, color: isActive ? V2.accent : V2.text, fontWeight: 500 }}>{opt.name}</div>
+                        {opt.sub && <div style={{ fontSize: 10, color: V2.dim }}>{opt.sub}</div>}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Export button */}
+        <button style={{
+          display: 'flex', alignItems: 'center', gap: 7,
+          padding: '7px 16px', borderRadius: 8,
+          background: V2.elevated, border: `1px solid ${V2.ghost}`,
+          cursor: 'pointer', fontFamily: V2_FONTS.sans,
+        }}>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1V9M7 9L4 6.5M7 9L10 6.5M2 11H12" stroke={V2.textDim} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Back to classic
+          <span style={{ fontSize: 11, color: V2.textDim }}>Export briefing</span>
         </button>
-      </nav>
+      </div>
 
       {/* ── Content ── */}
-      <main style={{ flex: 1, padding: 24, overflow: 'auto' }}>
+      <main style={{ flex: 1, padding: '24px 28px', overflow: 'auto' }}>
         {children}
       </main>
     </div>
