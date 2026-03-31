@@ -127,6 +127,7 @@ def load_deals():
         close_col = next((h for h in headers if h.lower().strip() == "close date"), None)
         created_col = next((h for h in headers if h.lower().strip() == "created date"), None)
         acct_col = next((h for h in headers if "customer account" in h.lower()), None)
+        onnet_col = next((h for h in headers if "on-net" in h.lower() and "off-net" in h.lower()), None)
 
         # Build vertical lookup
         vert_to_mega = {}
@@ -160,6 +161,7 @@ def load_deals():
                 "mrr": mrr,
                 "close_date": r.get(close_col, "") if close_col else "",
                 "created_date": r.get(created_col, "") if created_col else "",
+                "onnet_status": (r.get(onnet_col, "") if onnet_col else "").strip().lower(),
             })
 
         print(f"  Won deals: {len(deals)}")
@@ -175,6 +177,7 @@ def load_deals():
         close_col = next((h for h in headers if h.lower().strip() == "close date"), None)
         created_col = next((h for h in headers if h.lower().strip() == "created date"), None)
         acct_col = next((h for h in headers if "customer account" in h.lower()), None)
+        onnet_col = next((h for h in headers if "on-net" in h.lower() and "off-net" in h.lower()), None)
 
         lost_count = 0
         for r in rows:
@@ -191,6 +194,7 @@ def load_deals():
                 "mrr": mrr,
                 "close_date": r.get(close_col, "") if close_col else "",
                 "created_date": r.get(created_col, "") if created_col else "",
+                "onnet_status": (r.get(onnet_col, "") if onnet_col else "").strip().lower(),
             })
             lost_count += 1
 
@@ -325,7 +329,14 @@ def enrich_deals_with_account_data(deals, location_data, services_data):
             deal["existing_services"] = products
             stats["has_products"] += 1
 
-        # Location on-net data
+        # Location on-net data — prefer per-deal CSV value, fall back to account-level JSON
+        if deal.get("onnet_status"):
+            status = deal["onnet_status"]
+            deal["primary_site_onnet"] = status
+            stats["has_onnet"] += 1
+            stats["enriched"] += 1
+            continue
+
         loc = location_data.get(acct)
         if loc and loc.get("total", 0) > 0:
             total = loc["total"]
