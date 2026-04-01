@@ -4,6 +4,7 @@ import Badge from '../shared/Badge'
 
 const TAB_TYPES = [
   { key: 'auto', label: 'Auto-Detect', desc: 'Upload any CSV — we detect the table type' },
+  { key: 'registry', label: 'Registry', desc: 'Account registry — upload first for name resolution', highlight: true },
   { key: 'customers', label: 'Customers', desc: 'Account master data (vertical, rep, tier)' },
   { key: 'funnel', label: 'Funnel', desc: 'Active pipeline deals' },
   { key: 'close_lost', label: 'Close Lost', desc: 'Deals pursued but lost' },

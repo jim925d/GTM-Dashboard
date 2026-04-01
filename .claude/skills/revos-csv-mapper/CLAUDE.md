@@ -294,6 +294,153 @@ Plus a rep leaderboard: avg deals/month, total closed, total created, MRR/month.
 
 ---
 
+## Account Resolution Architecture
+
+All CSV imports resolve account names through a two-layer system built from the hierarchy/registry CSV. The raw registry is uploaded once and processed client-side into two in-memory structures.
+
+### Layer 1: Name Resolution Index
+
+Built automatically when the registry CSV is uploaded. A dictionary mapping every known variant of an account name to its canonical `customer_account`.
+
+```js
+// Built from registry CSV on upload
+// Key: lowercase variant name → Value: canonical customer_account
+const NAME_INDEX = {
+  "1life healthcare": "1Life Healthcare",           // exact match (customer_account)
+  "1life healthcare inc": "1Life Healthcare",        // parent_account variant
+  "1life healthcare, inc.": "1Life Healthcare",      // parent_account variant
+  "1 life healthcare": "1Life Healthcare",           // parent_account variant
+  "1life healthcare inc-zn": "1Life Healthcare",     // parent_account variant
+  // ... every parent_account value from every row
+};
+```
+
+**How it's built:**
+```js
+function buildNameIndex(registryRows) {
+  const index = {};
+  registryRows.forEach(row => {
+    const canonical = row.customer_account?.trim();
+    if (!canonical) return;
+    // Add canonical name as exact match
+    index[canonical.toLowerCase()] = canonical;
+    // Add parent_account as variant
+    const parent = row.parent_account?.trim();
+    if (parent && parent.toLowerCase() !== canonical.toLowerCase()) {
+      index[parent.toLowerCase()] = canonical;
+    }
+  });
+  return index;
+}
+```
+
+### Layer 2: Account Metadata
+
+One row per canonical `customer_account` with display/engine fields. Built by grouping registry rows by `customer_account` and picking the mode (most frequent value) for each field.
+
+```js
+// One entry per unique customer_account
+const ACCOUNT_METADATA = {
+  "1Life Healthcare": {
+    account_id: "0016000001EZ3CX",
+    rep: "Lindsay Tujague",
+    sales_manager: "Michael Kahn",
+    sales_vp: "Hospitals & Physicians Group",
+    vertical: "Healthcare",
+    vertical_grouping: "IT / BPO Services",
+    mega_vertical: "Software & Tech",
+    child_count: 9
+  },
+};
+```
+
+**How it's built:**
+```js
+function buildAccountMetadata(registryRows) {
+  const groups = {};
+  registryRows.forEach(row => {
+    const key = row.customer_account?.trim();
+    if (!key) return;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(row);
+  });
+
+  const metadata = {};
+  Object.entries(groups).forEach(([acct, rows]) => {
+    metadata[acct] = {
+      account_id: pickFirst(rows, 'account_id'),
+      rep: pickMode(rows, 'rep'),
+      sales_manager: pickMode(rows, 'sales_manager'),
+      sales_vp: pickMode(rows, 'sales_vp'),
+      vertical: pickMode(rows, 'vertical'),
+      vertical_grouping: pickMode(rows, 'vertical_grouping'),
+      mega_vertical: pickMode(rows, 'mega_vertical'),
+      child_count: rows.length
+    };
+  });
+  return metadata;
+}
+```
+
+### Universal Account Resolver
+
+Every CSV import uses this single function to resolve account names. Called by all importers.
+
+```js
+function resolveAccount(rawName, nameIndex) {
+  if (!rawName) return { canonical: null, method: 'empty' };
+  const clean = rawName.trim();
+  const lower = clean.toLowerCase();
+
+  // Tier 1: Exact match against index
+  if (nameIndex[lower]) {
+    return { canonical: nameIndex[lower], method: 'exact' };
+  }
+
+  // Tier 2: Fuzzy — strip suffixes and retry
+  const fuzzy = lower
+    .replace(/[,.\-]/g, ' ')
+    .replace(/\b(inc|llc|corp|co|ltd|limited|corporation|company)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (nameIndex[fuzzy]) {
+    return { canonical: nameIndex[fuzzy], method: 'fuzzy' };
+  }
+
+  // Tier 3: Unresolved
+  return { canonical: clean, method: 'unresolved' };
+}
+```
+
+### Resolution flow for every CSV upload:
+1. Read CSV with PapaParse
+2. For each row, take the account name field
+3. Call `resolveAccount(name, NAME_INDEX)` → get canonical `customer_account`
+4. Attach `customer_account` to the row
+5. Track resolution stats: { exact: N, fuzzy: N, unresolved: N }
+6. After import, show resolution report to user
+7. Unresolved rows are KEPT with original name — they just won't join to account metadata
+
+### Storage pattern:
+- `NAME_INDEX` stored in IndexedDB store `revos_name_index`
+- `ACCOUNT_METADATA` stored in IndexedDB store `revos_account_metadata`
+- Both rebuilt on registry CSV re-upload
+
+### Registry CSV column mapping:
+| Your CSV Header | Engine Field |
+|---|---|
+| customer_account | customer_account (canonical name) |
+| parent_account | parent_account (variant name → lookup key) |
+| account_id | account_id |
+| rep | rep |
+| sales_manager | sales_manager |
+| sales_vp | sales_vp |
+| vertical | vertical |
+| vertical_grouping | vertical_grouping |
+| mega_vertical | mega_vertical |
+
+---
+
 ## Edge Cases & Gotchas
 
 **Deal categorization label alignment:** The canonical category names are `new`, `renewal`, `price_increase`, `close_lost`, `disconnect`, `downgrade`. The frontend accountBuilder may use variant labels like `isPriceIncrease` as a boolean flag instead of the `price_increase` category string. Both approaches work, but the category field should use the canonical names from CLAUDE.md when categorizing deals for the analytics engine. The `isPriceIncrease` boolean is fine as an additional convenience field.

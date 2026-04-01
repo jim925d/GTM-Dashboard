@@ -51,7 +51,7 @@ function openDB() {
 
 // ── Generic get/put helpers ────────────────────────────────────────────────────
 
-function dbGet(storeName, key) {
+export function dbGet(storeName, key) {
   return openDB().then(db => new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readonly')
     const req = tx.objectStore(storeName).get(key)
@@ -61,7 +61,7 @@ function dbGet(storeName, key) {
   }))
 }
 
-function dbPut(storeName, key, value) {
+export function dbPut(storeName, key, value) {
   return openDB().then(db => new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readwrite')
     tx.objectStore(storeName).put(value, key)

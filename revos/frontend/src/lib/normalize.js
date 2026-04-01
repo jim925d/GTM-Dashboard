@@ -6,7 +6,7 @@ import Papa from 'papaparse'
 
 const FIELD_MAP = {
   // === ACCOUNT / CUSTOMER ===
-  customer_account: ['customer account', 'account name', 'company', 'customer_account', 'account', 'customer name', 'company name', 'client', 'client name'],
+  customer_account: ['customer account', 'account name', 'company', 'customer_account', 'account', 'customer name', 'company name', 'client', 'client name', 'child name'],
   account_id: ['account id', 'account_id', 'crm id', 'salesforce id', 'sf id', 'account number'],
   mega_vertical: ['mega vertical', 'vertical', 'industry', 'mega_vertical', 'sector', 'mega vertical grouping'],
   sub_vertical: ['sub vertical', 'sub_vertical', 'sub-vertical', 'sub industry', 'sub-industry'],
@@ -19,13 +19,16 @@ const FIELD_MAP = {
   annual_revenue: ['annual revenue', 'annual_revenue', 'revenue', 'company revenue', 'annual sales'],
   total_brr: ['total brr', 'total_brr', 'brr', 'billing recurring revenue', 'annual recurring revenue', 'arr', 'total arr', 'custacct total brr'],
   employee_count: ['employee count', 'employee_count', 'employees', 'headcount', 'number of employees', '# employees'],
-  parent_company: ['parent company', 'parent_company', 'parent', 'parent account'],
+  parent_account: ['parent account', 'parent_account', 'parent name', 'account name'],
+  parent_company: ['parent company', 'parent_company', 'parent'],
+  sales_vp: ['sales vp', 'sales_vp', 'sales vice president', 'vp sales'],
+  vertical_grouping: ['vertical grouping', 'vertical_grouping'],
   territory: ['territory', 'region', 'sales territory', 'geo'],
   segment: ['segment', 'reporting segment', 'reporting_segment', 'market segment', 'account segment', 'reporting segement'],
   account_tier: ['account tier', 'account_tier', 'tier', 'account level', 'priority'],
 
   // === DEAL / OPPORTUNITY ===
-  opportunity_id: ['opportunity id', 'opportunity_id', 'opp id', 'opp_id', 'salesforce opportunity id', 'sfdc opportunity id', 'sfdc opp id'],
+  opportunity_id: ['opportunity id', 'opportunity_id', 'opp id', 'opp_id', 'salesforce opportunity id', 'sfdc opportunity id', 'sfdc opp id', 'opportunity id'],
   icb_id: ['icb id', 'icb_id', 'icb number', 'icb_number', 'special pricing icb id'],
   icb_stage: ['icb stage', 'icb_stage', 'special pricing stage', 'special pricing icb stage'],
   icb_created_date: ['icb created date', 'icb_created_date', 'special pricing created date', 'special pricing icb created date'],
@@ -35,7 +38,7 @@ const FIELD_MAP = {
   icb_se_name: ['solution engineer name', 'solution_engineer_name', 'se name', 'se_name', 'solution engineer', 'solution engineer full name'],
   opportunity_name: ['opportunity name', 'opportunity_name', 'deal name', 'opp name', 'opportunity'],
   mrr: ['total mrr', 'mrr', 'monthly recurring revenue', 'total mrr & mar (converted)', 'monthly revenue', 'total mrr & mar', 'monthly amount', 'mrr converted', 'mrr (converted)'],
-  total_contract_value: ['total contract value', 'amount', 'tcv', 'total_contract_value', 'deal amount', 'contract value', 'total value', 'opportunity amount', 'npv', 'npv (converted)'],
+  total_contract_value: ['total contract value', 'total contract value (converted)', 'amount', 'tcv', 'total_contract_value', 'deal amount', 'contract value', 'total value', 'opportunity amount', 'npv', 'npv (converted)'],
   stage: ['stage', 'deal stage', 'opportunity stage', 'sales stage', 'stage name', 'stage group'],
   forecast_category: ['forecast category', 'forecast', 'forecast_category', 'forecast stage'],
   close_date: ['close date', 'close_date', 'expected close', 'expected close date', 'close_date__c', 'date closed lost'],
@@ -46,7 +49,7 @@ const FIELD_MAP = {
   competitor: ['competitor', 'competition', 'competitive threat'],
   next_step: ['next step', 'next_step', 'next action', 'next steps'],
   sales_channel: ['sales channel', 'opportunity owner sales channel', 'account owner sales channel', 'opp owner sales channel'],
-  major_project: ['major project name', 'major project', 'major_project', 'major_project_name'],
+  major_project: ['major project name', 'major project', 'major_project', 'major_project_name', 'major projects'],
 
   // === CLOSE LOST ===
   loss_reason: ['loss reason', 'loss_reason', 'close lost reason', 'reason lost', 'closed lost reason', 'reason', 'lost reason'],
@@ -107,6 +110,12 @@ const FIELD_MAP = {
   q4_quota: ['q4 quota', 'q4_quota'],
   team: ['team', 'sales team', 'team name'],
   products_certified: ['products certified', 'products_certified', 'certifications'],
+
+  // === ENGAGEMENT ===
+  engagement_type: ['engagement type', 'engagement_type', 'salesloft type', 'activity type', 'type'],
+  engagement_date: ['engagement date', 'engagement_date', 'activity date', 'date'],
+  engagement_subject: ['subject', 'engagement_subject', 'activity subject'],
+  engagement_contact: ['contact', 'engagement_contact', 'contact name'],
 }
 
 // Build reverse map

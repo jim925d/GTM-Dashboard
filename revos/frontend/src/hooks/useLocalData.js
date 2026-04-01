@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { parseCSV } from '../lib/normalize'
 import { buildAccountState, buildBacktestData, buildLearningData, buildCalibration, normalizeStage } from '../lib/accountBuilder'
+import { buildNameIndex, buildAccountMetadata, resolveRecords, saveNameIndex, saveAccountMetadata, loadNameIndex, loadAccountMetadata } from '../lib/accountResolver'
 
 /**
  * Auto-loads CSV/XLSX/JSON files from local data.
@@ -15,7 +16,7 @@ import { buildAccountState, buildBacktestData, buildLearningData, buildCalibrati
  * ALL DATA STAYS LOCAL — nothing is uploaded to any server.
  */
 
-const KNOWN_TABS = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations', 'icb', 'rep_profiles']
+const KNOWN_TABS = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations', 'icb', 'rep_profiles', 'registry']
 
 function tabTypeFromFileName(name) {
   const base = name.replace('.csv', '').toLowerCase().replace(/[^a-z_]/g, '')
@@ -31,6 +32,7 @@ function tabTypeFromFileName(name) {
   if (base.includes('engagement')) return 'engagements'
   if (base.includes('icb')) return 'icb'
   if (base.includes('rep_profile') || base.includes('rep_quota')) return 'rep_profiles'
+  if (base.includes('registry') || base.includes('hierarchy')) return 'registry'
   return null // will auto-detect from columns
 }
 
@@ -43,6 +45,7 @@ function detectTabTypeFromRecord(record) {
   if (fields.has('on_net_status') || fields.has('location_type')) return 'locations'
   if (fields.has('icb_id')) return 'icb'
   if (fields.has('annual_quota') || fields.has('q1_quota') || fields.has('rep_id')) return 'rep_profiles'
+  if (fields.has('parent_account') && fields.has('customer_account')) return 'registry'
   if (fields.has('mega_vertical') || fields.has('primary_rep') || fields.has('account_tier')) return 'customers'
   return 'funnel'
 }
@@ -57,7 +60,9 @@ const XLSX_SHEET_MAP = {
   'quotes': 'quotes',
   'engagement': 'engagements',
   'engagement_2026': 'engagements_2026',
-  'hiearchy': 'hierarchy',
+  'hiearchy': 'registry',
+  'hierarchy': 'registry',
+  'registry': 'registry',
   'hierarchy': 'hierarchy',
   'in': 'locations',              // locations tab (On Zayo Network Status, Market, etc.)
   'locations': 'locations',
@@ -338,7 +343,7 @@ export default function useLocalData() {
         if (bundleJSON && bundleJSON._v === 2) {
           const expanded = expandBundle(bundleJSON)
           if (expanded && expanded.customers && expanded.customers.length > 0) {
-            raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], ...expanded }
+            raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], registry: [], ...expanded }
             console.log('[RevOS] Loaded data from pre-built bundle')
           }
         }
@@ -346,7 +351,7 @@ export default function useLocalData() {
 
       // ── Fallback: parse individual CSV/XLSX files ──
       if (!raw) {
-        raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
+        raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], registry: [] }
         const xlsxTypes = new Set()
 
         // 1) Load XLSX files — skip if CSVs are available (lighter on memory)
@@ -454,7 +459,7 @@ export default function useLocalData() {
           if (bundleJSON && bundleJSON._v === 2) {
             const expanded = expandBundle(bundleJSON)
             if (expanded && expanded.customers && expanded.customers.length > 0) {
-              raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], ...expanded }
+              raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], registry: [], ...expanded }
               console.log('[RevOS] Loaded data from pre-built bundle')
             }
           }
@@ -463,7 +468,7 @@ export default function useLocalData() {
 
       // ── Fallback: individual CSV/XLSX files ──
       if (!raw) {
-        raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [] }
+        raw = { customers: [], funnel: [], close_lost: [], quotes: [], services: [], locations: [], icb: [], rep_profiles: [], engagements: [], engagements_2026: [], hierarchy: [], registry: [] }
         const xlsxTypes = new Set()
 
         const csvFiles = files.filter(f => f.name.endsWith('.csv'))
@@ -682,6 +687,30 @@ export default function useLocalData() {
 }
 
 function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, engagements2025 = {}, engagements2026 = {}) {
+  // ── Account resolution: build name index from registry/hierarchy if available ──
+  const registryRows = [...(raw.registry || []), ...(raw.hierarchy || [])]
+  let nameIndex = null
+  let resolutionStats = null
+  if (registryRows.length > 0) {
+    nameIndex = buildNameIndex(registryRows)
+    // Resolve account names across all tables
+    const tables = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations']
+    resolutionStats = { exact: 0, fuzzy: 0, unresolved: 0, empty: 0, total: 0 }
+    for (const table of tables) {
+      if (!raw[table] || raw[table].length === 0) continue
+      const stats = resolveRecords(raw[table], nameIndex)
+      resolutionStats.exact += stats.exact
+      resolutionStats.fuzzy += stats.fuzzy
+      resolutionStats.unresolved += stats.unresolved
+      resolutionStats.empty += stats.empty
+      resolutionStats.total += stats.total
+    }
+    console.log(`[RevOS] Account resolution: ${resolutionStats.exact} exact, ${resolutionStats.fuzzy} fuzzy, ${resolutionStats.unresolved} unresolved out of ${resolutionStats.total} records`)
+    // Persist for future sessions
+    saveNameIndex(nameIndex).catch(() => {})
+    saveAccountMetadata(buildAccountMetadata(registryRows)).catch(() => {})
+  }
+
   // Only customers.csv defines the account list
   const customerMap = {}
   for (const c of raw.customers) {

@@ -7,6 +7,7 @@ import {
   saveJsonData, loadJsonData,
   saveMeta, hasPersistedData, clearAll,
 } from '../lib/persistenceLayer'
+import { buildNameIndex, buildAccountMetadata, resolveRecords, saveNameIndex, saveAccountMetadata } from '../lib/accountResolver'
 
 /**
  * All data stays in your browser (IndexedDB + React state).
@@ -91,7 +92,7 @@ export default function useAccounts() {
       'customers': 'customers', 'historicals': 'funnel', 'churn': 'close_lost',
       'closed lost': 'close_lost', 'services': 'services', 'quotes': 'quotes',
       'engagement': 'engagements', 'engagement_2026': 'engagements_2026',
-      'hiearchy': 'hierarchy', 'hierarchy': 'hierarchy',
+      'hiearchy': 'registry', 'hierarchy': 'registry', 'registry': 'registry',
     }
     if (map[key]) return map[key]
     if (key.includes('customer')) return 'customers'
@@ -101,7 +102,7 @@ export default function useAccounts() {
     if (key.includes('quote')) return 'quotes'
     if (key.includes('engagement') && key.includes('2026')) return 'engagements_2026'
     if (key.includes('engagement')) return 'engagements'
-    if (key.includes('hierarch')) return 'hierarchy'
+    if (key.includes('hierarch') || key.includes('registry')) return 'registry'
     return null
   }
 
@@ -113,6 +114,7 @@ export default function useAccounts() {
     if (fields.has('service_status') || fields.has('service_id') || fields.has('disconnect_date')) return 'services'
     if (fields.has('on_net_status') || fields.has('location_type')) return 'locations'
     if (fields.has('icb_id')) return 'icb'
+    if (fields.has('parent_account') && fields.has('customer_account')) return 'registry'
     if (fields.has('mega_vertical') || fields.has('primary_rep') || fields.has('account_tier')) return 'customers'
     return 'funnel'
   }
@@ -217,6 +219,25 @@ export default function useAccounts() {
 
   const rebuildAccounts = useCallback((raw, json) => {
     const jd = json || { locations: {}, historical: {}, engagements: {}, engagements_2026: {} }
+
+    // ── Account resolution from registry/hierarchy ──
+    const registryRows = [...(raw.registry || []), ...(raw.hierarchy || [])]
+    if (registryRows.length > 0) {
+      const nameIndex = buildNameIndex(registryRows)
+      const tables = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations']
+      let totalStats = { exact: 0, fuzzy: 0, unresolved: 0, empty: 0, total: 0 }
+      for (const table of tables) {
+        if (!raw[table] || raw[table].length === 0) continue
+        const stats = resolveRecords(raw[table], nameIndex)
+        totalStats.exact += stats.exact
+        totalStats.fuzzy += stats.fuzzy
+        totalStats.unresolved += stats.unresolved
+        totalStats.total += stats.total
+      }
+      console.log(`[RevOS] Account resolution: ${totalStats.exact} exact, ${totalStats.fuzzy} fuzzy, ${totalStats.unresolved} unresolved`)
+      saveNameIndex(nameIndex).catch(() => {})
+      saveAccountMetadata(buildAccountMetadata(registryRows)).catch(() => {})
+    }
 
     // Collect all unique customer account names
     const accountNames = new Set()
