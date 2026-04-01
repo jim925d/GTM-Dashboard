@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
 import { V2, V2_FONTS, STAGES, STAGE_WEIGHTS, pc, fmt, fmtPct } from '../tokens'
-import { DEMO_ACCOUNTS, DEMO_DEALS, DEMO_BACKTEST } from '../demoData'
 import useDeals from '../hooks/useDeals'
 import useV2Forecast from '../hooks/useV2Forecast'
 import ProbTooltip from '../components/ProbTooltip'
@@ -327,7 +326,7 @@ function GapCard({ gap, target, forecast, dealCount, view }) {
 }
 
 function ModelHealthCard({ backtest }) {
-  const bt = backtest || DEMO_BACKTEST
+  const bt = backtest || {}
   return (
     <div style={{ background: V2.card, border: `1px solid ${V2.border}`, borderRadius: 10, padding: '16px 20px', marginBottom: 12 }}>
       <div style={{ fontSize: 10, color: V2.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500, marginBottom: 10, fontFamily: V2_FONTS.sans }}>Model health</div>
@@ -390,9 +389,8 @@ function GovernanceCard({ forecast, view, target }) {
 
 export default function V2Forecast({ accounts = [], rawData = {}, quota, onQuotaChange, onSelectDeal }) {
   const { deals: realDeals } = useDeals(accounts)
-  const isDemo = !realDeals.length
-  const accts = isDemo ? DEMO_ACCOUNTS : accounts
-  const allDeals = isDemo ? DEMO_DEALS : realDeals
+  const accts = accounts
+  const allDeals = realDeals
 
   const [view, setView] = useState('monthly')
   const [editingTarget, setEditingTarget] = useState(false)

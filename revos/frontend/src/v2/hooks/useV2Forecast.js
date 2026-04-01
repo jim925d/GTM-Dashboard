@@ -3,7 +3,6 @@ import useDeals from './useDeals'
 import usePredictions from './usePredictions'
 import useForecast from './useForecast'
 import { STAGE_WEIGHTS } from '../tokens'
-import { DEMO_BACKTEST } from '../demoData'
 
 /**
  * Bridge hook: reshapes deal + prediction + forecast data into the shapes
@@ -110,8 +109,8 @@ export default function useV2Forecast(accounts = [], options = {}) {
       newDealsPerWeek,
     }
 
-    // ── Backtest (demo fallback) ──
-    const backtest = DEMO_BACKTEST
+    // ── Backtest ──
+    const backtest = {}
 
     // ── Trend (synthetic monthly data for charting) ──
     const now = new Date()

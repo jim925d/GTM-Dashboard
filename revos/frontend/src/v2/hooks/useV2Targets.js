@@ -2,13 +2,12 @@ import { useMemo, useState, useEffect } from 'react'
 import useDeals from './useDeals'
 import useLocations from './useLocations'
 import usePredictions from './usePredictions'
-import { DEMO_PLAYBOOKS } from '../demoData'
 
 /**
  * Bridge hook: enriches accounts into scored targets with winCase, plays, signals, sites.
  *
  * Loads playbook_snapshot.json for upsell paths and product fit.
- * Falls back to DEMO_PLAYBOOKS when playbook isn't available.
+ * Falls back to empty plays when playbook isn't available.
  *
  * @param {Array} accounts
  * @returns {{ targets: Array, loading: boolean }}
@@ -158,14 +157,6 @@ function buildWinCase(acct, playbook) {
 }
 
 function buildPlays(acct, playbook) {
-  // Try demo playbooks first
-  const demoPlays = DEMO_PLAYBOOKS[acct.name]
-  if (demoPlays) {
-    return demoPlays.map(p => ({
-      title: p.title, desc: p.desc, impact: `+$${Math.round(p.mrrImpact / 1000)}K`,
-      recommended: p.recommended, products: p.products || [],
-    }))
-  }
 
   // Synthesize from playbook upsell paths
   if (!playbook) return []

@@ -6,7 +6,6 @@ import V2DealDetail from './pages/V2DealDetail'
 import V2TargetList from './pages/V2TargetList'
 import V2TargetDetail from './pages/V2TargetDetail'
 import V2Forecast from './pages/V2Forecast'
-import { DEMO_ACCOUNTS, DEMO_DEALS, DEMO_TEAM, DEMO_REPS, DEMO_QUOTA } from './demoData'
 import useDeals from './hooks/useDeals'
 
 /**
@@ -26,31 +25,26 @@ export default function V2App({ accounts = [], rawData = {}, onBack }) {
   const [filterValue, setFilterValue] = useState(null)
 
   // ── Quota state (editable) ─────────────────────────────────────
-  const [quota, setQuota] = useState(DEMO_QUOTA)
+  const [quota, setQuota] = useState(180000)
 
   // ── Determine real vs demo ─────────────────────────────────────
   const { deals: realDeals } = useDeals(accounts)
-  const isDemo = !realDeals.length
-  const baseAccounts = isDemo ? DEMO_ACCOUNTS : accounts
+  const baseAccounts = accounts
 
   // ── Derive team hierarchy ──────────────────────────────────────
   const team = useMemo(() => {
-    if (isDemo) return DEMO_TEAM
-    // Build from real accounts: unique managers grouped (treat each manager as a rep, all under one team)
     const mgrs = [...new Set(baseAccounts.map(a => a.manager).filter(Boolean))]
     return [{ name: 'All Managers', role: '1lm', reps: mgrs }]
-  }, [isDemo, baseAccounts])
+  }, [baseAccounts])
 
   const reps = useMemo(() => {
-    if (isDemo) return DEMO_REPS
     return [...new Set(baseAccounts.map(a => a.manager).filter(Boolean))]
-  }, [isDemo, baseAccounts])
+  }, [baseAccounts])
 
-  // Also get rep list from deals for demo deals that have a rep field
+  // Also get rep list from deals
   const dealReps = useMemo(() => {
-    const allDeals = isDemo ? DEMO_DEALS : realDeals
-    return [...new Set(allDeals.map(d => d.rep).filter(Boolean))]
-  }, [isDemo, realDeals])
+    return [...new Set(realDeals.map(d => d.rep).filter(Boolean))]
+  }, [realDeals])
 
   // Merge reps from accounts + deals
   const allReps = useMemo(() => [...new Set([...reps, ...dealReps])], [reps, dealReps])

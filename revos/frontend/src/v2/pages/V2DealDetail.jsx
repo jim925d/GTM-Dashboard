@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { V2, V2_FONTS, STAGES, STAGE_WEIGHTS, pc, fmt } from '../tokens'
-import { DEMO_ACCOUNTS, DEMO_DEALS } from '../demoData'
 import ProbTooltip from '../components/ProbTooltip'
 import SitePill from '../components/SitePill'
 import ExitCriteria from '../components/ExitCriteria'
@@ -140,8 +139,7 @@ export default function V2DealDetail({ deal, accounts = [], onBack, backLabel = 
   if (!deal) return null
 
   const { deals: realDeals } = useDeals(accounts)
-  const isDemo = !realDeals.length
-  const accts = isDemo ? DEMO_ACCOUNTS : accounts
+  const accts = accounts
 
   const account = useMemo(() => accts.find(a => a.name === deal.accountName) || {}, [accts, deal.accountName])
 

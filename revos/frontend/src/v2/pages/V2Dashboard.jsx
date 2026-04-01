@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { V2, V2_FONTS, pc, fmt } from '../tokens'
-import { DEMO_ACCOUNTS, DEMO_DEALS, DEMO_ACTIONS } from '../demoData'
 import useDeals from '../hooks/useDeals'
 import useV2Targets from '../hooks/useV2Targets'
 import ProbTooltip from '../components/ProbTooltip'
@@ -35,8 +34,7 @@ function getDealFactors(deal) {
 }
 
 function getActionDesc(deal) {
-  const action = DEMO_ACTIONS[deal.id]
-  if (action) return { desc: action.desc, impact: `+${Math.round((deal.gap || 10) * 0.8)}%` }
+  const action = null
   const gap = deal.gap || 0
   if (gap > 14) return { desc: `${gap}-day activity gap. Re-engage within 48h \u2014 send value-add intel or schedule a call.`, impact: `+${Math.min(19, Math.round(gap * 0.6))}%` }
   const prob = (deal.winProb || deal.prob || 0.5)
@@ -54,9 +52,8 @@ function dealProb(d) {
 
 export default function V2Dashboard({ accounts = [], rawData = {}, onNavigate, onSelectDeal, onSelectTarget }) {
   const { deals: realDeals } = useDeals(accounts)
-  const isDemo = !realDeals.length
-  const accts = isDemo ? DEMO_ACCOUNTS : accounts
-  const allDeals = isDemo ? DEMO_DEALS : realDeals
+  const accts = accounts
+  const allDeals = realDeals
   const { targets } = useV2Targets(accts)
 
   // Urgency-sorted for priority actions

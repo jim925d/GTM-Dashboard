@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { V2, V2_FONTS, STAGES, STAGE_WEIGHTS, pc, fmt, fmtPct } from '../tokens'
-import { DEMO_ACCOUNTS, DEMO_DEALS } from '../demoData'
 import useDeals from '../hooks/useDeals'
 import ProbTooltip from '../components/ProbTooltip'
 import WeightedTooltip from '../components/WeightedTooltip'
@@ -46,8 +45,7 @@ function getPeriodLabel(view) {
 
 export default function V2Pipeline({ accounts = [], rawData = {}, onSelectDeal }) {
   const { deals: realDeals } = useDeals(accounts)
-  const isDemo = !realDeals.length
-  const allDeals = isDemo ? DEMO_DEALS : realDeals
+  const allDeals = realDeals
 
   const [view, setView] = useState('quarterly')
   const [filter, setFilter] = useState('all')
