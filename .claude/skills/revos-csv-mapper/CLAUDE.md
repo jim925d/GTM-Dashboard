@@ -429,15 +429,16 @@ function resolveAccount(rawName, nameIndex) {
 ### Registry CSV column mapping:
 | Your CSV Header | Engine Field |
 |---|---|
-| customer_account | customer_account (canonical name) |
-| parent_account | parent_account (variant name → lookup key) |
-| account_id | account_id |
-| rep | rep |
-| sales_manager | sales_manager |
-| sales_vp | sales_vp |
-| vertical | vertical |
-| vertical_grouping | vertical_grouping |
-| mega_vertical | mega_vertical |
+| Customer Account | customer_account (canonical name) |
+| Account Name | parent_account (variant name → lookup key) |
+| Customer Account Id | account_id |
+| Account Owner: Full Name | rep (primary_rep) |
+| Account Owner: Sales Funnel Manager (Vertical) | sales_manager (account_manager) |
+| Vertical | vertical |
+| Mega Vertical Grouping | mega_vertical |
+| Total BRR (converted) | tmr (Total Monthly Recurring — sum across child rows) |
+
+Note: "Total BRR (converted) Currency" column is ignored (just contains "USD").
 
 ---
 

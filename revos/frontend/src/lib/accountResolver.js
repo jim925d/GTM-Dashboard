@@ -72,12 +72,11 @@ export function buildAccountMetadata(registryRows) {
   Object.entries(groups).forEach(([acct, rows]) => {
     metadata[acct] = {
       account_id: pickFirst(rows, 'account_id'),
-      rep: pickMode(rows, 'rep'),
-      sales_manager: pickMode(rows, 'sales_manager'),
-      sales_vp: pickMode(rows, 'sales_vp'),
+      rep: pickMode(rows, 'rep') || pickMode(rows, 'primary_rep'),
+      sales_manager: pickMode(rows, 'sales_manager') || pickMode(rows, 'account_manager'),
       vertical: pickMode(rows, 'vertical'),
-      vertical_grouping: pickMode(rows, 'vertical_grouping'),
       mega_vertical: pickMode(rows, 'mega_vertical'),
+      tmr: parseFloat(String(pickFirst(rows, 'total_brr') || '').replace(/[$,\s]/g, '')) || 0,
       child_count: rows.length,
     }
   })
