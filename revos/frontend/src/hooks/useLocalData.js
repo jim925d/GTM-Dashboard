@@ -711,8 +711,10 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
     saveAccountMetadata(buildAccountMetadata(registryRows)).catch(() => {})
   }
 
-  // Only customers.csv defines the account list
+  // Build account list from customers.csv OR registry (whichever provides account master data)
   const customerMap = {}
+
+  // 1. Populate from customers.csv if available
   for (const c of raw.customers) {
     if (!c.customer_account) continue
     if (!customerMap[c.customer_account]) {
@@ -723,6 +725,38 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       const prevBRR = parseFloat(String(existing.total_brr || '').replace(/[$,\s]/g, '')) || 0
       const addBRR = parseFloat(String(c.total_brr || '').replace(/[$,\s]/g, '')) || 0
       existing.total_brr = prevBRR + addBRR
+    }
+  }
+
+  // 2. If no customers.csv, build account list from registry metadata
+  //    Registry rows carry TMR, rep, vertical, etc. — group by customer_account and sum TMR
+  if (Object.keys(customerMap).length === 0 && registryRows.length > 0) {
+    const accountMeta = buildAccountMetadata(registryRows)
+    for (const [acctName, meta] of Object.entries(accountMeta)) {
+      customerMap[acctName] = {
+        customer_account: acctName,
+        account_id: meta.account_id || '',
+        primary_rep: meta.rep || '',
+        account_manager: meta.sales_manager || '',
+        mega_vertical: meta.mega_vertical || '',
+        total_brr: meta.tmr || 0,
+      }
+    }
+    console.log(`[RevOS] Built ${Object.keys(customerMap).length} accounts from registry (no customers.csv)`)
+  }
+
+  // 3. Enrich existing customer records with registry metadata (TMR, rep, vertical)
+  if (registryRows.length > 0 && Object.keys(customerMap).length > 0) {
+    const accountMeta = buildAccountMetadata(registryRows)
+    for (const [acctName, meta] of Object.entries(accountMeta)) {
+      if (customerMap[acctName]) {
+        const c = customerMap[acctName]
+        // Fill in missing fields from registry
+        if (!c.total_brr && meta.tmr) c.total_brr = meta.tmr
+        if (!c.primary_rep && meta.rep) c.primary_rep = meta.rep
+        if (!c.account_manager && meta.sales_manager) c.account_manager = meta.sales_manager
+        if (!c.mega_vertical && meta.mega_vertical) c.mega_vertical = meta.mega_vertical
+      }
     }
   }
 

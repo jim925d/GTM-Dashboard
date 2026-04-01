@@ -106,7 +106,7 @@ export async function loadRawTables() {
   const tx = db.transaction(STORES.RAW, 'readonly')
   const store = tx.objectStore(STORES.RAW)
 
-  const types = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations', 'icb']
+  const types = ['customers', 'funnel', 'close_lost', 'quotes', 'services', 'locations', 'icb', 'registry']
   const result = {}
 
   const gets = types.map(type => new Promise((resolve) => {

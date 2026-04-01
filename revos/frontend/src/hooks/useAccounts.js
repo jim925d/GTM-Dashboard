@@ -30,6 +30,7 @@ export default function useAccounts() {
     services: [],
     locations: [],
     icb: [],
+    registry: [],
   })
   const [jsonData, setJsonData] = useState({
     locations: {},
@@ -252,7 +253,7 @@ export default function useAccounts() {
 
     // Build customer map with BRR aggregation
     const customerMap = {}
-    for (const c of raw.customers) {
+    for (const c of (raw.customers || [])) {
       if (!c.customer_account) continue
       if (!customerMap[c.customer_account]) {
         customerMap[c.customer_account] = { ...c }
@@ -261,6 +262,21 @@ export default function useAccounts() {
         const prevBRR = parseFloat(String(existing.total_brr || '').replace(/[$,\s]/g, '')) || 0
         const addBRR = parseFloat(String(c.total_brr || '').replace(/[$,\s]/g, '')) || 0
         existing.total_brr = prevBRR + addBRR
+      }
+    }
+
+    // If no customers.csv, build from registry metadata
+    if (Object.keys(customerMap).length === 0 && registryRows.length > 0) {
+      const accountMeta = buildAccountMetadata(registryRows)
+      for (const [acctName, meta] of Object.entries(accountMeta)) {
+        customerMap[acctName] = {
+          customer_account: acctName,
+          account_id: meta.account_id || '',
+          primary_rep: meta.rep || '',
+          account_manager: meta.sales_manager || '',
+          mega_vertical: meta.mega_vertical || '',
+          total_brr: meta.tmr || 0,
+        }
       }
     }
 
