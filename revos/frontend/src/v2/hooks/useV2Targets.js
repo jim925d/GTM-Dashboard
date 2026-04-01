@@ -85,7 +85,7 @@ function scoreTarget(acct) {
 
   const ps = acct.premierScore || 0
   const churn = acct.churnProbability || 0
-  const pipeline = (acct.pipeline || []).length
+  const pipeline = (acct.pipeline || acct.active_deals || []).length
   const hasNew = locs.some(l => l.isNew)
   const ws = Math.max(0, (acct.totalTMR || 0) - (acct.servicesMRR || 0) * 12)
 

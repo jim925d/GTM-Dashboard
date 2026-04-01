@@ -13,7 +13,7 @@ export default function useDeals(accounts = []) {
     const byStage = {}
 
     for (const acct of accounts) {
-      const pipeline = acct.pipeline || []
+      const pipeline = acct.pipeline || acct.active_deals || []
       for (const deal of pipeline) {
         const d = { ...deal, accountName: acct.name }
         deals.push(d)

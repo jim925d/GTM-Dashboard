@@ -27,7 +27,7 @@ export default function useForecast(accounts = [], options = {}) {
     let bestCase = 0
 
     for (const acct of accounts) {
-      const pipeline = acct.pipeline || []
+      const pipeline = acct.pipeline || acct.active_deals || []
       for (const deal of pipeline) {
         const mrr = deal.mrr || 0
         const stage = deal.stage || ''
