@@ -79,7 +79,7 @@ function findBestUpsellPath(playbook, currentProducts) {
 
 function scoreTarget(acct) {
   const locs = acct.locations || []
-  const onNet = locs.filter(l => l.onNet).length
+  const onNet = locs.filter(l => l.onNet || l.status === 'on-net').length
   const total = locs.length || 1
   const onNetPct = onNet / total
 
@@ -102,7 +102,7 @@ function scoreTarget(acct) {
 function buildSignals(acct) {
   const signals = []
   const locs = acct.locations || []
-  const onNet = locs.filter(l => l.onNet).length
+  const onNet = locs.filter(l => l.onNet || l.status === 'on-net').length
   const total = locs.length
 
   if (onNet > 0 && total > 0) signals.push(`${onNet}/${total} on-net`)
@@ -117,19 +117,25 @@ function buildSignals(acct) {
 }
 
 function buildWinCase(acct, playbook) {
-  const currentProducts = (acct.services || []).map(s => s.product_group).filter(Boolean)
+  const currentProducts = acct.products || (acct.services || []).map(s => s.product_group).filter(Boolean)
   const locs = acct.locations || []
-  const onNet = locs.filter(l => l.onNet).length
+  const onNet = locs.filter(l => l.onNet || l.status === 'on-net').length
   const total = locs.length || 1
+
+  // If account has active services but no location data, those service sites are on-net by definition
+  const hasServices = currentProducts.length > 0
+  const effectiveOnNet = onNet > 0 ? onNet : (hasServices && locs.length === 0 ? 1 : 0)
 
   const upsell = findBestUpsellPath(playbook, currentProducts)
 
   const has = currentProducts.length
-    ? currentProducts.join(', ')
+    ? [...new Set(currentProducts)].join(', ')
     : 'No current products'
 
-  const onNetStr = onNet > 0
-    ? `${onNet} of ${total} on-net — deploy in days`
+  const onNetStr = effectiveOnNet > 0
+    ? locs.length > 0
+      ? `${onNet} of ${total} on-net — deploy in days`
+      : `On-net (active services) — deploy in days`
     : total > 0 ? `${total} sites — build required` : 'No site data'
 
   let sell, path, rate, deals, headline
@@ -138,7 +144,7 @@ function buildWinCase(acct, playbook) {
     path = `${upsell.from} → ${upsell.to}`
     rate = `${Math.round(upsell.rate * 100)}%`
     deals = upsell.deals
-    headline = `Sell ${upsell.to} across ${onNet} on-net sites. ${rate} close rate for this path.`
+    headline = `Sell ${upsell.to} across ${effectiveOnNet > 0 ? effectiveOnNet + ' on-net sites' : 'existing footprint'}. ${rate} close rate for this path.`
   } else if (currentProducts.length) {
     sell = 'Expand existing footprint'
     path = 'Greenfield'
@@ -160,7 +166,7 @@ function buildPlays(acct, playbook) {
 
   // Synthesize from playbook upsell paths
   if (!playbook) return []
-  const currentProducts = (acct.services || []).map(s => s.product_group).filter(Boolean)
+  const currentProducts = acct.products || (acct.services || []).map(s => s.product_group).filter(Boolean)
   const plays = []
 
   for (const prod of (playbook.products || [])) {
@@ -187,7 +193,7 @@ function buildPlays(acct, playbook) {
 function buildSites(acct) {
   return (acct.locations || []).map(loc => ({
     name: `${loc.city || ''}${loc.state ? ', ' + loc.state : ''}`.trim() || 'Unknown',
-    status: loc.onNet ? 'on-net' : loc.isNew ? 'new' : 'off-net',
+    status: (loc.onNet || loc.status === 'on-net') ? 'on-net' : loc.isNew ? 'new' : (loc.status || 'off-net'),
   }))
 }
 
@@ -204,11 +210,10 @@ export default function useV2Targets(accounts = []) {
 
   const targets = useMemo(() => {
     return accounts
-      .filter(a => (a.locations || []).length > 0 || (a.premierScore || 0) > 100 || (a.services || []).length > 0)
+      .filter(a => (a.locations || []).length > 0 || (a.premierScore || 0) > 100 || (a.products || []).length > 0 || (a.services || []).length > 0)
       .map(acct => {
         const locs = acct.locations || []
-        const services = acct.services || []
-        const servicesMRR = services.reduce((s, svc) => s + (parseFloat(svc.mrr) || 0), 0)
+        const products = acct.products || (acct.services || []).map(s => s.product_group).filter(Boolean)
 
         return {
           id: acct.name,
@@ -220,10 +225,10 @@ export default function useV2Targets(accounts = []) {
           plays: buildPlays(acct, playbook),
           sites: buildSites(acct),
           current: {
-            mrr: servicesMRR || acct.servicesMRR || 0,
-            services: services.length,
-            tenure: acct.relationship_tenure_months || null,
-            products: services.map(s => s.product_group).filter(Boolean),
+            mrr: acct.mrr || 0,
+            services: products.length,
+            tenure: acct.relationship_tenure_months || acct.tenure_mo || null,
+            products,
           },
         }
       })
