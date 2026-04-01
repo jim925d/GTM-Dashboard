@@ -779,21 +779,31 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
 
     const state = buildAccountState(customer, funnel, closeLost, quotes, services, locations)
 
+    // Compute servicesMRR from active services
+    const activeServices = services.filter(s => (s.service_status || '').toLowerCase() !== 'disconnected')
+    const servicesMRR = activeServices.reduce((sum, s) => sum + (parseFloat(s.mrr) || 0), 0)
+
     built.push({
       id: name,
       name,
       account_id: state.account_id,
       vertical: state.mega_vertical,
+      mega_vertical: state.mega_vertical,
       tmr: state.total_tmr,
+      totalTMR: state.total_tmr,
       mrr: state.total_mrr,
+      totalMRR: state.total_mrr,
       pipeline_mrr: state.active_pipeline_mrr,
+      pipelineMRR: state.active_pipeline_mrr,
       pipeline_count: state.active_pipeline_count,
       won: state.total_deals_won,
       lost: state.total_deals_lost,
       win_rate: state.win_rate,
+      winRate: state.win_rate,
       avg_cycle: 0,
       nrr: state.net_revenue_retention,
       days_silent: state.days_since_last_activity,
+      daysSilent: state.days_since_last_activity,
       velocity: state.deal_velocity_trend,
       risk_score: state.risk_score,
       risk_level: state.risk_level,
@@ -812,6 +822,8 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       churn_mrr: state.churn_mrr,
       lost_mrr: state.lost_mrr_total,
       products: Object.keys(state.product_concentration),
+      services: activeServices.map(s => ({ product_group: s.product_group || '', mrr: parseFloat(s.mrr) || 0, service_id: s.service_id || '', service_status: s.service_status || 'active' })),
+      servicesMRR,
       concentration: state.product_concentration,
       pipeline_by_stage: state.pipeline_by_stage,
       predictions: [],
@@ -821,19 +833,32 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       arr_12mo_change: '',
       active_deals: state.funnel_deals.map((d) => {
         const oppName = (d.opportunity_name || '').trim()
+        // Compute days since last activity (gap) — use last_modified or created_date
+        const lastDate = d.last_modified_date || d.created_date || ''
+        const parsed = lastDate ? new Date(lastDate) : null
+        const gap = parsed && !isNaN(parsed) ? Math.max(0, Math.floor((Date.now() - parsed) / 86400000)) : 0
+        // Days in current stage (approximate from created_date)
+        const createdParsed = d.created_date ? new Date(d.created_date) : null
+        const daysInStage = createdParsed && !isNaN(createdParsed) ? Math.max(0, Math.floor((Date.now() - createdParsed) / 86400000)) : 0
         return {
           product: d.product_group,
+          product_group: d.product_group,
           mrr: parseFloat(d.mrr) || 0,
           stage: d.stage,
           forecast: d.forecast_category,
           close: d.close_date,
+          close_date: d.close_date,
           rep: d.rep,
           opportunity_id: d.opportunity_id || '',
           sales_channel: d.sales_channel || '',
           created: d.created_date || '',
+          created_date: d.created_date || '',
           major_project: d.major_project || '',
           icb: icbByOppName[oppName] || null,
           icb_id: icbByOppName[oppName]?.icb_id || '',
+          gap,
+          daysInStage,
+          opportunity_name: oppName,
         }
       }),
       // funnel_closed: closed deals from funnel.csv — used for bookings & forecast
@@ -891,19 +916,26 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
       engagement: mergeEngagement(eng25, eng26),
       learning: buildLearningData([...funnel, ...closeLost]),
       locations: jsonLocations.length > 0
-        ? jsonLocations.map(l => ({
-            name: String(l.n || 'Unknown'),
-            type: String(l.t || 'Office'),
-            address: String(l.a || ''),
-            lat: l.la || null,
-            lng: l.lo || null,
-            status: String(l.s || 'off-net'),
-            mrr: l.m || 0,
-            addressable_spend: l.as || 0,
-            classification: String(l.c || ''),
-            feet_from_network: l.ft || 0,
-            market: String(l.mk || ''),
-          }))
+        ? jsonLocations.map(l => {
+            const status = String(l.s || 'off-net')
+            return {
+              name: String(l.n || 'Unknown'),
+              type: String(l.t || 'Office'),
+              address: String(l.a || ''),
+              city: String(l.ct || ''),
+              state: String(l.st || ''),
+              lat: l.la || null,
+              lng: l.lo || null,
+              status,
+              onNet: status === 'on-net',
+              nearNet: status === 'near-net',
+              mrr: l.m || 0,
+              addressable_spend: l.as || 0,
+              classification: String(l.c || ''),
+              feet_from_network: l.ft || 0,
+              market: String(l.mk || ''),
+            }
+          })
         : state.locations.map((l) => {
             let netStatus = String(l.on_net_status || l.status || 'off-net').toLowerCase()
             if (netStatus.includes('not on') || netStatus.includes('not connected')) netStatus = 'off-net'
@@ -913,14 +945,18 @@ function buildAccountsFromRaw(raw, locationsJSON = {}, historicalJSON = {}, enga
             return {
               name: String(l.location_name || l.name || 'Unknown'),
               type: String(l.location_type || l.type || 'Office'),
-              address: '',
+              address: String(l.address || ''),
+              city: String(l.city || ''),
+              state: String(l.state || ''),
               lat: parseFloat(l.latitude || l.lat) || null,
               lng: parseFloat(l.longitude || l.lng) || null,
               status: netStatus,
+              onNet: netStatus === 'on-net',
+              nearNet: netStatus === 'near-net',
               mrr: parseFloat(l.monthly_revenue || l.mrr) || 0,
               classification: '',
-              feet_from_network: 0,
-              market: '',
+              feet_from_network: parseFloat(l.feet_from_network || 0) || 0,
+              market: String(l.market || ''),
             }
           }),
     })
